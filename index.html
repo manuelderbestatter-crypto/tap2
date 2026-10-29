@@ -162,6 +162,8 @@ function obsRest(h, ms, ok, st) { const r = OBS.rest[h] || (OBS.rest[h] = { n: 0
 addEventListener('error', e => { OBS.errs.unshift({ t: Date.now(), m: String(e.message || e) }); if (OBS.errs.length > 50) OBS.errs.length = 50; });
 addEventListener('unhandledrejection', e => { OBS.errs.unshift({ t: Date.now(), m: 'Promise: ' + String(e.reason && e.reason.message || e.reason) }); if (OBS.errs.length > 50) OBS.errs.length = 50; });
 OBS.brk = {};
+const JOBS = {};
+function jt(n, f) { const t0 = performance.now(); try { return f(); } finally { const j = JOBS[n] || (JOBS[n] = { n: 0, ms: [], last: 0 }); j.n++; j.last = Date.now(); j.ms.push(performance.now() - t0); if (j.ms.length > 60) j.ms.shift(); } }
 let toastT = null;
 function toast(m, ms = 4000) { const t = $('#toast'); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, ms); }
 
@@ -824,7 +826,7 @@ const NX = {
   acct: { eq0: 10000, realized: 0, fees: 0, archived: 0, since: Date.now() }, recon: null,
   cost: { feeBp: { bnf: 5, hl: 4.5, bns: 10 }, slipBp: 1 },
   risk: { riskPct: 0.5, maxPos: 3, dayLossPct: 2, maxLev: 5, maxSpreadBp: 3, staleMs: 15000, lossStreak: 3, pauseMin: 30, probe: 0.25, minN: 20 },
-  flags: { signals: true, heat: true, persist: true, rest: true, autoTrade: true, releaseGate: false, allocWeights: false, ddControl: true }, strat: {}, rel: { minN: 20, maxDD: 8, topShare: 50, canaryScale: 0.25, canaryMin: 10, killDDc: 3, killDDp: 5, killStreak: 5 }, alloc: { method: 'gleich', maxW: 40 }, algos: {}, signals: [], decisions: [], orders: [], pos: [], closed: [], events: [], hyp: [], cfgLog: [], notes: {}, pause: { until: 0, why: '' },
+  flags: { signals: true, heat: true, persist: true, rest: true, autoTrade: true, releaseGate: false, allocWeights: false, ddControl: true }, inc: [], incSeen: 0, incInit: false, qa: {}, strat: {}, rel: { minN: 20, maxDD: 8, topShare: 50, canaryScale: 0.25, canaryMin: 10, killDDc: 3, killDDp: 5, killStreak: 5 }, alloc: { method: 'gleich', maxW: 40 }, algos: {}, signals: [], decisions: [], orders: [], pos: [], closed: [], events: [], hyp: [], cfgLog: [], notes: {}, pause: { until: 0, why: '' },
 };
 const subs = [];
 const onNX = f => subs.push(f);
@@ -1166,7 +1168,7 @@ function nxManual(side, stop, target) {
 }
 
 /* Takt */
-function nxTick() { OBS.tick = Date.now(); if (D.last) LASTPX[nxKey()] = D.last.p; algoKeyCheck(); try { if (NX.flags.rest !== false) miTick(); obsSample(); trackSignals(); algoTick(); monitorPositions(); pendingExpiry(); autoSafety(); if (typeof stratTick === 'function') stratTick(); } catch (e) { console.error(e); emit('engine.error', { m: String(e && e.message || e) }); } }
+function nxTick() { OBS.tick = Date.now(); if (D.last) LASTPX[nxKey()] = D.last.p; algoKeyCheck(); try { if (NX.flags.rest !== false) jt('Markt-Abfragen', miTick); jt('Messung', obsSample); jt('Signal-Auswertung', trackSignals); jt('Algorithmen', algoTick); jt('Positionen', monitorPositions); jt('Freigaben-Ablauf', pendingExpiry); jt('Sicherungen', autoSafety); if (typeof stratTick === 'function') jt('Strategie-Kontrolle', stratTick); if (typeof incTick === 'function') jt('Vorfälle', incTick); } catch (e) { console.error(e); emit('engine.error', { m: String(e && e.message || e) }); } }
 
 'use strict';
 /* ===== NEXUS: Chart-Baukasten (gleiche Sprache wie die Chart-Engine: Canvas, Mono-Achsen, Preis-Pills, Fadenkreuz) ===== */
@@ -2379,6 +2381,270 @@ document.addEventListener('click', e => {
     almeth: () => { cfgSet('alloc.method', arg, 'Allokation'); renderNx(true); },
   };
   if (A[a] && ['rsel', 'stage', 'almeth'].includes(a)) { e.preventDefault(); A[a](); }
+});
+
+'use strict';
+/* ===== NEXUS Block 4a: 18 Testing & Qualität – echte Selbsttests im Browser (verändern den Live-Zustand nicht) ===== */
+const TESTS = [], QA = { running: false, res: {}, t: 0 };
+const tst = (grp, name, fn) => TESTS.push({ grp, name, fn });
+/* Sandbox: Zustand sichern, Test laufen lassen, Zustand exakt zurückstellen */
+function sandbox(fn) {
+  const bak = JSON.stringify(NX), lm = D.lastMsg, ev = NX.events.length; try { return fn(); } finally { const o = JSON.parse(bak); for (const k of Object.keys(NX)) if (!(k in o)) delete NX[k]; Object.assign(NX, o); D.lastMsg = lm; }
+}
+const clean = () => { NX.kill = false; NX.pause = { until: 0, why: '' }; NX.pos = []; NX.closed = []; NX.mode = 'ask'; D.lastMsg = Date.now(); };
+const T0 = { sym: 'TST', src: 'bnf', side: 'long', entry: 100, stop: 99, scale: 1 };
+const fakeSigs = (aid, v, Rs, t0) => Rs.map((R, i) => ({ id: 'Z' + aid + v + i, t: (t0 || Date.now() - 20 * 3600e3) + i * 20 * 60e3, algo: aid, variant: v, side: 'long', st: 'done', R, manual: false, sym: 'BTC', px: 1, stop: 1, target: 1 }));
+const ok = (c, m) => { if (!c) throw new Error(m || 'falsch'); };
+
+/* ---- Unit ---- */
+tst('unit', 'Hash: gleiche Eingabe gleich, andere verschieden', () => { ok(fnv('a|1') === fnv('a|1') && fnv('a|1') !== fnv('a|2')); });
+tst('unit', 'Zahlenformat deutsch (1.234,50)', () => { ok(nf(1234.5, 2) === '1.234,50', nf(1234.5, 2)); });
+tst('unit', 'Audit-Kette: verkettet, Manipulation wird erkannt', () => sandbox(() => { emit('test.a', { a: 1 }); emit('test.b', { b: 2 }); ok(chainOk().ok, 'Kette schon vor Manipulation gebrochen'); NX.events[0].d.b = 3; ok(!chainOk().ok, 'Manipulation nicht erkannt'); }));
+tst('unit', 'Risiko: Größe = Risiko ÷ Stop-Abstand', () => sandbox(() => { clean(); const r = riskEvaluate(T0); ok(r.ok, r.why.join(',')); ok(Math.abs(r.qty - equity() * NX.risk.riskPct / 100) < 1e-6, 'qty ' + r.qty); }));
+tst('unit', 'Risiko: Stop auf falscher Seite → Veto', () => sandbox(() => { clean(); const r = riskEvaluate(Object.assign({}, T0, { stop: 101 })); ok(!r.ok && r.why.some(w => /Seite/.test(w))); }));
+tst('unit', 'Risiko: Kill-Switch → Veto', () => sandbox(() => { clean(); NX.kill = true; const r = riskEvaluate(T0); ok(!r.ok && r.why.some(w => /Kill/.test(w))); }));
+tst('unit', 'Risiko: veraltete Daten → Veto', () => sandbox(() => { clean(); D.lastMsg = Date.now() - 120000; const r = riskEvaluate(T0); ok(!r.ok && r.why.some(w => /veraltet/.test(w))); }));
+tst('unit', 'Risiko: Max. Positionen → Veto', () => sandbox(() => { clean(); for (let i = 0; i < NX.risk.maxPos; i++) NX.pos.push({ sym: 'P' + i, src: 'bnf', side: 'long', qty: 0.001, entry: 1, riskUsd: 0 }); const r = riskEvaluate(T0); ok(!r.ok && r.why.some(w => /Max\. offene/.test(w))); }));
+tst('unit', 'Risiko: Tagesverlust-Limit → Veto', () => sandbox(() => { clean(); NX.closed.unshift({ t1: Date.now(), pnl: -(NX.risk.dayLossPct + 0.5) / 100 * NX.acct.eq0, R: -1 }); const r = riskEvaluate(T0); ok(!r.ok && r.why.some(w => /Tagesverlust/.test(w))); }));
+tst('unit', 'Risiko: Hebel-Limit → Veto/Deckelung', () => sandbox(() => { clean(); NX.pos.push({ sym: 'BIG', src: 'bnf', side: 'long', qty: 1, entry: equity() * NX.risk.maxLev, riskUsd: 0 }); LASTPX['BIG|bnf'] = equity() * NX.risk.maxLev; const r = riskEvaluate(T0); delete LASTPX['BIG|bnf']; ok(!r.ok); }));
+tst('unit', 'Order: ungültiger Übergang wird abgelehnt', () => sandbox(() => { const o = mkOrder({ cid: 'TEST:1', kind: 'entry', sym: 'TST', src: 'bnf', side: 'buy', qty: 1, dec: 'Dx' }); ok(ordGo(o, 'filled') === false, 'created→filled erlaubt'); ok(ordGo(o, 'risk_checked') === true); }));
+tst('unit', 'Order: Idempotenz (gleiche Kennung nur einmal)', () => sandbox(() => { ok(mkOrder({ cid: 'TEST:2', kind: 'entry', sym: 'TST', src: 'bnf', side: 'buy', qty: 1 })); ok(mkOrder({ cid: 'TEST:2', kind: 'entry', sym: 'TST', src: 'bnf', side: 'buy', qty: 1 }) === null); }));
+tst('unit', 'Statistik: Mittel, Schranken symmetrisch', () => sandbox(() => { NX.signals = fakeSigs('cvd', 'standard', [1, -1, 2, 0]); const s = algoStats('cvd', 'standard'); ok(s.n === 4 && Math.abs(s.avg - 0.5) < 1e-9, 'avg ' + s.avg); ok(Math.abs((s.hi0 - s.avg) - (s.avg - s.lo0)) < 1e-9); }));
+tst('unit', 'Urteil: zu wenig / Kandidat / verworfen', () => { ok(algoVerdict({ n: 5 }).k === 'wenig'); ok(algoVerdict({ n: 25, lo: 0.1, avg: 0.3 }).k === 'kand'); ok(algoVerdict({ n: 40, lo: -0.5, avg: -0.1 }).k === 'verw'); });
+tst('unit', 'R-Rückgang und Verlustserie', () => { ok(rDD([1, -2, 1, -1]) === 2, 'dd ' + rDD([1, -2, 1, -1])); ok(streakL([1, -1, -1]) === 2); });
+tst('unit', 'Konfiguration: protokolliert und zurücknehmbar', () => sandbox(() => { const v0 = NX.risk.riskPct, n0 = NX.cfgLog.length; cfgSet('risk.riskPct', 0.9, 'test'); ok(NX.risk.riskPct === 0.9 && NX.cfgLog.length === n0 + 1); cfgRollback(0); ok(NX.risk.riskPct === v0, 'Rücknahme'); }));
+tst('unit', 'Drawdown-Stufen (1 / ½ / ¼ / 0)', () => sandbox(() => { const e = equity(), s = p => { NX.acct.peak = e / (1 - p / 100); return ddScale(); }; ok(s(0) === 1 && s(4) === 0.5 && s(6) === 0.25 && s(9) === 0, [s(0), s(4), s(6), s(9)].join()); }));
+tst('unit', 'Allokation: Summe 1 bei Gleichgewichtung', () => sandbox(() => { for (const a of ['cvd', 'sweep', 'fund', 'book']) stageSet(skey(a, 'standard'), 'canary', 't'); NX.alloc.method = 'gleich'; const w = allocWeights(), s = Object.values(w).reduce((a, b) => a + b, 0); ok(Math.abs(s - 1) < 1e-6 && Object.keys(w).length === 4, 'Σ ' + s); }));
+tst('unit', 'Freigabe-Tore: gute Daten erfüllen, leere nicht', () => sandbox(() => { NX.signals = fakeSigs('cvd', 'standard', Array.from({ length: 40 }, (_, i) => i % 3 === 0 ? -1 : 1.2)); const x = stratList().find(y => y.key === 'cvd|standard'); ok(gatesFwd(x).every(g => g[1]), 'gut: ' + gatesFwd(x).filter(g => !g[1]).map(g => g[0]).join()); NX.signals = []; const y = stratList().find(z => z.key === 'cvd|standard'); ok(gatesFwd(y).every(g => !g[1]) || gatesFwd(y).filter(g => g[1]).length <= 1, 'leer'); }));
+tst('unit', 'Freigabe-Flag: nicht freigegebene Strategie wird übersprungen', () => sandbox(() => { clean(); NX.flags.releaseGate = true; const px0 = 100, d = decide({ id: 'Xq', t: Date.now(), algo: 'cvd', variant: 'streng', side: 'long', px: px0, stop: 99, target: 102, sym: 'TST', src: 'bnf', manual: false }); ok(d.verdict === 'skip' && d.reasons.some(r => /nicht freigegeben/.test(r)), d.verdict + ' ' + d.reasons.join()); }));
+
+/* ---- Integration (live) ---- */
+const itst = (n, f) => tst('integration', n, f);
+itst('Datenstrom frisch', () => { ok(D.lastMsg && Date.now() - D.lastMsg < NX.risk.staleMs, D.lastMsg ? 'letzte Nachricht ' + Math.round((Date.now() - D.lastMsg) / 1000) + ' s' : 'keine Daten'); });
+itst('Engine-Takt läuft', () => { ok(Date.now() - OBS.tick < 3000, 'Takt ' + Math.round((Date.now() - OBS.tick) / 1000) + ' s alt'); });
+itst('Orderbuch vorhanden und nicht gekreuzt', () => { const b = D.feed && D.feed.getBook && D.feed.getBook(); ok(b && b.bids.length && b.asks.length, 'kein Buch'); ok(b.bids[0][0] < b.asks[0][0], 'gekreuzt ' + b.bids[0][0] + ' ≥ ' + b.asks[0][0]); });
+itst('Spread plausibel (< 50 bp)', () => { const s = bookStats(0.001); ok(s, 'kein Buch'); ok(s.spreadBp >= 0 && s.spreadBp < 50, nf(s.spreadBp, 2) + ' bp'); });
+itst('Letzter Trade passt zur Kerze (< 0,5 %)', () => { const c = D.candles[D.candles.length - 1]; ok(c && D.last, 'keine Daten'); ok(Math.abs(D.last.p / c.c - 1) < 0.005, 'Abstand ' + nf((D.last.p / c.c - 1) * 100, 3) + ' %'); });
+itst('Heatmap frisch (oder bewusst aus)', () => { if (NX.flags.heat === false) return; const h = D.heat[D.heat.length - 1]; ok(h && Date.now() - h.t < 15000, h ? 'letzte Spalte ' + Math.round((Date.now() - h.t) / 1000) + ' s alt' : 'keine Spalten'); });
+itst('Markt-Daten (Watchlist) per REST ladbar', async () => { if (NX.flags.rest === false) return; await miWatch(); ok(typeof MI !== 'undefined' && Object.keys(MI.wl || {}).length > 0, 'Watchlist leer'); });
+tst('integration', 'Speicher: schreiben → lesen → löschen', async () => { const k = '__qa_test', v = { v: 1, at: Date.now(), x: Math.random() }; await idbPut(k, v); const r = await idbGet(k); const db = await idbOpen(); await new Promise(res => { const tx = db.transaction('s', 'readwrite'); tx.objectStore('s').delete(k); tx.oncomplete = res; tx.onerror = res; }); ok(r && r.x === v.x, 'Lesen weicht ab'); const r2 = await idbGet(k); ok(!r2, 'nicht gelöscht'); });
+
+/* ---- Datenprüfung (live) ---- */
+const dtst = (n, f) => tst('daten', n, f);
+dtst('Kerzen: High ≥ Open/Close ≥ Low', () => { const bad = D.candles.filter(c => !(c.h >= Math.max(c.o, c.c) - 1e-9 && c.l <= Math.min(c.o, c.c) + 1e-9)); ok(D.candles.length && !bad.length, bad.length + ' fehlerhaft'); });
+dtst('Kerzen: Zeit streng steigend, ohne NaN', () => { let b = 0; for (let i = 0; i < D.candles.length; i++) { const c = D.candles[i]; if (![c.o, c.h, c.l, c.c, c.v].every(isFinite) || (i && c.t <= D.candles[i - 1].t)) b++; } ok(D.candles.length && !b, b + ' fehlerhaft'); });
+dtst('Kerzen: Volumen ≥ 0, |Delta| ≤ Volumen', () => { const bad = D.candles.filter(c => c.v < 0 || (c.d != null && Math.abs(c.d) > c.v * 1.001 + 1e-9)); ok(!bad.length, bad.length + ' fehlerhaft'); });
+dtst('Kerzen: Lücken ≤ 1,5 Perioden', () => { let g = 0; for (let i = 1; i < D.candles.length; i++) if (D.candles[i].t - D.candles[i - 1].t > D.tfMs * 1.5) g++; ok(g <= 2, g + ' Lücken'); });
+dtst('Trade-Ring: Zeit geordnet, Preise endlich', () => { const r = D.ring, n = Math.min(r.len, 5000); let b = 0; for (let i = r.len - n + 1; i < r.len; i++) { const j = rIdx(i), k = rIdx(i - 1); if (r.t[j] + 5000 < r.t[k] || !isFinite(r.p[j]) || r.p[j] <= 0 || !(r.q[j] >= 0)) b++; } ok(n > 10 && b === 0, n > 10 ? b + ' fehlerhaft' : 'zu wenige Trades'); });
+dtst('Heatmap: Spalten zeitlich geordnet, Werte endlich', () => { let b = 0; for (let i = 1; i < D.heat.length; i++) if (D.heat[i].t < D.heat[i - 1].t) b++; ok(D.heat.length > 3 && b === 0, b + ' unordentlich'); });
+dtst('Signale: Stop/Ziel liegen auf richtiger Seite', () => { const bad = NX.signals.filter(s => !s.manual && ((s.px - s.stop) * sgn(s.side) <= 0 || (s.target - s.px) * sgn(s.side) <= 0)); ok(!bad.length, bad.length + ' fehlerhaft'); });
+dtst('Konto: Eigenkapital endlich, Abgleich stimmt', () => { ok(isFinite(equity()), 'Equity'); const r = nxReconcile(); ok(r.ok, 'Abgleich weicht ab'); });
+
+/* ---- Ausfall-Übungen (Chaos, im Sandkasten) ---- */
+const ctst = (n, f) => tst('chaos', n, f);
+ctst('Datenstrom verstummt → keine neue Order', () => sandbox(() => { clean(); D.lastMsg = Date.now() - 300000; ok(!riskEvaluate(T0).ok); }));
+ctst('Börse liefert nur Fehler → Leistungsschalter öffnet', () => sandbox(() => { const h = 'chaos.test'; for (let i = 0; i < 8; i++) obsRest(h, 10, false, 500); const o = OBS.brk[h] > Date.now(); delete OBS.brk[h]; delete OBS.rest[h]; ok(o, 'blieb zu'); }));
+ctst('Rate-Limit (429) → sofortige Pause', () => sandbox(() => { const h = 'chaos2.test'; obsRest(h, 10, false, 429); const o = OBS.brk[h] > Date.now() + 30000; delete OBS.brk[h]; delete OBS.rest[h]; ok(o); }));
+ctst('Journal manipuliert → Kette schlägt an', () => sandbox(() => { emit('test.chaos', { x: 1 }); NX.events[0].t += 1; ok(!chainOk().ok); }));
+ctst('Beschädigte Sicherung wird abgelehnt', async () => { let thrown = 0; for (const bad of ['kein json', '{"state":{"v":99}}', '{}']) { try { await nxImport(bad); } catch (e) { thrown++; } } ok(thrown === 3, thrown + ' von 3 abgelehnt'); });
+ctst('Kill-Switch stoppt alles, Aufhebung gibt frei', () => sandbox(() => { clean(); nxKill(true, 'test', false); ok(!riskEvaluate(T0).ok); nxKill(false); ok(riskEvaluate(T0).ok); }));
+ctst('Verlustserie löst Pause aus (Regel vorhanden)', () => { ok(NX.risk.lossStreak >= 2 && NX.risk.pauseMin >= 5, 'Regel fehlt'); });
+
+function runGroup(grp) {
+  const list = TESTS.filter(t => !grp || t.grp === grp); return Promise.all(list.map(async t => { const t0 = performance.now(); let r; try { await t.fn(); r = { ok: true }; } catch (e) { r = { ok: false, m: String(e.message || e).slice(0, 160) }; } r.ms = performance.now() - t0; r.t = Date.now(); QA.res[t.grp + '|' + t.name] = r; return r; }));
+}
+async function qaRun(grp) {
+  if (QA.running) return; QA.running = true; QA.t = Date.now(); renderNx(true);
+  try { await runGroup(grp); } finally { QA.running = false; }
+  const res = {}; for (const k of Object.keys(QA.res)) res[k] = QA.res[k].ok; const pass = Object.values(res).filter(Boolean).length;
+  NX.qa = NX.qa || {}; NX.qa.last = { t: Date.now(), res }; emit('test.run', { grp: grp || 'alle', pass, fail: Object.keys(res).length - pass }); renderNx(true);
+}
+const qaOf = grp => TESTS.filter(t => t.grp === grp).map(t => ({ t, r: QA.res[t.grp + '|' + t.name] }));
+function qaList(grp, title) {
+  const L = qaOf(grp), done = L.filter(x => x.r), pass = done.filter(x => x.r.ok).length;
+  return card(title, '<div class="r1"><b class="' + (done.length && pass === done.length ? 'up' : done.length ? 'dn' : 'mut') + '">' + (done.length ? pass + ' von ' + L.length + ' bestanden' : L.length + ' Tests, noch nicht gelaufen') + '</b><span class="sp"></span>' + (QA.running ? '<span class="mut sm">läuft …</span>' : btnA('qarun:' + grp, 'Ausführen', 'upb')) + '</div>' +
+    L.map(({ t, r }) => '<div class="li"><div class="r1">' + dot(!r ? 'mute' : r.ok ? 'ok' : 'bad') + '<span>' + E(t.name) + '</span><span class="sp"></span><span class="mut sm">' + (r ? nf(r.ms, 1) + ' ms' : '') + '</span></div>' + (r && !r.ok ? '<div class="dn sm">' + E(r.m) + '</div>' : '') + '</div>').join(''));
+}
+function qaSummary() { const all = TESTS.map(t => QA.res[t.grp + '|' + t.name]), d = all.filter(Boolean); return { n: TESTS.length, done: d.length, pass: d.filter(x => x.ok).length, fail: d.filter(x => !x.ok).length }; }
+function vQaOverview() {
+  const s = qaSummary(), g = ['unit', 'integration', 'daten', 'chaos'], nm = { unit: 'Unit-Tests', integration: 'Integration (live)', daten: 'Datenprüfung (live)', chaos: 'Ausfall-Übungen' };
+  return card('Selbsttest', '<div class="best"><b class="' + (s.fail ? 'dn' : s.done === s.n ? 'up' : 'mut') + '">' + (s.done ? s.pass + ' von ' + s.n + ' bestanden' : s.n + ' Tests bereit') + '</b><div class="mut sm">Alle Tests laufen im Browser gegen den echten Code und die echten Live-Daten. Sie verändern dein Konto, Journal und deine Einstellungen nicht (Sandkasten, danach exakt zurückgestellt).</div></div>' + g.map(k => { const L = qaOf(k), d = L.filter(x => x.r), p = d.filter(x => x.r.ok).length; return '<div class="kv"><span>' + nm[k] + '</span><b class="' + (d.length ? (p === L.length ? 'up' : 'dn') : '') + '">' + (d.length ? p + ' / ' + L.length : '–') + '</b></div>'; }).join('') + '<div class="row">' + (QA.running ? '<span class="mut sm">läuft …</span>' : btnA('qarun:', 'Alle Tests ausführen', 'upb')) + '</div>') + (s.fail ? card('Fehlgeschlagen', TESTS.filter(t => QA.res[t.grp + '|' + t.name] && !QA.res[t.grp + '|' + t.name].ok).map(t => '<div class="li"><b>' + E(t.name) + '</b><div class="dn sm">' + E(QA.res[t.grp + '|' + t.name].m) + '</div></div>').join('')) : '');
+}
+function vQaRegression() {
+  const q = NX.qa || {}, L = q.last, B = q.base; if (!L) return card('Regression', empty('Erst die Tests ausführen (Tab Überblick).')) + (B ? '' : '');
+  const names = Object.keys(L.res), chg = B ? names.filter(k => B.res[k] !== L.res[k]) : [], newT = B ? names.filter(k => !(k in B.res)) : [];
+  return card('Vergleich mit Referenzlauf', '<div class="two">' + kv('Letzter Lauf', ago(L.t)) + kv('Referenz', B ? ago(B.t) : 'keine') + kv('Veränderungen', B ? chg.length : '–', chg.length ? 'dn' : 'up') + kv('Neue Tests', B ? newT.length : '–') + '</div>' + (chg.length ? chg.map(k => '<div class="li"><div class="r1">' + dot(L.res[k] ? 'ok' : 'bad') + '<span>' + E(k.split('|')[1]) + '</span><span class="sp"></span><b class="' + (L.res[k] ? 'up' : 'dn') + '">' + (L.res[k] ? 'jetzt grün' : 'jetzt ROT (war grün)') + '</b></div></div>').join('') : '') + '<div class="row">' + btnA('qabase', 'Letzten Lauf als Referenz setzen') + '</div><p class="mut sm">Eine Regression ist ein Test, der früher bestand und jetzt fehlschlägt. Setze die Referenz, wenn alles grün ist – dann fällt jede spätere Verschlechterung auf.</p>');
+}
+async function qaBench() {
+  const B = [], t = (n, f, k) => { const t0 = performance.now(); for (let i = 0; i < k; i++) f(); const ms = performance.now() - t0; B.push({ n, k, ms, per: ms / k }); };
+  sandbox(() => { clean(); t('Risiko-Prüfung', () => riskEvaluate(T0), 2000); }); t('Statistik aller 12 Strategien', () => stratList(), 100); t('Audit-Kette prüfen (' + NX.events.length + ' Ereignisse)', () => chainOk(), 5); t('Zustand serialisieren', () => JSON.stringify(NX), 5); t('Markt-Kontext', () => { ctxC.t = 0; marketCtx(); }, 50); t('Signal-Auswertung + Algorithmen', () => { algoTick(); }, 20);
+  QA.bench = { t: Date.now(), B }; emit('test.bench', { n: B.length }); renderNx(true);
+}
+function vQaLoad() {
+  const b = QA.bench, J = Object.keys(JOBS).map(k => [k, JOBS[k]]);
+  return card('Leistungsmessung', '<div class="row">' + btnA('qabench', 'Messung starten', 'upb') + '</div>' + (b ? '<div class="tw"><table class="tbl"><tr><th>Operation</th><th>Läufe</th><th>je Lauf</th></tr>' + b.B.map(x => '<tr><td>' + E(x.n) + '</td><td>' + x.k + '</td><td class="' + (x.per > 20 ? 'warn' : '') + '">' + nf(x.per, 3) + ' ms</td></tr>').join('') + '</table></div><p class="mut sm">Stand ' + ago(b.t) + '. Maßstab: Der Engine-Takt hat 1 000 ms; alles zusammen sollte unter 100 ms bleiben.</p>' : '<p class="mut sm">Misst, wie schnell die Kernfunktionen auf diesem Gerät laufen – wichtig auf einem älteren Handy.</p>')) +
+    card('Takt-Dauer im Betrieb', J.length ? '<div class="tw"><table class="tbl"><tr><th>Aufgabe</th><th>Läufe</th><th>Ø</th><th>max</th></tr>' + J.map(([k, j]) => '<tr><td>' + E(k) + '</td><td>' + j.n + '</td><td>' + nf(mean(j.ms), 2) + ' ms</td><td>' + nf(Math.max(...j.ms), 1) + ' ms</td></tr>').join('') + '</table></div>' : empty('Noch keine Messwerte.'));
+}
+function vQaStrat() { return card('Strategie-Prüfung (Beweisleiter)', '<div class="tw"><table class="tbl"><tr><th>Strategie</th><th>n</th><th>Ø R</th><th>untere Schr.</th><th>Urteil</th><th>Tore</th></tr>' + stratList().map(x => { const g = gatesFwd(x); return '<tr><td>' + E(x.name) + '<div class="mut sm">' + x.v + '</div></td><td>' + x.st.n + '</td><td class="' + cl(x.st.avg) + '">' + (x.st.n ? pn(x.st.avg, 2) : '–') + '</td><td>' + (x.st.lo != null ? pn(x.st.lo, 2) : '–') + '</td><td class="' + x.vd.c + '">' + E(x.vd.t.split(' –')[0]) + '</td><td>' + g.filter(y => y[1]).length + '/' + g.length + '</td></tr>'; }).join('') + '</table></div><p class="mut sm">Geprüft wird nur vorwärts, auf echten Folgekursen, nach Kosten – kein Rückwärts-Test auf Vergangenheit.</p>'); }
+function vQaData() {
+  const I = OPS.inv; if (!OPS.inv) invLoad(); return card('Testdaten-Regeln', '<p class="mut sm">• Alle Zahlen in der App stammen aus echten Börsendaten oder aus Papier-Orders gegen echte Kurse.<br>• Synthetische Daten gibt es nur in den Selbsttests (Sandkasten) und werden danach vollständig zurückgestellt.<br>• Diese Tests schreiben nur einen temporären Schlüssel „__qa_test“ und löschen ihn wieder.</p>') + card('Gespeicherter Verlauf', I && I.rows.length ? I.rows.map(r => '<div class="kv"><span>' + E(r.k) + '</span><b>' + (r.at ? ago(r.at) : '–') + '</b></div>').join('') + '<div class="row">' + btnA('qapurge', armed('qapurge') ? 'Sicher? Verlauf löschen' : 'Verlauf-Zwischenspeicher löschen', 'dnb') + '</div><p class="mut sm">Löscht nur die Marktverlauf-Sicherungen (Trades/Heatmap). Konto, Journal und Einstellungen („nexus“) bleiben.</p>' : empty('Lade …'));
+}
+function vQaGates() {
+  const s = qaSummary(), pol = policies(), al = OBS.alerts.filter(a => !a.t1 && a.sev === 'bad'), G = [
+    ['Alle Selbsttests bestanden', s.done === s.n && s.fail === 0, s.done ? s.pass + ' / ' + s.n : 'nicht gelaufen'], ['Audit-Kette intakt', chainOk().ok, ''], ['Konto-Abgleich stimmt', !!(NX.recon && NX.recon.ok), NX.recon ? ago(NX.recon.t) : 'noch nicht'],
+    ['Alle Regeln erfüllt', pol.every(p => p[1] !== false), pol.filter(p => p[1] === true).length + ' / ' + pol.length], ['Keine schwere Warnung', !al.length, al.length + ' aktiv'], ['Konfiguration ohne Fehler', validate().every(v => v[0] !== 'bad'), validate().length + ' Hinweise'],
+  ], allOk = G.every(g => g[1]);
+  return card('Qualitäts-Tore', '<div class="best"><b class="' + (allOk ? 'up' : 'warn') + '">' + (allOk ? 'Alle Tore grün' : G.filter(g => !g[1]).length + ' Tor(e) offen') + '</b></div>' + G.map(g => '<div class="li"><div class="r1">' + dot(g[1] ? 'ok' : 'bad') + '<span>' + g[0] + '</span><span class="sp"></span><span class="mut sm">' + E(g[2]) + '</span></div></div>').join('') + '<p class="mut sm">Vor jeder Ausweitung (mehr Größe, neue Strategie in Produktion) sollten alle grün sein.</p>');
+}
+PANELS['18'] = {
+  'Testing Overview': vQaOverview, 'Unit Tests': () => qaList('unit', 'Unit-Tests (Kernlogik)'), 'Integration Tests': () => qaList('integration', 'Integration gegen Live-System'), 'Regression Testing': vQaRegression, 'Load & Stress Testing': vQaLoad, 'Chaos Engineering': () => qaList('chaos', 'Ausfall-Übungen (Sandkasten)'),
+  'Data Validation': () => qaList('daten', 'Datenprüfung (live)'), 'Strategy Validation': vQaStrat, 'Model Evaluation': () => vDecFeedback(), 'Test Data Management': vQaData, 'Quality Gates': vQaGates, 'Test Audit Trail': () => evAudit(/^test\./, 'Test-Protokoll'),
+};
+IMPL['18'] = Object.keys(PANELS['18']);
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-a]'); if (!t || !$('#nxView').contains(t)) return; const [a, ...r] = t.dataset.a.split(':'), arg = r.join(':');
+  const A = { qarun: () => qaRun(arg || null), qabase: () => { NX.qa = NX.qa || {}; NX.qa.base = NX.qa.last; emit('test.baseline', {}); renderNx(true); }, qabench: () => qaBench(), qapurge: async () => { if (!armed('qapurge')) return arm('qapurge'); const db = await idbOpen(); await new Promise(res => { const tx = db.transaction('s', 'readwrite'), st = tx.objectStore('s'), q = st.openCursor(); q.onsuccess = () => { const c = q.result; if (!c) return; if (String(c.key) !== 'nexus') c.delete(); c.continue(); }; tx.oncomplete = res; tx.onerror = res; }); OPS.inv = null; emit('test.purge', {}); renderNx(true); } };
+  if (A[a] && ['qarun', 'qabase', 'qabench', 'qapurge'].includes(a)) { e.preventDefault(); A[a](); }
+});
+
+'use strict';
+/* ===== NEXUS Block 4b: 10 Betrieb & Vorfälle · 07 Systemarchitektur ===== */
+const TITLE0 = document.title;
+const SEV = { bad: ['Schwer', 'dn', 3], warn: ['Mittel', 'warn', 2], info: ['Info', '', 1] };
+const INC_RULES = [
+  ['killswitch.on', 'bad', 'kill', e => 'Kill-Switch aktiv: ' + (e.d.why || '')], ['reconcile.mismatch', 'bad', 'recon', () => 'Konto-Abgleich weicht von den Trades ab'], ['engine.error', 'bad', 'engine', e => 'Engine-Fehler: ' + String(e.d.m).slice(0, 80)], ['order.illegal_transition', 'bad', 'ordstate', e => 'Ungültiger Order-Übergang ' + e.d.from + ' → ' + e.d.to],
+  ['incident.opened', 'bad', 'posstale', e => e.d.what], ['risk.pause', 'warn', 'pause', e => 'Pause nach Verlustserie'], ['connector.breaker_open', 'warn', 'brk:', e => 'Leistungsschalter offen: ' + e.d.host], ['ops.alert', null, 'alert:', e => e.d.msg],
+];
+const RES_RULES = { 'killswitch.off': () => 'kill', 'incident.resolved': () => 'posstale', 'ops.alert_cleared': e => 'alert:' + e.d.k };
+let incRes = 0;
+function incTick() {
+  NX.inc = NX.inc || []; if (!NX.incInit) { NX.incInit = true; NX.incSeen = NX.events.length ? NX.events[0].i : 0; } const now = Date.now(), seen = NX.incSeen, ev = NX.events.filter(e => e.i > seen).reverse();
+  for (const e of ev) {
+    for (const [type, sv, key0, ttl] of INC_RULES) if (e.type === type) {
+      if (type === 'ops.alert' && e.d.k === 'brk') continue;
+      let key = key0.endsWith(':') ? key0 + (e.d.k || e.d.host) : key0, sev = sv || ((OBS.alerts.find(a => a.k === e.d.k) || {}).sev || 'warn');
+      if (!NX.inc.some(x => x.key === key && x.st !== 'gelöst')) { const inc = { id: nid('V'), t: e.t, key, sev, title: ttl(e), st: 'offen', ack: 0, res: 0, log: [{ t: e.t, txt: 'Automatisch erkannt (Ereignis #' + e.i + ')' }], pm: null, ev: e.i }; NX.inc.unshift(inc); if (NX.inc.length > 200) NX.inc.length = 200; emit('inc.opened', { id: inc.id, title: inc.title, sev }); if (sev === 'bad') toast('Vorfall: ' + inc.title, 6000); }
+    }
+    const rk = RES_RULES[e.type]; if (rk) { const k = rk(e); for (const x of NX.inc.filter(x => x.key === k && x.st !== 'gelöst')) incResolve(x, 'automatisch: Ursache beendet'); }
+  }
+  NX.incSeen = NX.events.length ? NX.events[0].i : seen;
+  for (const x of NX.inc.filter(x => x.key === 'pause' && x.st !== 'gelöst')) if (NX.pause.until < now) incResolve(x, 'automatisch: Pause vorbei');
+  for (const x of NX.inc.filter(x => x.key.startsWith('brk:') && x.st !== 'gelöst')) if (!(OBS.brk[x.key.slice(4)] > now)) incResolve(x, 'automatisch: Leistungsschalter wieder zu');
+  /* Selbstheilung: Datenstrom bei offener Warnung neu verbinden (höchstens alle 2 min) */
+  const st = OBS.alerts.find(a => a.k === 'stale' && !a.t1);
+  if (st && NX.flags.autoHeal !== false && now - st.t0 > 45000 && now - (incTick.heal || 0) > 120000) { incTick.heal = now; emit('ops.remediation', { what: 'Neu verbinden (Datenstrom veraltet)' }); const inc = NX.inc.find(x => x.key === 'alert:stale' && x.st !== 'gelöst'); if (inc) inc.log.push({ t: now, txt: 'Selbstheilung: Verbindung neu aufgebaut' }); try { connect(); } catch (e) { /* */ } }
+  const urgent = NX.inc.some(x => x.sev === 'bad' && x.st === 'offen'); document.title = (urgent ? '(!) ' : '') + TITLE0;
+  if (urgent && now - (incTick.nag || 0) > 300000 && NX.inc.some(x => x.sev === 'bad' && x.st === 'offen' && now - x.t > 300000)) { incTick.nag = now; toast('Schwerer Vorfall wartet seit > 5 min auf dich', 7000); }
+}
+function incResolve(x, how) { if (x.st === 'gelöst') return; x.st = 'gelöst'; x.res = Date.now(); x.log.push({ t: x.res, txt: how || 'gelöst' }); emit('inc.resolved', { id: x.id, how: how || 'manuell' }); }
+function safety() {
+  const now = Date.now(), R = [], hi = (l, t) => R.push([l, t]), act = OBS.alerts.filter(a => !a.t1);
+  if (NX.kill) hi(3, 'Kill-Switch aktiv (' + NX.killWhy + ')'); if (NX.pause.until > now) hi(2, 'Pause bis ' + tm(NX.pause.until) + ' (' + NX.pause.why + ')'); if (D.feed && D.lastMsg && now - D.lastMsg > NX.risk.staleMs) hi(2, 'Daten veraltet'); if (ddScale() === 0) hi(2, 'Drawdown-Pause'); else if (ddScale() < 1) hi(1, 'Drawdown-Kontrolle reduziert Größe ×' + ddScale());
+  for (const a of act) hi(a.sev === 'bad' ? 2 : 1, a.msg); for (const x of (NX.inc || []).filter(x => x.st === 'offen' && x.sev === 'bad')) hi(2, 'Offener Vorfall: ' + x.title);
+  const lv = R.reduce((m, r) => Math.max(m, r[0]), 0); return { lv, R, name: ['NORMAL', 'VORSICHT', 'EINGESCHRÄNKT', 'GESTOPPT'][lv], c: ['up', 'warn', 'warn', 'dn'][lv] };
+}
+const incCard = (x, sel) => '<div class="li"><div class="r1">' + dot(x.st === 'gelöst' ? 'mute' : x.sev) + '<b>' + E(x.title) + '</b><span class="sp"></span>' + chip2(x.st, x.st === 'offen' ? SEV[x.sev][1] : x.st === 'gelöst' ? '' : 'warn') + '</div><div class="mut sm">' + dtm(x.t) + ' · ' + SEV[x.sev][0] + (x.res ? ' · gelöst nach ' + dur2(x.res - x.t) : '') + '</div>' + (sel ? '' : '<div class="row">' + (x.st === 'offen' ? btnA('iack:' + x.id, 'Gesehen') : '') + (x.st !== 'gelöst' ? btnA('ires:' + x.id, 'Erledigt', 'upb') : '') + btnA('isel:' + x.id, 'Details') + '</div>') + '</div>';
+const incSel = () => { const L = NX.inc || []; return L.find(x => x.id === NXV.incSel) || L.find(x => x.st !== 'gelöst') || L[0]; };
+function vOpsCockpit() {
+  const S = safety(), I = NX.inc || [], open = I.filter(x => x.st !== 'gelöst'), n = s => open.filter(x => x.sev === s).length;
+  return card('Handels-Sicherheitszustand', '<div class="best"><b class="' + S.c + '" style="font-size:20px">' + S.name + '</b>' + (S.R.length ? S.R.slice(0, 6).map(r => '<div class="mut sm">• ' + E(r[1]) + '</div>').join('') : '<div class="mut sm">Keine Einschränkung.</div>') + '</div>') +
+    card('Vorfälle', '<div class="two">' + kv('Offen schwer', n('bad'), n('bad') ? 'dn' : 'up') + kv('Offen mittel', n('warn'), n('warn') ? 'warn' : 'up') + kv('Gelöst gesamt', I.filter(x => x.st === 'gelöst').length) + kv('Selbstheilung', NX.flags.autoHeal === false ? 'AUS' : 'an', NX.flags.autoHeal === false ? 'dn' : 'up') + '</div>' + (open.length ? open.slice(0, 3).map(x => incCard(x)).join('') : '<p class="mut sm">Keine offenen Vorfälle.</p>'));
+}
+function vOpsInbox() { const I = NX.inc || []; return card('Vorfalls-Eingang', I.length ? I.slice(0, 40).map(x => incCard(x)).join('') : empty('Noch keine Vorfälle. Sie entstehen automatisch aus Warnungen und Ereignissen (Kill-Switch, Abgleich, Engine, Leistungsschalter …).')); }
+function vOpsSeverity() {
+  const open = (NX.inc || []).filter(x => x.st !== 'gelöst').sort((a, b) => SEV[b.sev][2] - SEV[a.sev][2] || a.t - b.t);
+  return card('Warteschlange (schwer zuerst, dann älteste)', open.length ? open.map((x, i) => '<div class="li"><div class="r1"><b>' + (i + 1) + '. ' + E(x.title) + '</b><span class="sp"></span>' + chip2(SEV[x.sev][0], SEV[x.sev][1]) + '</div><div class="mut sm">wartet ' + dur2(Date.now() - x.t) + '</div></div>').join('') : empty('Leer.')) +
+    card('Einstufung', '<div class="mut sm"><b class="dn">Schwer:</b> Kill-Switch, Konto-Abgleich, Engine-Fehler, ungültiger Order-Status, Daten still bei offener Position, Datenstrom veraltet.<br><b class="warn">Mittel:</b> Leistungsschalter, Pause, Fehlerquote, Wiederverbindungen, Zeichen-Leistung, Speicherfehler.<br>Schwere Vorfälle werden per Toast gemeldet; bleibt einer > 5 min unbestätigt, erscheint „(!)“ im Tab-Titel und eine Erinnerung.</div>');
+}
+const RUNBOOKS = [
+  { k: 'alert:stale', t: 'Datenstrom veraltet', steps: ['Verbindung der Quelle testen', 'Neu verbinden', 'Andere Quelle wählen', 'Bei offener Position und weiter Stille: Kill-Switch / Positionen schließen'], acts: [['Verbindungstest', 'healthall'], ['Neu verbinden', 'reconnect'], ['Quelle wechseln', 'altsrc']] },
+  { k: 'kill', t: 'Kill-Switch aktiv', steps: ['Ursache lesen (Journal)', 'Konto-Abgleich ausführen', 'Erst aufheben, wenn Ursache behoben'], acts: [['Abgleich', 'reconcile']] },
+  { k: 'recon', t: 'Konto-Abgleich weicht ab', steps: ['Abgleich erneut ausführen', 'Sicherung herunterladen', 'Journal auf doppelte/fehlende Trades prüfen'], acts: [['Abgleich', 'reconcile'], ['Sicherung', 'exp']] },
+  { k: 'engine', t: 'Engine-Fehler', steps: ['Sicherung herunterladen', 'Seite neu laden', 'Tritt der Fehler wieder auf: Modus „nur Signale“'], acts: [['Sicherung', 'exp'], ['Modus: nur Signale', 'modeoff']] },
+  { k: 'alert:rest', t: 'Hohe REST-Fehlerquote', steps: ['Leistungsschalter beobachten (Modul 16)', 'Markt-REST-Flag ausschalten, um Last zu senken', 'Später wieder an'], acts: [['REST aus', 'restoff']] },
+];
+function vOpsRunbook() {
+  const x = incSel(), rb = x ? RUNBOOKS.find(r => x.key === r.k || x.key.startsWith(r.k)) : null;
+  return card('Runbooks', RUNBOOKS.map(r => '<div class="li"><div class="r1"><b>' + E(r.t) + '</b></div><div class="mut sm">' + r.steps.map((s, i) => (i + 1) + '. ' + E(s)).join('<br>') + '</div><div class="row">' + r.acts.map(a => btnA('rb:' + a[1], a[0])).join('') + '</div></div>').join('') + '<p class="mut sm">Jede ausgeführte Aktion wird im Betriebsprotokoll festgehalten' + (x ? ' und am Vorfall „' + E(x.title) + '“ vermerkt' : '') + '.</p>');
+}
+function vOpsRemed() {
+  return card('Automatische Abhilfe', '<div class="li"><div class="r1"><b>Datenstrom neu verbinden</b><span class="sp"></span>' + sw(NX.flags.autoHeal !== false, 'flag:autoHeal') + '</div><div class="mut sm">Bleibt die Warnung „Datenstrom veraltet“ > 45 s offen, baut das System die Verbindung selbst neu auf – höchstens alle 2 min.</div></div>' +
+    '<div class="li"><div class="r1"><b>Kill-Switch bei Tagesverlust</b><span class="sp"></span>' + chip2('immer', 'up') + '</div><div class="mut sm">Schließt alle Papier-Positionen und sperrt neue Orders.</div></div><div class="li"><div class="r1"><b>Leistungsschalter</b><span class="sp"></span>' + chip2('immer', 'up') + '</div><div class="mut sm">Stoppt Anfragen an eine Börse, die drosselt.</div></div><div class="li"><div class="r1"><b>Strategie-Stopp</b><span class="sp"></span>' + chip2('immer', 'up') + '</div><div class="mut sm">Kill-Kriterien (Modul 09).</div></div>' +
+    '<p class="mut sm">Was das System NICHT von allein tut: Quelle wechseln, Risiko-Grenzen lockern, den Kill-Switch aufheben. Das bleibt bei dir.</p>') + evAudit(/^ops\.remediation/, 'Ausgeführte Abhilfen');
+}
+function vOpsEsc() {
+  const U = (NX.inc || []).filter(x => x.st === 'offen' && x.sev === 'bad');
+  return card('Wartet auf Bestätigung', U.length ? U.map(x => incCard(x)).join('') : '<div class="best"><b class="up">Nichts wartet</b></div>') + card('Eskalations-Stufen', '<div class="mut sm">1 · Automatisch: Selbstheilung, Leistungsschalter, Strategie-Stopp<br>2 · Sofort: Toast in der App (schwere Vorfälle)<br>3 · Nach 5 min unbestätigt: „(!)“ im Tab-Titel, erneute Erinnerung<br>4 · Tagesverlust: Kill-Switch automatisch<br><br>Handy-Push gibt es nicht: Eine reine Browser-Seite kann im Hintergrund niemanden benachrichtigen. Dafür müsste später ein kleiner Server mitlaufen (Teil von Modul 25/31).</div>');
+}
+function vOpsTimeline() {
+  const x = incSel(); if (!x) return card('Zeitleiste', empty('Kein Vorfall.'));
+  const ev = NX.events.filter(e => e.t >= x.t - 60000 && e.t <= (x.res || Date.now()) + 60000 && !/^ops\.alert|^inc\./.test(e.type)).reverse().slice(0, 60);
+  return card('Vorfall wählen', '<div class="seg2">' + (NX.inc || []).slice(0, 9).map(i => '<button class="' + (i.id === x.id ? 'on' : '') + '" data-a="isel:' + i.id + '"><b>' + E(i.title.slice(0, 16)) + '</b><small>' + tm(i.t) + '</small></button>').join('') + '</div>') + card(E(x.title), '<div class="tl">' + x.log.map(l => '<div class="li"><div class="r1"><b>' + tm(l.t) + '</b><span>' + E(l.txt) + '</span></div></div>').join('') + '</div><div class="h4">Ereignisse ±1 min</div>' + (ev.length ? ev.map(e => '<div class="kv"><span>' + tm(e.t) + ' ' + E(e.type) + '</span><b class="mut sm">#' + e.i + '</b></div>').join('') : '<span class="mut sm">Keine.</span>'));
+}
+function vOpsDegr() {
+  const bad = services().filter(s => s[1] !== 'ok'), H = OBS.alerts.filter(a => a.t1).slice(0, 15);
+  return card('Jetzt eingeschränkt', bad.length ? bad.map(([n, s, t]) => '<div class="li"><div class="r1">' + dot(s) + '<b>' + E(n) + '</b><span class="sp"></span><span class="' + sev(s) + ' sm">' + E(t) + '</span></div></div>').join('') : '<div class="best"><b class="up">Alle Dienste normal</b></div>') + card('Frühere Einschränkungen', H.length ? H.map(a => '<div class="kv"><span>' + E(a.msg.slice(0, 50)) + '</span><b>' + dur2(a.t1 - a.t0) + '</b></div>').join('') : '<span class="mut sm">Keine seit dem Start.</span>');
+}
+function vOpsSafety() {
+  const S = safety(), P = [['Live-Handel', LIVE_TRADING ? 'AN' : 'gesperrt', !LIVE_TRADING], ['Modus', { off: 'nur Signale', ask: 'Vorschlag + Freigabe', auto: 'Papier automatisch' }[NX.mode], true], ['Kill-Switch', NX.kill ? 'AKTIV' : 'aus', !NX.kill], ['Pause', NX.pause.until > Date.now() ? 'aktiv' : 'keine', NX.pause.until < Date.now()], ['Drawdown-Faktor', '×' + ddScale(), ddScale() === 1], ['Daten', D.lastMsg ? ago(D.lastMsg) : '–', !D.lastMsg || Date.now() - D.lastMsg < NX.risk.staleMs], ['Offene Positionen', NX.pos.length + ' / ' + NX.risk.maxPos, true]];
+  return card('Zustand: ' + S.name, P.map(p => '<div class="li"><div class="r1">' + dot(p[2] ? 'ok' : 'bad') + '<span>' + p[0] + '</span><span class="sp"></span><b class="' + (p[2] ? '' : 'dn') + '">' + E(p[1]) + '</b></div></div>').join('') + '<div class="row">' + (NX.kill ? btnA('kill:off', 'Kill-Switch aufheben') : btnA('kill:on', armed('kill') ? 'Wirklich stoppen?' : 'Kill-Switch', 'dnb')) + '</div>');
+}
+function vOpsPM() {
+  const R = (NX.inc || []).filter(x => x.st === 'gelöst'), x = R.find(y => y.id === NXV.pmSel) || R[0]; if (!x) return card('Nachbetrachtung', empty('Noch kein gelöster Vorfall. Nach jedem schweren Vorfall: Ursache, Wirkung, Abhilfe, Lehre festhalten.'));
+  const f = NXV.form, p = x.pm || {};
+  return card('Vorfall', '<div class="seg2">' + R.slice(0, 6).map(i => '<button class="' + (i.id === x.id ? 'on' : '') + '" data-a="pmsel:' + i.id + '"><b>' + E(i.title.slice(0, 16)) + '</b><small>' + (i.pm ? '✓ geschrieben' : 'offen') + '</small></button>').join('') + '</div><div class="mut sm">' + E(x.title) + ' · ' + dtm(x.t) + ' · ' + dur2(x.res - x.t) + '</div>') +
+    card('Nachbetrachtung', ['cause:Ursache', 'impact:Wirkung', 'fix:Behoben durch', 'lesson:Lehre / künftig anders'].map(s => { const [k, l] = s.split(':'); return '<label class="mut sm">' + l + '</label><textarea data-form="pm_' + k + '" rows="2" style="width:100%">' + E(f['pm_' + k] != null ? f['pm_' + k] : (p[k] || '')) + '</textarea>'; }).join('') + '<div class="row">' + btnA('pmsave:' + x.id, 'Speichern', 'upb') + '</div>');
+}
+function vOpsMetrics() {
+  const I = NX.inc || [], res = I.filter(x => x.res), ack = I.filter(x => x.ack), by = {}; for (const x of I) by[x.key.split(':')[0]] = (by[x.key.split(':')[0]] || 0) + 1;
+  return card('Kennzahlen', '<div class="two">' + kv('Vorfälle gesamt', I.length) + kv('Letzte 24 h', I.filter(x => Date.now() - x.t < 86400e3).length) + kv('Ø Zeit bis gesehen', ack.length ? dur2(mean(ack.map(x => x.ack - x.t))) : '–') + kv('Ø Zeit bis gelöst', res.length ? dur2(mean(res.map(x => x.res - x.t))) : '–') + '</div><div class="h4">Nach Art</div>' + (Object.keys(by).length ? Object.entries(by).sort((a, b) => b[1] - a[1]).map(([k, n]) => '<div class="kv"><span>' + E(k) + '</span><b>' + n + '×</b></div>').join('') : '<span class="mut sm">Keine.</span>'));
+}
+PANELS['10'] = { 'Operations Cockpit': vOpsCockpit, 'Incident Inbox': vOpsInbox, 'Severity & Prioritization': vOpsSeverity, 'Runbook Execution': vOpsRunbook, 'Automated Remediation': vOpsRemed, 'Escalation & Approval': vOpsEsc, 'Incident Timeline': vOpsTimeline, 'Service Degradation': vOpsDegr, 'Trading Safety State': vOpsSafety, 'Postmortems': vOpsPM, 'Incident Metrics': vOpsMetrics, 'Operations Audit Trail': () => evAudit(/^inc\.|^ops\./, 'Betriebsprotokoll') };
+IMPL['10'] = Object.keys(PANELS['10']);
+FLAG_INFO.autoHeal = ['Selbstheilung Datenstrom', 'An = bei > 45 s ohne Daten wird die Verbindung automatisch neu aufgebaut (max. alle 2 min).'];
+CFG_DEF.flags.autoHeal = true; NX.flags.autoHeal = NX.flags.autoHeal !== false;
+
+/* ================= 07 Systemarchitektur ================= */
+function vArchOverview() {
+  const total = MODS.reduce((x, m) => x + m.s.length, 0), done = MODS.reduce((x, m) => x + (IMPL[m.id] || []).length, 0);
+  return card('NEXUS · ' + NX_VER, '<div class="two">' + kv('Module im Register', MODS.length) + kv('Abschnitte gebaut', done + ' / ' + total) + kv('Laufzeit', dur2(Date.now() - OBS.t0)) + kv('Ereignisse im Journal', NX.events.length) + kv('Papier-Trades', NX.closed.length) + kv('Handel', LIVE_TRADING ? 'LIVE' : 'nur Papier', LIVE_TRADING ? 'dn' : 'up') + '</div><div class="bar"><i style="width:' + (done / total * 100).toFixed(1) + '%"></i></div>') +
+    LAYERS.map(([n, ids]) => card(E(n), ids.map(id => { const m = modOf(id), k = (IMPL[id] || []).length; return '<div class="li"><div class="r1"><b>' + id + ' ' + E(m.n) + '</b><span class="sp"></span><span class="mut sm">' + k + '/' + m.s.length + '</span></div><div class="bar sm"><i style="width:' + (k / m.s.length * 100).toFixed(0) + '%"></i></div></div>'; }).join('')));
+}
+function vArchServices() { return card('Dienste in dieser App', services().map(([n, s, t]) => '<div class="li"><div class="r1">' + dot(s) + '<b>' + E(n) + '</b><span class="sp"></span><span class="' + sev(s) + ' sm">' + E(t) + '</span></div></div>').join('') + '<p class="mut sm">Alles läuft in einem Browser-Tab: kein Server, kein Container. Das ist die Grenze dieser Architektur – fürs echte Handeln braucht es später einen kleinen Dienst (Modul 25/31).</p>'); }
+function vArchBus() {
+  const E2 = NX.events, now = Date.now(), cnt = {}; for (const e of E2) { const k = e.type.split('.')[0]; cnt[k] = (cnt[k] || 0) + 1; } const r1 = E2.filter(e => now - e.t < 60000).length, ck = chainOk();
+  return card('Ereignis-Bus', '<div class="two">' + kv('Abonnenten', subs.length) + kv('Ereignisse (max. 2 500)', E2.length) + kv('Letzte Minute', r1) + kv('Kette', ck.ok ? 'intakt' : 'GEBROCHEN', ck.ok ? 'up' : 'dn') + '</div><div class="h4">Nach Gruppe</div>' + Object.entries(cnt).sort((a, b) => b[1] - a[1]).map(([k, n]) => '<div class="kv"><span>' + E(k) + '</span><b>' + n + '</b></div>').join('') + '<div class="h4">Zuletzt</div>' + E2.slice(0, 8).map(e => '<div class="kv"><span>' + tm(e.t) + ' ' + E(e.type) + '</span><b class="mut sm">#' + e.i + '</b></div>').join('') + '<p class="mut sm">Jede Zustandsänderung läuft als verkettetes Ereignis über den Bus. Module sprechen so miteinander, nicht über Querzugriffe – das macht jede Entscheidung nachvollziehbar.</p>');
+}
+function vArchJobs() {
+  const J = Object.entries(JOBS), S = [['Engine-Takt', '1 s'], ['Oberfläche neu zeichnen', '1,5 s'], ['Verlauf speichern', '30 s'], ['Zustand speichern', '1,5 s nach Änderung'], ['Strategie-Kontrolle', '5 s'], ['Chart-Zeichnen', 'bei Bedarf (≤ 33 fps)']];
+  return card('Geplante Aufgaben', S.map(s => '<div class="kv"><span>' + s[0] + '</span><b>' + s[1] + '</b></div>').join('')) + card('Messung pro Takt', J.length ? '<div class="tw"><table class="tbl"><tr><th>Aufgabe</th><th>Läufe</th><th>Ø ms</th><th>max</th><th>zuletzt</th></tr>' + J.map(([k, j]) => '<tr><td>' + E(k) + '</td><td>' + j.n + '</td><td>' + nf(mean(j.ms), 2) + '</td><td class="' + (Math.max(...j.ms) > 50 ? 'warn' : '') + '">' + nf(Math.max(...j.ms), 1) + '</td><td>' + ago(j.last) + '</td></tr>').join('') + '</table></div>' : empty('Noch keine Messwerte.'));
+}
+function vArchAgents() {
+  return card('Agenten (Algorithmen)', ALGOS.map(a => { const c = algoCfg(a.id), S = NX.signals.filter(s => s.algo === a.id), last = S[0]; return '<div class="li"><div class="r1">' + dot(c.on ? 'ok' : 'mute') + '<b>' + E(a.name) + '</b><span class="sp"></span>' + chip2(c.on ? 'läuft' : 'aus', c.on ? 'up' : '') + '</div><div class="mut sm">' + S.length + ' Signale · letzte ' + (last ? ago(last.t) : '–') + ' · handelt mit „' + c.tv + '“ ' + (c.trade ? '' : '(Handel aus)') + '</div></div>'; }).join('') + '<p class="mut sm">Jeder Algorithmus ist ein eigenständiger Agent mit Hypothese, Parametern und eigener Auswertung (Modul 02). Weitere Agenten kommen mit Research und Discovery (Modul 20/22).</p>');
+}
+function vArchDeps() {
+  const D3 = [['03 Trader / 21 Entscheidung', '02 Lab (Statistik), 08 Risiko, 09 Freigabe, 23 Portfolio, 01 Markt'], ['02 Lab', '01 Markt (Kontext), Daten (06)'], ['08 Risiko', '06 Daten (Frische, Buch), 12 Konfiguration'], ['09 Freigabe', '02 Lab (Statistik), 03 Positionen'], ['23 Portfolio', '09 Freigabe, 02 Lab, 03 Positionen'], ['05 Journal / 04 Lernen', '03 Trader (Trades), Ereignis-Bus'], ['13 Observability / 10 Betrieb', 'alle Dienste, Ereignis-Bus'], ['18 Tests', 'Kernlogik, Live-Daten (nur lesend)'], ['16 Konnektoren', '06 Daten, Börsen']];
+  return card('Wer braucht wen', D3.map(d => '<div class="li"><div class="r1"><b>' + E(d[0]) + '</b></div><div class="mut sm">← ' + E(d[1]) + '</div></div>').join('') + '<p class="mut sm">Richtung: Oben entscheidet, unten liefert. Das Risiko-Modul hängt bewusst nicht an Algorithmen, damit sein Veto unabhängig bleibt.</p>');
+}
+function vArchRes() {
+  const M = [['Wiederverbindung der Datenströme mit Wartezeit', OBS.reconn + ' Wiederverbindungen bisher'], ['Orderbuch-Neuabgleich bei Lücke', OBS.resync + ' Neuabgleiche'], ['Leistungsschalter pro Börse', Object.keys(OBS.brk).filter(h => OBS.brk[h] > Date.now()).length + ' offen'], ['Verlauf-Wiederherstellung nach Neustart', D.restoredHb !== undefined ? 'aktiv' : 'bereit'], ['Positions-Überwachung mit Lücken-Behandlung nach Wiedereröffnen', NX.pos.length + ' überwacht'], ['Idempotente Orders + Zustandsautomat', NX.orders.length + ' Orders geführt'], ['Verkettetes Journal', chainOk().ok ? 'intakt' : 'GEBROCHEN'], ['Kill-Switch + Tagesverlust-Automatik', NX.kill ? 'AKTIV' : 'bereit'], ['Sicherung/Wiederherstellung als Datei', 'Mehr → Sicherung'], ['Selbstheilung Datenstrom', NX.flags.autoHeal === false ? 'aus' : 'an']];
+  return card('Schutzmechanismen (mit Beleg)', M.map(m => '<div class="li"><div class="r1"><span>' + E(m[0]) + '</span><span class="sp"></span><b class="sm">' + E(m[1]) + '</b></div></div>').join('') + '<p class="mut sm">Bekannte Schwäche: Läuft die Seite nicht (Handy gesperrt, Tab zu), läuft nichts – auch keine Stops. Bis ein Server existiert, ist das der Grund, warum alles Papier bleibt.</p>');
+}
+PANELS['07'] = { 'System Overview': vArchOverview, 'Services': vArchServices, 'Event Bus': vArchBus, 'Scheduler & Jobs': vArchJobs, 'Agents': vArchAgents, 'Dependencies': vArchDeps, 'Resilience': vArchRes, 'Observability': () => vObsCockpit() };
+IMPL['07'] = Object.keys(PANELS['07']);
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-a]'); if (!t || !$('#nxView').contains(t)) return; const [a, ...r] = t.dataset.a.split(':'), arg = r.join(':'), I = NX.inc || [], x = I.find(y => y.id === arg);
+  const logI = txt => { const s = incSel(); if (s) s.log.push({ t: Date.now(), txt }); emit('ops.runbook', { what: txt }); };
+  const A = {
+    iack: () => { if (x && !x.ack) { x.ack = Date.now(); x.st = x.st === 'offen' ? 'gesehen' : x.st; x.log.push({ t: x.ack, txt: 'Von dir gesehen' }); emit('inc.ack', { id: x.id }); } renderNx(true); },
+    ires: () => { if (x) incResolve(x, 'von dir erledigt'); renderNx(true); },
+    isel: () => { NXV.incSel = arg; NXV.tab['10'] = 6; if (NXV.cur !== '10') go('10'); else renderNx(true); },
+    pmsel: () => { NXV.pmSel = arg; renderNx(true); },
+    pmsave: () => { if (x) { x.pm = { cause: NXV.form.pm_cause || '', impact: NXV.form.pm_impact || '', fix: NXV.form.pm_fix || '', lesson: NXV.form.pm_lesson || '', t: Date.now() }; ['pm_cause', 'pm_impact', 'pm_fix', 'pm_lesson'].forEach(k => delete NXV.form[k]); emit('inc.postmortem', { id: x.id }); } renderNx(true); },
+    rb: () => { const m = { healthall: () => { CONN.forEach(hcRun); logI('Verbindungstest ausgeführt'); }, reconnect: () => { connect(); logI('Verbindung neu aufgebaut'); toast('Verbinde neu …'); }, altsrc: () => { const n = ST.src === 'bnf' ? 'hl' : 'bnf'; ST.src = n; saveST(); connect(); syncUI(); emit('connector.source_changed', { src: n }); logI('Quelle gewechselt auf ' + SRC[n]); }, reconcile: () => { const r = nxReconcile(); logI('Abgleich: ' + (r.ok ? 'stimmt' : 'weicht ab')); toast(r.ok ? 'Abgleich stimmt' : 'Abgleich weicht ab', 4000); }, exp: () => { document.querySelector('[data-a="exp"]') || 0; logI('Sicherung angefordert'); const b = new Blob([nxExport()], { type: 'application/json' }), u = URL.createObjectURL(b), a2 = document.createElement('a'); a2.href = u; a2.download = 'nexus-sicherung-' + new Date().toISOString().slice(0, 10) + '.json'; document.body.appendChild(a2); a2.click(); a2.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000); }, modeoff: () => { nxSetMode('off'); logI('Modus auf „nur Signale“'); }, restoff: () => { cfgSet('flags.rest', false, 'Runbook'); logI('Markt-REST aus'); } }; if (m[arg]) m[arg](); renderNx(true); },
+  };
+  if (A[a] && ['iack', 'ires', 'isel', 'pmsel', 'pmsave', 'rb'].includes(a)) { e.preventDefault(); A[a](); }
 });
 
 'use strict';
