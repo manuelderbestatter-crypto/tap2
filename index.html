@@ -48,7 +48,7 @@ select{background:var(--pn);border:1px solid var(--line);border-radius:6px;heigh
 #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0));transform:translateX(-50%);background:#e6ebf2;color:#0b0e12;padding:8px 13px;border-radius:8px;font-size:12px;z-index:90;max-width:92vw;box-shadow:0 8px 30px rgba(0,0,0,.5)}#toast[hidden]{display:none}
 body.noside #side{display:none}
 @media (max-width:900px){
-  #top{gap:6px;padding:6px 8px}.ctl{order:1;flex:1 1 0;min-width:0;overflow-x:auto;scrollbar-width:none;gap:6px}.ctl>*{flex:none}#pop{position:fixed;left:8px;right:8px;top:92px}
+  #top{gap:6px;padding:6px 8px}.ctl{order:1;flex:1 1 0;min-width:0;flex-wrap:wrap;gap:6px}.ctl>*{flex:none}#pop{position:fixed;left:8px;right:8px}
   #sideBtn{order:2}#dot{order:3}
   .seg .lg{display:none}.seg .sh{display:inline}.seg button{padding:0 8px}
   #stats{order:9;flex:1 0 100%;margin-left:0;gap:12px}.px{font-size:15px}
@@ -349,9 +349,11 @@ async function connect() {
   if (D.feed) D.feed.stop(); D.gen++; resetData(keep); D.fp.tick = 0;
   if (ST.sym === 'HYPE' && ST.src === 'bns') { ST.src = 'hl'; lastKey = ''; }
   const gen = D.gen, tf = ST.tf; setLoading(true);
+  if (!keep) { await loadSnap(); if (D.gen !== gen) return; }
   const feed = ST.src === 'hl' ? new HLFeed(ST.sym, tf, gen) : new BinanceFeed(ST.sym, tf, ST.src === 'bns', gen);
   D.feed = feed;
-  try { await feed.start(); }
+  const tStart = Date.now();
+  try { await feed.start(); if (D.gen === gen && D.restoredHb && D.restoredHb !== D.hb) D.heat = D.heat.filter(c => c.t >= tStart); }
   catch (e) {
     if (D.gen !== gen) return;
     console.error(e);
@@ -367,6 +369,35 @@ setInterval(() => {
   const stale = ['trades', 'depth'].some(k => s[k] && now - s[k] > 45000);
   if (stale) { (f.ws && f.ws.forEach ? f.ws : [f.ws]).forEach(w => { try { w && w.ws && w.ws.close(); } catch (e) { /* */ } }); for (const k of ['trades', 'depth']) s[k] = now; }
 }, 10000);
+
+'use strict';
+/* ===== Verlauf speichern (IndexedDB): Heatmap, Trades, Blasen, Liquidationen bleiben beim erneuten Öffnen erhalten ===== */
+const PKEY = () => ST.sym + '|' + ST.src, KEEP_TRADES = 150000, KEEP_HEAT = 3600, MAX_AGE = 6 * 3600e3;
+function idbOpen() { return new Promise((res, rej) => { try { const r = indexedDB.open('tape', 1); r.onupgradeneeded = () => r.result.createObjectStore('s'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); } catch (e) { rej(e); } }); }
+async function idbGet(k) { const db = await idbOpen(); return new Promise((res, rej) => { const q = db.transaction('s').objectStore('s').get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }
+async function idbPut(k, v) { const db = await idbOpen(); return new Promise((res, rej) => { const tx = db.transaction('s', 'readwrite'); tx.objectStore('s').put(v, k); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); }
+
+let saving = false;
+async function saveSnap() {
+  if (saving || !D.feed || D.ring.len < 50) return; saving = true;
+  try {
+    const r = D.ring, n = Math.min(r.len, KEEP_TRADES), t = new Float64Array(n), p = new Float64Array(n), q = new Float32Array(n), s = new Int8Array(n);
+    for (let i = 0; i < n; i++) { const j = rIdx(r.len - n + i); t[i] = r.t[j]; p[i] = r.p[j]; q[i] = r.q[j]; s[i] = r.s[j]; }
+    const hs = D.heat.slice(-KEEP_HEAT).filter((_, i) => i % 3 === 0);
+    await idbPut(PKEY(), { v: 1, at: Date.now(), hb: D.hb, tr: { t, p, q, s }, heat: hs, bubbles: D.bubbles.slice(-3000), liqs: D.liqs.slice(-500), oi: D.oi.slice(-800) });
+  } catch (e) { /* ohne Speicher weiter */ }
+  saving = false;
+}
+async function loadSnap() {
+  try {
+    const o = await idbGet(PKEY()); if (!o || o.v !== 1 || Date.now() - o.at > MAX_AGE) return false;
+    const { t, p, q, s } = o.tr; for (let i = 0; i < t.length; i++) ringPush(t[i], p[i], q[i], s[i]);
+    D.heat = o.heat || []; D.bubbles = o.bubbles || []; D.liqs = o.liqs || []; D.oi = o.oi || []; D.restoredHb = o.hb; dmapRebuild(); return t.length > 0;
+  } catch (e) { return false; }
+}
+setInterval(() => { if (!document.hidden) saveSnap(); }, 30000);
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveSnap(); });
+addEventListener('pagehide', saveSnap);
 
 'use strict';
 /* ===== Chart: Kerzen / Footprint / Heatmap / Delta / CVD / OI auf Canvas ===== */
@@ -432,7 +463,7 @@ function drawHeat(x, y, w, h) {
       for (let c = 0; c < Wc; c++) {
         const t = t0 + (c + .5) / Wc * (t1 - t0); if (t < cols[j0].t - 1500 || t > cols[cols.length - 1].t + 1500) continue;
         while (j < j1 && cols[j + 1].t <= t) j++;
-        const col = cols[j], idx = col.idx, val = col.val;
+        const col = cols[j]; if (t - col.t > 4500) continue; const idx = col.idx, val = col.val;
         for (let i = 0; i < idx.length; i++) {
           const f = Math.pow(Math.min(1, val[i] / heatRef * ST.gain), 0.55), li = (f * 255) | 0; if (li < 10) continue;
           const lo = idx[i] * hb; let r0 = Math.floor((V.p1 - (lo + hb)) / span * Hc), r1 = Math.ceil((V.p1 - lo) / span * Hc); if (r1 <= 0 || r0 >= Hc) continue; if (r0 < 0) r0 = 0; if (r1 > Hc) r1 = Hc; if (r1 <= r0) r1 = r0 + 1;
@@ -632,7 +663,7 @@ function buildTop() {
   $('#tfSeg').onclick = e => { const b = e.target.closest('button'); if (!b) return; ST.tf = b.dataset.v; saveST(); connect(); syncUI(); };
   $('#modeSeg').onclick = e => { const b = e.target.closest('button'); if (!b) return; ST.mode = b.dataset.v; saveST(); resetView(); syncUI(); redraw(true); };
   $('#sideBtn').onclick = () => { ST.side = !ST.side; saveST(); syncUI(); setTimeout(resize, 30); };
-  $('#layersBtn').onclick = e => { e.stopPropagation(); $('#pop').hidden = !$('#pop').hidden; };
+  $('#layersBtn').onclick = e => { e.stopPropagation(); const p = $('#pop'); p.hidden = !p.hidden; if (!p.hidden && innerWidth <= 900) p.style.top = ($('#layersBtn').getBoundingClientRect().bottom + 6) + 'px'; };
   document.addEventListener('click', e => { if (!e.target.closest('#pop') && !e.target.closest('#layersBtn')) $('#pop').hidden = true; });
   $('#dot').onclick = () => toast(healthText(), 6000);
   buildPop();
