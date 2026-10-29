@@ -55,6 +55,47 @@ body.noside #side{display:none}
   #side{position:absolute;right:0;top:0;bottom:0;z-index:20;width:228px;box-shadow:-12px 0 40px rgba(0,0,0,.6)}
   .brand span{display:none}
 }
+/* ===== NEXUS ===== */
+:root{--card:#0c1015;--c2:#121821}
+body:not(.onTape) #tfSeg,body:not(.onTape) #modeSeg,body:not(.onTape) .pw,body:not(.onTape) #sideBtn{display:none}
+#nxView{flex:1;display:flex;flex-direction:column;min-height:0}#nxView[hidden]{display:none}
+#main[hidden]{display:none}
+#nxHead{padding:8px 10px 2px}.mh{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.mh h2{margin:0;font-size:15px;font-weight:600;flex:1;min-width:0}.mh h2 small{color:var(--faint);font:500 11px var(--mono);margin-right:4px}
+#nxTabs{display:flex;gap:6px;overflow-x:auto;padding:6px 10px;scrollbar-width:none;border-bottom:1px solid var(--line);flex:none}#nxTabs::-webkit-scrollbar{display:none}
+.tb{flex:none;background:var(--pn);border:1px solid var(--line);color:var(--mute);border-radius:14px;padding:4px 11px;font-size:11.5px;cursor:pointer;white-space:nowrap}.tb.on{background:#18202b;color:var(--fg);border-color:#2b3b52}.tb.spec{border-style:dashed;color:var(--faint)}
+.chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 0 8px;flex-wrap:wrap}
+#nxBody{flex:1;overflow-y:auto;overflow-x:hidden;padding:10px 10px 18px;-webkit-overflow-scrolling:touch}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 11px;margin-bottom:10px}.card h3{margin:0 0 8px;font-size:12px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.h4{font-size:10px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);margin:10px 0 4px}
+.mut{color:var(--mute)}.sm{font-size:11px}p.mut{margin:6px 0}
+.ban{background:rgba(245,166,35,.09);border:1px solid rgba(245,166,35,.3);color:var(--warn);border-radius:8px;padding:6px 10px;margin-bottom:10px;font-size:11px;letter-spacing:.03em}
+.c2{display:inline-block;border:1px solid var(--line);border-radius:10px;padding:0 7px;font-size:10.5px;line-height:17px;color:var(--mute);white-space:nowrap}.c2.up{color:var(--up);border-color:rgba(47,212,138,.35)}.c2.dn{color:var(--dn);border-color:rgba(255,90,107,.35)}.c2.warn{color:var(--warn);border-color:rgba(245,166,35,.35)}
+.kv{display:flex;justify-content:space-between;gap:10px;padding:3px 0;border-bottom:1px solid #0f141a;font-size:12px}.kv span{color:var(--mute)}.kv b{font:500 12px var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+.li{padding:8px 0;border-bottom:1px solid #0f141a;cursor:default}.li:last-child{border-bottom:0}.l1{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.l2{margin-top:3px;color:var(--mute);font-size:11.5px;display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center}.rt{margin-left:auto;font:11.5px var(--mono);color:var(--mute)}.rt.up{color:var(--up)}.rt.dn{color:var(--dn)}
+.det{margin-top:6px;padding:8px;background:var(--c2);border-radius:8px;font-size:11.5px;line-height:1.5}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.btn.upb{border-color:rgba(47,212,138,.5);color:var(--up)}.btn.dnb{border-color:rgba(255,90,107,.5);color:var(--dn)}label.btn{display:inline-flex;align-items:center;cursor:pointer}
+.seg2{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0}.seg2.sm{margin:6px 0}.seg2 button{background:var(--pn);border:1px solid var(--line);border-radius:8px;padding:7px 4px;color:var(--mute);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:1px}.seg2 button b{font-weight:600;color:var(--fg)}.seg2 button small{font-size:10px;color:var(--faint)}.seg2 button.on{background:#17212e;border-color:#2f4666}
+.bar{height:8px;background:#121821;border-radius:4px;overflow:hidden;margin:6px 0}.bar.sm{height:5px;margin:4px 0}.bar i{display:block;height:100%;background:var(--acc);border-radius:4px}.bar.hot i{background:var(--warn)}
+.meter{display:grid;grid-template-columns:92px 1fr auto;gap:8px;align-items:center;font-size:11.5px}.meter span{color:var(--mute)}.meter b{font:500 11.5px var(--mono)}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}.fl{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--mute)}.fl.wide{grid-column:1/-1;margin-top:6px}.fl small{color:var(--faint)}
+.fl input,.card input[type=text],.card input[type=number]{background:var(--pn);border:1px solid var(--line);border-radius:6px;height:30px;padding:0 8px;color:var(--fg);width:100%;font:12.5px var(--mono)}
+.row .fl{flex:1;min-width:110px}
+.tw{overflow-x:auto}.tbl{border-collapse:collapse;width:100%;font-size:11.5px}.tbl th{color:var(--faint);font-weight:500;text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);font-size:10.5px}.tbl td{padding:5px 6px;border-bottom:1px solid #0f141a;white-space:nowrap;font-variant-numeric:tabular-nums}.tbl td.up{color:var(--up)}.tbl td.dn{color:var(--dn)}
+.tl{display:grid;grid-template-columns:64px 128px 1fr;gap:6px;padding:3px 0;font-size:11px;border-bottom:1px solid #0d1217;align-items:baseline}.tl time{color:var(--faint);font-family:var(--mono)}.tl b{font-weight:500;font-family:var(--mono);overflow:hidden;text-overflow:ellipsis}.tl span{color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tl.bad b{color:var(--dn)}.tl.ok b{color:var(--up)}
+.lay{margin:14px 2px 6px;font-size:10px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--faint)}
+.mg{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px}.mc{text-align:left;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 10px;cursor:pointer;color:var(--fg);font-size:12px}.mc small{color:var(--faint);font-family:var(--mono);margin-right:3px}.mc:hover{border-color:#2b3644}
+.best{display:flex;flex-direction:column;gap:6px;align-items:flex-start}.best b{font-size:14px}
+.alarmbox{background:rgba(255,90,107,.1);border:1px solid rgba(255,90,107,.5);border-radius:8px;padding:9px 10px;margin-top:8px}.alarmbox b{color:var(--dn)}
+.sv{width:100%;height:110px;display:block;margin:4px 0 8px}.sv.big{height:170px}
+.ladder{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}.ladder span{font-size:10.5px;border:1px dashed var(--line);color:var(--faint);border-radius:10px;padding:1px 8px}.ladder span.ok{border-style:solid;border-color:rgba(47,212,138,.4);color:var(--up)}
+.h{font-weight:600}
+/* Navigation unten */
+#nav{display:flex;border-top:1px solid var(--line);background:#090c10;flex:none}#nav button{flex:1;background:none;border:0;color:var(--faint);display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 0 6px;font-size:10px;cursor:pointer;position:relative}#nav svg{width:21px;height:21px}#nav button.on{color:var(--acc)}#nav button.alarm svg{color:var(--dn)}
+#nav button i{display:none;position:absolute;top:3px;left:calc(50% + 6px);min-width:15px;height:15px;border-radius:8px;background:var(--warn);color:#000;font:700 10px/15px var(--font);font-style:normal;align-items:center;justify-content:center}
+@media (min-width:900px){#nxBody{max-width:900px;width:100%;margin:0 auto}#nxHead,#nxTabs{max-width:900px;width:100%;margin:0 auto}}
+.up{color:var(--up)}.dn{color:var(--dn)}.warn{color:var(--warn)}
 
 </style></head><body>
 <div id="app">
@@ -75,6 +116,8 @@ body.noside #side{display:none}
     <div id="load" hidden><i></i>Lade Daten …</div></div>
   <aside id="side"><section id="dom"><div class="hd"><span>Orderbuch</span><button class="btn sm group" title="Gruppierung"></button></div><div class="body"></div></section><section id="tape"><div class="hd"><span>Trades</span></div><div class="body"></div></section></aside>
 </main>
+<div id="nxView" hidden><div id="nxHead"></div><div id="nxTabs"></div><div id="nxBody"></div></div>
+<nav id="nav"></nav>
 <div id="toast" hidden></div>
 </div>
 <script>
@@ -290,7 +333,7 @@ class BinanceFeed {
       const t = await jget(this.rest + '/ticker/24hr?symbol=' + this.SYM); onStats({ chg: +t.priceChangePercent, vol24: +t.quoteVolume });
       if (!this.spot) {
         const [pi, oi] = await Promise.all([jget(this.rest + '/premiumIndex?symbol=' + this.SYM), jget(this.rest + '/openInterest?symbol=' + this.SYM)]);
-        onStats({ mark: +pi.markPrice, fund8: +pi.lastFundingRate * 100, oiUsd: +oi.openInterest * +pi.markPrice });
+        onStats({ mark: +pi.markPrice, index: +pi.indexPrice, fund8: +pi.lastFundingRate * 100, oiUsd: +oi.openInterest * +pi.markPrice });
       }
       this.status.rest = Date.now();
     } catch (e) { this.status.rest = 0; }
@@ -726,6 +769,695 @@ function init() {
   window.addEventListener('visibilitychange', () => { if (!document.hidden) redraw(true); });
   connect();
 }
-init();
+
+const MODS=[{"id": "00", "n": "NEXUS Trade — Modular Autonomous Trading Intelligence Platform", "p": "The top-level product shell and system overview. Connects data, market intelligence, research, algorithms, validation, portfolio/risk, controlled trading, learning, operations and governance into one auditable platform.", "s": ["NEXUS Intelligence Overview / Command Center", "System status and module navigation", "Market and portfolio context", "Research and validation status", "Strategy lifecycle status", "Risk and execution status", "Recent decisions and incidents", "Performance and learning summary"]}, {"id": "01", "n": "Market Intelligence", "p": "Turn multi-venue market data and external context into a time-aligned, explainable view of market state, structure, liquidity, regime and potential opportunities.", "s": ["Market Intelligence Overview", "Multi-Asset / Watchlist Overview", "Market Structure & Price Action", "Multi-Timeframe Context", "Orderflow & CVD", "Funding, Open Interest & Basis", "Liquidations & Liquidity Maps", "Orderbook / Spread / Depth", "Volatility & Regime Detection", "News & Macro Context", "Cross-Asset / Beta Context", "Market Data Quality & Provenance"]}, {"id": "02", "n": "Algorithm Lab", "p": "Workspace for algorithms, research experiments, discoveries, hypotheses, validation and registry operations.", "s": ["Algorithm Lab Overview", "Algorithms", "Discoveries", "Experiments", "Validation"]}, {"id": "03", "n": "Autonomous Trader", "p": "Operational cockpit for evaluating eligible setups, managing positions and orders, applying risk controls, and exposing every trading decision.", "s": ["Cockpit", "Setups", "Positions", "Order Management", "Risk Engine", "Decision Log"]}, {"id": "04", "n": "Learning Lab", "p": "Measure performance honestly, detect model/strategy decay, explain failures and permit controlled learning without leaking future data.", "s": ["Performance", "Walk-Forward", "Regime Analysis", "Error Journal", "Model Comparison", "Autonomous Learning"]}, {"id": "05", "n": "Journal & Decision Trace", "p": "Chronological and reproducible record of what the system knew, believed, decided, attempted and observed at every point.", "s": ["Timeline", "Trade Replay", "Hypotheses", "Error Analysis", "Audit Trail"]}, {"id": "06", "n": "Data Intelligence", "p": "Manage sources, market-data normalization, historical datasets, quality, orderflow and data provenance across venues.", "s": ["Overview", "Exchanges", "Orderflow", "Heatmaps", "Data Quality", "Historical Data"]}, {"id": "07", "n": "System Architecture & Orchestration", "p": "Visualize service boundaries, orchestration, event flow, agents, scheduling, dependencies and resilience.", "s": ["System Overview", "Services", "Event Bus", "Scheduler & Jobs", "Agents", "Dependencies", "Resilience", "Observability"]}, {"id": "08", "n": "Portfolio & Risk Management", "p": "Central portfolio risk cockpit and independently enforced risk limits spanning all strategies and venues.", "s": ["Cockpit", "Exposure", "Correlations", "Position Size Calculator", "Cost Model", "Limits", "Stress Tests", "Kill-Switch"]}, {"id": "09", "n": "Strategy Deployment & Release Management", "p": "Govern movement from validated strategy candidates through paper trading and staged releases to rollback-ready operation.", "s": ["Release Cockpit", "Strategy Registry", "Release Gates", "Paper Trading", "Canary Rollout", "Rollback", "Performance Drift", "Kill Criteria", "Audit Trail"]}, {"id": "10", "n": "Autonomous Operations & Incident Center", "p": "Detect, triage, contain and resolve service, data, model, execution and risk incidents with safe automation and auditability.", "s": ["Operations Cockpit", "Incident Inbox", "Severity & Prioritization", "Runbook Execution", "Automated Remediation", "Escalation & Approval", "Incident Timeline", "Service Degradation", "Trading Safety State", "Postmortems", "Incident Metrics", "Operations Audit Trail"]}, {"id": "11", "n": "Security, Secrets & Access Governance", "p": "Enforce least privilege across users, agents, services, environments, credentials and high-impact actions.", "s": ["Security Cockpit", "Identity & Roles", "RBAC / Policy Matrix", "Agent Permissions", "Secrets Registry Integration", "Credential Rotation", "Access Reviews", "Session & Token Controls", "Environment Isolation", "Security Events", "Permission Simulation", "Security Audit Trail"]}, {"id": "12", "n": "Configuration, Policy & Feature Flags", "p": "Manage typed configuration, environment policies and staged feature controls without unsafe ad-hoc changes.", "s": ["Configuration Overview", "Configuration Registry", "Environment Profiles", "Policy Engine", "Feature Flags", "Flag Targeting", "Rollout Rules", "Approvals", "Configuration Validation", "Drift Detection", "Rollback", "Change Audit Trail"]}, {"id": "13", "n": "Monitoring, Observability & Performance Intelligence", "p": "Unify service health, logs, traces, metrics, pipeline telemetry, trading metrics and anomalies.", "s": ["Observability Cockpit", "Central Metrics", "Service Health", "Logs Explorer", "Distributed Tracing", "Service Dependencies", "Latency & Errors", "Resource Monitoring", "Data Pipeline", "Trading Metrics", "Alert Intelligence", "Anomaly Detection", "Performance Dashboards"]}, {"id": "14", "n": "Backup, Disaster Recovery & Business Continuity", "p": "Preserve durable trading, research and audit state and recover safely from infrastructure, data, provider or region failures.", "s": ["Recovery Command Center", "Backup Inventory", "Backup Jobs", "Restore Validation", "RPO / RTO Targets", "Disaster Scenarios", "Failover Planning", "Regional Recovery", "Immutable Backup Controls", "Dependency Recovery Order", "Recovery Drills", "Continuity Status", "Recovery Audit Trail"]}, {"id": "15", "n": "Compliance, Governance & Audit Management", "p": "Make policies, approvals, evidence, model/strategy lineage, access, incidents and changes auditable.", "s": ["Governance Cockpit", "Policy Registry", "Compliance Controls", "Control Evidence", "Change Approval", "Strategy Governance", "Model Governance", "Data Lineage", "Retention & Records", "Audit Evidence Packs", "Exceptions & Waivers", "Compliance Incidents", "Audit Trail"]}, {"id": "16", "n": "API, Integration & Connector Management", "p": "Manage external providers and internal APIs through a controlled adapter layer with reliability, schema and access controls.", "s": ["Integration Cockpit", "Connector Registry", "Exchange Connectors", "Market Data Provider", "Internal APIs", "Webhooks", "Credentials & Scopes", "Rate Limits", "Health Checks", "Fallback & Circuit Breakers", "Retry Policies", "Schema Registry", "API Versioning", "Integration Tests", "Environments", "Audit Trail"]}, {"id": "17", "n": "Deployment, Infrastructure & Cloud Management", "p": "Operate reproducible, monitored and cost-controlled environments for development, research, testing, paper and eventually authorized live operations.", "s": ["Infrastructure Overview", "Docker & Container Registry", "Kubernetes / Orchestration", "Compute & GPU Resources", "Deployment Pipelines", "CI/CD", "Infrastructure as Code", "Environment Provisioning", "Autoscaling", "Service Discovery", "Secrets Integration", "Cost Management", "Resource Allocation", "Release Rollback", "Infrastructure Audit Trail"]}, {"id": "18", "n": "Testing, Quality Engineering & Simulation Infrastructure", "p": "Provide trustworthy tests for code, data, strategies, models, simulation and operational failure modes.", "s": ["Testing Overview", "Unit Tests", "Integration Tests", "End-to-End Tests", "Regression Testing", "Load & Stress Testing", "Chaos Engineering", "Data Validation", "Backtesting Infrastructure", "Market Replay Simulation", "Strategy Validation", "Model Evaluation", "Test Data Management", "Quality Gates", "Test Audit Trail"]}, {"id": "19", "n": "Documentation, Knowledge Base & System Intelligence", "p": "Make architecture, data, algorithms, research, runbooks, APIs and decisions available to humans and agents with lineage and access controls.", "s": ["Knowledge Overview", "System Documentation", "Architecture Catalog", "Data Catalog", "Algorithm & Model Registry", "Research Library", "Decision Records (ADRs)", "Runbooks", "API Documentation", "Knowledge Graph", "Semantic Search", "Change History", "Documentation Health", "Agent Knowledge Access", "Knowledge Audit Trail"]}, {"id": "20", "n": "Autonomous Research & Intelligence Orchestration", "p": "Coordinate research questions, agent tasks, evidence collection, experiments, adversarial review and artifact promotion into a reusable knowledge base.", "s": ["Research Command Center", "Objective Intake", "Research Queue & Scheduler", "Task Decomposition", "Agent Routing", "Source Discovery", "Evidence Quality", "Hypothesis Registry", "Experiment Planning", "Information Gain & Cost Budget", "Falsification / Adversarial Review", "Synthesis & Contradictions", "Artifact Promotion", "Research Memory", "Research Audit Trail"]}, {"id": "21", "n": "Autonomous Decision Intelligence & Strategic Control", "p": "Translate platform objectives and current evidence into ranked, bounded and auditable system-level decisions.", "s": ["Decision Command Center", "Goal & Priority Hierarchy", "Situation / Context Assembly", "Candidate Action Registry", "Expected Utility & Trade-offs", "Uncertainty Assessment", "Policy & Permission Checks", "Adversarial Challenge", "Decision Arbitration", "Human / System Approval Gates", "Execution Authorization", "Feedback & Outcome Evaluation", "Strategic Memory", "Stop Conditions", "Decision Audit Trail"]}, {"id": "22", "n": "Autonomous Strategy Discovery & Development", "p": "Turn opportunity discovery into falsifiable strategy hypotheses, architecture, signals, code candidates, cost-aware validation and documented decisions.", "s": ["Strategy Discovery Command Center", "Opportunity Mining", "Pattern Discovery", "Strategy Hypothesis Registry", "Strategy Architecture Designer", "Feature Engineering", "Signal Research", "Alpha Combination", "Strategy Code Generation", "Algorithm Registry", "Cost-Aware Optimization", "Robustness Testing", "Strategy Comparison", "Strategy Documentation", "Development Audit Trail"]}, {"id": "23", "n": "Autonomous Portfolio Intelligence & Capital Allocation", "p": "Combine eligible strategies into a risk-aware portfolio, allocate capital, model correlation and capacity, rebalance under policy and produce auditable allocation decisions.", "s": ["Portfolio Command Center", "Strategy Allocation", "Capital Budgeting", "Portfolio Construction", "Correlation Intelligence", "Diversification Engine", "Risk Budgeting", "Exposure Management", "Dynamic Rebalancing", "Portfolio Optimization", "Liquidity & Capacity Analysis", "Drawdown Control", "Portfolio Stress Testing", "Allocation Governance", "Portfolio Audit Trail"]}];
+
+'use strict';
+/* ===== NEXUS: Kern (Zustand, Ereignisbus, Audit-Kette, Speicher, Modulregister) ===== */
+const NX_VER = 'nexus 0.1';
+const LAYERS = [
+  ['1 · Intelligence', ['01', '06', '20']],
+  ['2 · Discovery & Development', ['02', '22', '18']],
+  ['3 · Decision & Allocation', ['21', '23', '08']],
+  ['4 · Execution & Operations', ['03', '09', '10', '16', '17']],
+  ['5 · Learning & Control', ['04', '05', '07', '11', '12', '13', '14', '15', '19']],
+];
+/* Was ist wirklich gebaut? Pro Modul: Abschnitte (Namen wie im Register) mit echter Funktion. Alles andere = spezifiziert. */
+const IMPL = {
+  '00': ['NEXUS Intelligence Overview / Command Center', 'System status and module navigation', 'Market and portfolio context', 'Risk and execution status', 'Recent decisions and incidents', 'Performance and learning summary'],
+  '01': [],
+  '02': ['Algorithm Lab Overview', 'Algorithms', 'Discoveries', 'Experiments', 'Validation'],
+  '03': ['Cockpit', 'Setups', 'Positions', 'Order Management', 'Risk Engine', 'Decision Log'],
+  '04': ['Performance', 'Regime Analysis', 'Error Journal', 'Model Comparison', 'Autonomous Learning'],
+  '05': ['Timeline', 'Trade Replay', 'Hypotheses', 'Error Analysis', 'Audit Trail'],
+  '08': ['Cockpit', 'Exposure', 'Position Size Calculator', 'Cost Model', 'Limits', 'Stress Tests', 'Kill-Switch'],
+};
+const modOf = id => MODS.find(m => m.id === id);
+const modPct = m => { const n = (IMPL[m.id] || []).length; return m.s.length ? n / m.s.length : 0; };
+const modState = m => { const p = modPct(m); return p >= 0.999 ? 'live' : p > 0 ? 'part' : 'spec'; };
+
+/* ----- Zustand (wird im Browser gespeichert) ----- */
+const NX = {
+  v: 1, seq: 1, mode: 'off',                         // off = nur Signale · ask = Vorschlag + Freigabe · auto = Paper automatisch
+  kill: false, killWhy: '', killAt: 0,
+  acct: { eq0: 10000, realized: 0, fees: 0, archived: 0, since: Date.now() }, recon: null,
+  cost: { feeBp: { bnf: 5, hl: 4.5, bns: 10 }, slipBp: 1 },
+  risk: { riskPct: 0.5, maxPos: 3, dayLossPct: 2, maxLev: 5, maxSpreadBp: 3, staleMs: 15000, lossStreak: 3, pauseMin: 30, probe: 0.25, minN: 20 },
+  algos: {}, signals: [], decisions: [], orders: [], pos: [], closed: [], events: [], hyp: [], cfgLog: [], notes: {}, pause: { until: 0, why: '' },
+};
+const subs = [];
+const onNX = f => subs.push(f);
+let nxSaveT = null;
+function nxChanged() { clearTimeout(nxSaveT); nxSaveT = setTimeout(nxSave, 1500); }
+
+/* Integritäts-Kette (FNV-1a, 2×32 Bit) – zeigt Manipulation/Lücken, ist keine Kryptografie */
+function fnv(s) { let a = 0x811c9dc5, b = 0x01000193 ^ s.length; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 0x01000193) >>> 0; b = Math.imul(b ^ c, 0x85ebca6b) >>> 0; } return a.toString(16).padStart(8, '0') + b.toString(16).padStart(8, '0'); }
+function emit(type, d, trace) {
+  const e = { i: NX.events.length ? NX.events[0].i + 1 : 1, t: Date.now(), type, d: d || {}, tr: trace || null, p: NX.events.length ? NX.events[0].h : '0' };
+  e.h = fnv(e.p + '|' + e.i + '|' + e.t + '|' + type + '|' + JSON.stringify(e.d));
+  NX.events.unshift(e); if (NX.events.length > 2500) NX.events.length = 2500;
+  for (const f of subs) { try { f(e); } catch (x) { console.error(x); } }
+  nxChanged(); return e;
+}
+function chainOk() { const E = NX.events; for (let k = 0; k < E.length - 1; k++) if (E[k].p !== E[k + 1].h) return { ok: false, at: E[k].i }; for (let k = 0; k < E.length; k++) { const e = E[k]; if (fnv(e.p + '|' + e.i + '|' + e.t + '|' + e.type + '|' + JSON.stringify(e.d)) !== e.h) return { ok: false, at: e.i }; } return { ok: true, n: E.length }; }
+const nid = p => p + (NX.seq++).toString(36).toUpperCase() + Math.floor(Math.random() * 1296).toString(36).toUpperCase();
+
+/* ----- Speichern/Laden (IndexedDB, Schlüssel „nexus“) ----- */
+async function nxSave() {
+  try { const o = JSON.parse(JSON.stringify(NX)); o.signals = o.signals.slice(0, 600); o.decisions = o.decisions.slice(0, 400); o.orders = o.orders.slice(0, 400); o.closed = o.closed.slice(0, 500); await idbPut('nexus', o); }
+  catch (e) { /* ohne Speicher */ }
+}
+async function nxLoad() {
+  try {
+    const o = await idbGet('nexus'); if (!o || o.v !== 1) return false;
+    for (const k of Object.keys(NX)) if (o[k] !== undefined && typeof NX[k] !== 'function') NX[k] = (NX[k] && typeof NX[k] === 'object' && !Array.isArray(NX[k])) ? Object.assign(NX[k], o[k]) : o[k];
+    return true;
+  } catch (e) { return false; }
+}
+function nxExport() { return JSON.stringify({ app: NX_VER, at: new Date().toISOString(), state: NX }, null, 1); }
+async function nxImport(txt) { const o = JSON.parse(txt); if (!o || !o.state || o.state.v !== 1) throw new Error('Datei passt nicht'); await idbPut('nexus', o.state); location.reload(); }
+
+/* Konfigurationsänderungen mit Protokoll (Modul 12): alter/neuer Wert, zurücksetzbar */
+function cfgSet(path, val, why) {
+  const parts = path.split('.'); let o = NX; for (let i = 0; i < parts.length - 1; i++) o = o[parts[i]]; const k = parts[parts.length - 1], old = o[k];
+  if (old === val) return; o[k] = val; NX.cfgLog.unshift({ t: Date.now(), path, old, val, why: why || 'manuell' }); if (NX.cfgLog.length > 300) NX.cfgLog.length = 300;
+  emit('config.changed', { path, old, val }); nxChanged();
+}
+function cfgRollback(i) { const c = NX.cfgLog[i]; if (!c) return; cfgSet(c.path, c.old, 'Rücknahme'); }
+
+'use strict';
+/* ===== NEXUS: Engine – Signale (Algorithm Lab), Entscheidung, Risiko-Veto, Order-Lebenszyklus, Papier-Konto ===== */
+/* Alles hier ist PAPIER (Simulation gegen echte Live-Kurse). Es gibt keinen Weg zu echten Orders. */
+const LIVE_TRADING = false;
+const nxKey = () => ST.sym + '|' + ST.src;
+const LASTPX = {};                                           // letzter bekannter Preis je Markt
+const sgn = s => s === 'long' || s === 'buy' ? 1 : -1;
+const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+const sd = a => { if (a.length < 2) return 0; const m = mean(a); return Math.sqrt(a.reduce((x, y) => x + (y - m) * (y - m), 0) / (a.length - 1)); };
+const feeOf = src => NX.cost.feeBp[src] != null ? NX.cost.feeBp[src] : 5;
+
+/* ----- Kerzen-Hilfen (nur geschlossene Kerzen, kein Blick in die Zukunft) ----- */
+const closedC = () => { const a = D.candles; return a.slice(Math.max(0, a.length - 241), Math.max(0, a.length - 1)); };
+function atrOf(C, n = 14) { let s = 0, k = 0; for (let i = Math.max(1, C.length - n); i < C.length; i++) { const c = C[i], p = C[i - 1]; s += Math.max(c.h - c.l, Math.abs(c.h - p.c), Math.abs(c.l - p.c)); k++; } return k ? s / k : 0; }
+function emaOf(C, n) { if (!C.length) return 0; const a = 2 / (n + 1); let e = C[0].c; for (let i = 1; i < C.length; i++) e = C[i].c * a + e * (1 - a); return e; }
+function rangeSince(t0) { const r = D.ring; let lo = Infinity, hi = -Infinity, n = 0; for (let i = r.len - 1; i >= 0 && n < 300000; i--) { const j = rIdx(i); if (r.t[j] < t0) break; const p = r.p[j]; if (p < lo) lo = p; if (p > hi) hi = p; n++; } return n ? { lo, hi, n } : null; }
+function bookStats(range) {
+  const bk = D.feed && D.feed.getBook && D.feed.getBook(); if (!bk || !bk.bids.length || !bk.asks.length) return null;
+  const mid = (bk.bids[0][0] + bk.asks[0][0]) / 2, lim = mid * range; let b = 0, a = 0, nb = 0, na = 0;
+  for (const [p, q] of bk.bids) { if (mid - p > lim) break; b += p * q; nb++; } for (const [p, q] of bk.asks) { if (p - mid > lim) break; a += p * q; na++; }
+  return { mid, b, a, nb, na, spreadBp: (bk.asks[0][0] - bk.bids[0][0]) / mid * 1e4, bk };
+}
+let ctxC = { t: 0, v: null };
+function marketCtx() {
+  const now = Date.now(); if (now - ctxC.t < 900 && ctxC.v) return ctxC.v; const px = D.last ? D.last.p : null, C = closedC();
+  const o = { px, sym: ST.sym, src: ST.src, tf: ST.tf }; if (!px || C.length < 30) { ctxC = { t: now, v: o }; return o; }
+  const a = atrOf(C), e20 = emaOf(C.slice(-60), 20), e50 = emaOf(C.slice(-120), 50);
+  const trs = C.slice(1).map((c, i) => Math.max(c.h - c.l, Math.abs(c.h - C[i].c), Math.abs(c.l - C[i].c)) / c.c), cur = mean(trs.slice(-14)), sorted = trs.slice().sort((x, y) => x - y);
+  o.atr = a; o.atrPct = a / px * 100; o.volPct = Math.round(sorted.filter(x => x <= cur).length / sorted.length * 100);
+  o.vol = o.volPct < 33 ? 'ruhig' : o.volPct < 66 ? 'normal' : 'wild'; o.trend = e20 > e50 * 1.0005 ? 'auf' : e20 < e50 * 0.9995 ? 'ab' : 'seitwärts';
+  const dl = C.slice(-12).map(deltaOf).filter(x => x != null); o.cvd12 = dl.length ? dl.reduce((x, y) => x + y, 0) : null;
+  o.fund = D.stats.fund8; o.basis = D.stats.index && D.stats.mark ? (D.stats.mark / D.stats.index - 1) * 100 : null;
+  const oi = D.oi; if (oi.length > 3) { const tgt = now - 3600e3; let b = oi[0]; for (const x of oi) { if (x.t <= tgt) b = x; else break; } o.oi1h = b.t <= tgt + 600e3 && b.v ? (oi[oi.length - 1].v / b.v - 1) * 100 : null; }
+  const bs = bookStats(0.0025); if (bs) { o.imb = bs.a > 0 ? bs.b / bs.a : null; o.spreadBp = bs.spreadBp; }
+  o.regime = o.trend + ' / ' + o.vol; ctxC = { t: now, v: o }; return o;
+}
+
+/* ===== Algorithm Lab: Algorithmen, jeweils in 3 Varianten parallel (Locker · Standard · Streng) ===== */
+const VARS = ['locker', 'standard', 'streng'];
+const ALGOS = [
+  { id: 'cvd', name: 'CVD-Divergenz', kind: 'candle', cool: 6,
+    hyp: 'Ein neues Preis-Extrem ohne Bestätigung durch den Orderflow (CVD) kündigt eine Umkehr an.',
+    falsif: 'Verworfen, wenn nach ≥ 30 ausgewerteten Signalen die Netto-Erwartung ≤ 0 R ist.',
+    params: { locker: { lb: 12, k: 1 }, standard: { lb: 20, k: 2 }, streng: { lb: 40, k: 3 } }, pdesc: p => 'Rückblick ' + p.lb + ' Kerzen · CVD-Abstand ≥ ' + p.k + '× Ø|Delta|',
+    run(C, p) {
+      const n = p.lb; if (C.length < n + 2) return null; const W = C.slice(-n), dl = W.map(deltaOf); if (dl.some(x => x == null)) return null;
+      const cum = []; let s = 0; for (const x of dl) { s += x; cum.push(s); } const i = n - 1, md = mean(dl.map(Math.abs)), last = W[i], prev = W.slice(0, i), cp = cum.slice(0, i);
+      if (last.h > Math.max(...prev.map(c => c.h)) && cum[i] < Math.max(...cp) - p.k * md) return { side: 'short', ext: last.h, why: ['Neues Hoch (' + n + ' Kerzen), CVD macht kein neues Hoch', 'CVD ' + fq(cum[i]) + ' vs. Vor-Hoch ' + fq(Math.max(...cp))] };
+      if (last.l < Math.min(...prev.map(c => c.l)) && cum[i] > Math.min(...cp) + p.k * md) return { side: 'long', ext: last.l, why: ['Neues Tief (' + n + ' Kerzen), CVD macht kein neues Tief', 'CVD ' + fq(cum[i]) + ' vs. Vor-Tief ' + fq(Math.min(...cp))] };
+      return null;
+    } },
+  { id: 'sweep', name: 'Liquidity Sweep Reversal', kind: 'candle', cool: 6,
+    hyp: 'Nach einem Ausbruch über/unter ein frisches Extrem mit Rückschluss in die Range (Sweep) läuft der Preis zurück in die Range.',
+    falsif: 'Verworfen, wenn nach ≥ 30 ausgewerteten Signalen die Netto-Erwartung ≤ 0 R ist.',
+    params: { locker: { lb: 20, wick: 0.4, liq: 0 }, standard: { lb: 20, wick: 0.5, liq: 0 }, streng: { lb: 30, wick: 0.6, liq: 1 } }, pdesc: p => 'Rückblick ' + p.lb + ' Kerzen · Docht ≥ ' + Math.round(p.wick * 100) + ' %' + (p.liq ? ' · Liquidationen nötig (nur Binance Perp)' : ''),
+    run(C, p) {
+      const n = p.lb; if (C.length < n + 2) return null; const last = C[C.length - 1], prev = C.slice(-n - 1, -1), hiP = Math.max(...prev.map(c => c.h)), loP = Math.min(...prev.map(c => c.l)), rng = (last.h - last.l) || 1e-9, mid = (hiP + loP) / 2;
+      const liq = side => D.liqs.filter(l => l.t >= last.t && l.t < last.t + D.tfMs && l.long === side).reduce((x, l) => x + l.usd, 0), need = (BUB_BASE[ST.sym] || 1e5) * 0.3;
+      if (last.h > hiP && last.c < hiP && (last.h - Math.max(last.o, last.c)) / rng >= p.wick) { const lq = liq(false); if (!p.liq || lq >= need) return { side: 'short', ext: last.h, tgt: mid, why: ['Hoch über ' + n + '-Kerzen-Hoch, Schluss wieder darunter', 'Oberer Docht ' + Math.round((last.h - Math.max(last.o, last.c)) / rng * 100) + ' %', lq ? 'Short-Liquidationen ' + fusd(lq) + ' $' : 'keine Liquidationsdaten/-spitze'] }; }
+      if (last.l < loP && last.c > loP && (Math.min(last.o, last.c) - last.l) / rng >= p.wick) { const lq = liq(true); if (!p.liq || lq >= need) return { side: 'long', ext: last.l, tgt: mid, why: ['Tief unter ' + n + '-Kerzen-Tief, Schluss wieder darüber', 'Unterer Docht ' + Math.round((Math.min(last.o, last.c) - last.l) / rng * 100) + ' %', lq ? 'Long-Liquidationen ' + fusd(lq) + ' $' : 'keine Liquidationsdaten/-spitze'] }; }
+      return null;
+    } },
+  { id: 'fund', name: 'Funding & Basis Regime', kind: 'timer60', cool: 240 * 60e3,
+    hyp: 'Extremes Funding bei steigendem Open Interest in Trendrichtung zeigt überfüllte Positionierung – danach ist ein Rücksetzer wahrscheinlicher.',
+    falsif: 'Verworfen, wenn nach ≥ 30 ausgewerteten Signalen die Netto-Erwartung ≤ 0 R ist.',
+    params: { locker: { thr: 0.02, oi: 0.3 }, standard: { thr: 0.04, oi: 0.5 }, streng: { thr: 0.07, oi: 1 } }, pdesc: p => 'Funding ≥ ' + p.thr + ' %/8h · OI-Anstieg 1 h ≥ ' + p.oi + ' %',
+    run(C, p, ctx) {
+      if (ctx.fund == null || ctx.oi1h == null || ctx.atr == null) return null; const why = ['Funding ' + nf(ctx.fund, 4) + ' %/8h, OI 1 h ' + nf(ctx.oi1h, 2) + ' %', 'Trend ' + ctx.trend + (ctx.basis != null ? ' · Basis ' + nf(ctx.basis, 3) + ' %' : '')];
+      if (ctx.fund >= p.thr && ctx.oi1h >= p.oi && ctx.trend === 'auf') return { side: 'short', ext: ctx.px + 2 * ctx.atr, tgt: ctx.px - 3 * ctx.atr, why };
+      if (ctx.fund <= -p.thr && ctx.oi1h >= p.oi && ctx.trend === 'ab') return { side: 'long', ext: ctx.px - 2 * ctx.atr, tgt: ctx.px + 3 * ctx.atr, why };
+      return null;
+    } },
+  { id: 'book', name: 'Orderbuch-Ungleichgewicht', kind: 'timer5', cool: 10 * 60e3,
+    hyp: 'Ein anhaltend einseitig dominantes Orderbuch nahe am Preis, bestätigt durch gleichgerichteten Orderflow, trägt den Preis in diese Richtung.',
+    falsif: 'Verworfen, wenn nach ≥ 30 ausgewerteten Signalen die Netto-Erwartung ≤ 0 R ist.',
+    params: { locker: { r: 1.8, m: 6 }, standard: { r: 2.3, m: 9 }, streng: { r: 3, m: 12 } }, pdesc: p => 'Bid/Ask-Verhältnis ≥ ' + p.r + ' (±0,25 %) über ' + p.m * 5 + ' s',
+    run(C, p, ctx) {
+      const h = RUN.bk; if (h.length < p.m || ctx.atr == null) return null; const w = h.slice(-p.m), dl = C.slice(-3).map(deltaOf).filter(x => x != null), dsum = dl.reduce((x, y) => x + y, 0);
+      if (Math.min(...w) >= p.r && dsum > 0) return { side: 'long', ext: ctx.px - ctx.atr, why: ['Bids ≥ ' + nf(Math.min(...w), 1) + '× Asks seit ' + p.m * 5 + ' s', 'Delta letzte 3 Kerzen ' + fq(dsum)] };
+      if (Math.max(...w) <= 1 / p.r && dsum < 0) return { side: 'short', ext: ctx.px + ctx.atr, why: ['Asks ≥ ' + nf(1 / Math.max(...w), 1) + '× Bids seit ' + p.m * 5 + ' s', 'Delta letzte 3 Kerzen ' + fq(dsum)] };
+      return null;
+    } },
+];
+const algoOf = id => ALGOS.find(a => a.id === id);
+const algoName = id => id === 'manual' ? 'Manuell' : (algoOf(id) || { name: id }).name;
+function algoCfg(id) { return NX.algos[id] || (NX.algos[id] = { on: true, trade: true, tv: 'standard' }); }
+const RUN = { ct: {}, cool: {}, bk: [], lastBk: 0, last60: 0, lastBkRun: 0 };
+
+function mkSignal(a, vn, r, ctx, manual) {
+  const px = D.last.p, side = r.side, dir = sgn(side), buf = manual ? 0 : (a.id === 'fund' ? 0 : 0.3 * ctx.atr);
+  let stop = r.ext - dir * buf; const dist = Math.abs(px - stop); if (!manual && (dist < 0.25 * ctx.atr || dist > 6 * ctx.atr)) return null; if (dist <= 0) return null;
+  let target = r.tgt != null && (r.tgt - px) * dir >= dist ? r.tgt : px + dir * dist * 1.5;
+  return { id: nid('S'), t: Date.now(), k: nxKey(), sym: ST.sym, src: ST.src, tf: ST.tf, algo: a.id, variant: vn, side, px, stop, target, rr: Math.abs(target - px) / dist, atr: ctx.atr || 0, why: r.why || [], reg: ctx.regime || '', st: 'open', h: {}, out: '', R: null, mfe: 0, mae: 0, last: Date.now(), manual: !!manual };
+}
+function fireSignal(sig) {
+  NX.signals.unshift(sig); if (NX.signals.length > 600) NX.signals.length = 600; emit('signal.created', { id: sig.id, algo: sig.algo, v: sig.variant, side: sig.side, px: sig.px, k: sig.k }, sig.id);
+  nxOnSignal(sig);
+}
+function algoTick() {
+  if (!D.last || !D.candles.length) return; const now = Date.now(), ctx = marketCtx(); if (D.lastMsg && now - D.lastMsg > 20000) return; const C = closedC(); if (C.length < 30 || ctx.atr == null) return;
+  const run = (a, vn) => { const cfg = algoCfg(a.id); if (!cfg.on) return; const ck = a.id + '|' + vn + '|' + nxKey(); const r = a.run(C, a.params[vn], ctx); if (!r) return;
+    const cd = RUN.cool[ck + '|' + r.side] || 0, wait = a.kind === 'candle' ? a.cool * D.tfMs : a.cool; if (now - cd < wait) return;
+    const sig = mkSignal(a, vn, r, ctx, false); if (!sig) return; RUN.cool[ck + '|' + r.side] = now; fireSignal(sig); };
+  const lastC = C[C.length - 1], key = nxKey() + '|' + ST.tf;
+  if (RUN.ct[key] === undefined) RUN.ct[key] = lastC.t;                  // erster Durchlauf nur Markierung – keine Signale aus alten Kerzen
+  else if (lastC.t > RUN.ct[key]) { RUN.ct[key] = lastC.t; ALGOS.filter(a => a.kind === 'candle').forEach(a => VARS.forEach(v => run(a, v))); }
+  if (now - RUN.lastBk >= 5000) { RUN.lastBk = now; const bs = bookStats(0.0025); if (bs && bs.nb >= 3 && bs.na >= 3 && bs.a > 0) { RUN.bk.push(bs.b / bs.a); if (RUN.bk.length > 24) RUN.bk.shift(); } ALGOS.filter(a => a.kind === 'timer5').forEach(a => VARS.forEach(v => run(a, v))); }
+  if (now - RUN.last60 >= 60000) { RUN.last60 = now; ALGOS.filter(a => a.kind === 'timer60').forEach(a => VARS.forEach(v => run(a, v))); }
+}
+/* Marktwechsel: Verlauf der Orderbuch-Messung zurücksetzen */
+let lastBkKey = ''; function algoKeyCheck() { const k = nxKey(); if (k !== lastBkKey) { lastBkKey = k; RUN.bk = []; ctxC = { t: 0, v: null }; } }
+
+/* ----- Vorwärts-Auswertung: jedes Signal wird auf echten Folgekursen verfolgt (kein Backtest, keine Rückschau) ----- */
+const costBpOf = src => 2 * feeOf(src) + 2 * NX.cost.slipBp;
+function netR(sig, exitPx) { const dir = sgn(sig.side), dist = Math.abs(sig.px - sig.stop); return (dir * (exitPx - sig.px) - costBpOf(sig.src) / 1e4 * sig.px) / dist; }
+function trackSignals() {
+  const now = Date.now();
+  for (const s of NX.signals) {
+    if (s.st !== 'open') continue; const age = now - s.t; if (age > 90 * 60e3 && s.k !== nxKey()) { s.st = 'expired'; continue; } if (s.k !== nxKey()) continue;
+    const rg = rangeSince(s.last), p = D.last.p; s.last = now; const dir = sgn(s.side), dist = Math.abs(s.px - s.stop);
+    if (rg) { const fav = dir > 0 ? rg.hi - s.px : s.px - rg.lo, adv = dir > 0 ? s.px - rg.lo : rg.hi - s.px; s.mfe = Math.max(s.mfe, fav / dist); s.mae = Math.max(s.mae, adv / dist);
+      const hitS = dir > 0 ? rg.lo <= s.stop : rg.hi >= s.stop, hitT = dir > 0 ? rg.hi >= s.target : rg.lo <= s.target;
+      if (hitS) { s.out = 'S'; s.R = netR(s, s.stop); } else if (hitT) { s.out = 'T'; s.R = netR(s, s.target); } }
+    for (const [hk, m] of [['m5', 5], ['m15', 15], ['m60', 60]]) if (s.h[hk] == null && age >= m * 60e3 && age < (m + 3) * 60e3) s.h[hk] = (dir * (p / s.px - 1)) * 1e4 - costBpOf(s.src);
+    if (!s.out && age >= 60 * 60e3) { s.out = 'Z'; s.R = netR(s, p); }
+    if (s.out) { s.st = 'done'; emit('signal.evaluated', { id: s.id, out: s.out, R: +s.R.toFixed(2) }, s.id); }
+  }
+}
+function algoStats(aid, vn) {
+  const a = NX.signals.filter(s => s.algo === aid && s.variant === vn && s.st === 'done' && !s.manual), n = a.length, R = a.map(s => s.R), w = R.filter(x => x > 0).length, avg = mean(R), se = n > 1 ? sd(R) / Math.sqrt(n) : 0;
+  const open = NX.signals.filter(s => s.algo === aid && s.variant === vn && s.st === 'open').length, tot = NX.signals.filter(s => s.algo === aid && s.variant === vn && !s.manual).length;
+  return { n, w, win: n ? w / n : 0, avg, lo: n > 1 ? avg - 1.28 * se : null, sum: R.reduce((x, y) => x + y, 0), open, tot, T: a.filter(s => s.out === 'T').length, S: a.filter(s => s.out === 'S').length, Z: a.filter(s => s.out === 'Z').length };
+}
+function algoVerdict(st) {
+  if (st.n < 20) return { k: 'wenig', t: 'Zu wenig Daten (' + st.n + '/20)', c: 'warn' };
+  if (st.lo > 0) return { k: 'kand', t: 'Kandidat – Vorteil vorläufig belegt', c: 'up' };
+  if (st.avg <= 0 && st.n >= 30) return { k: 'verw', t: 'Verworfen – kein Vorteil', c: 'dn' };
+  return { k: 'unkl', t: 'Unklar', c: 'warn' };
+}
+
+/* ===== Risiko-Engine (deterministisch, unabhängig, nicht übersteuerbar) ===== */
+function dayStart() { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); }
+function pxOf(sym, src) { return LASTPX[sym + '|' + src] || null; }
+function unreal(p) { const px = pxOf(p.sym, p.src); return px ? sgn(p.side) * (px - p.entry) * p.qty : 0; }
+function equity() { return NX.acct.eq0 + NX.acct.realized + NX.pos.reduce((x, p) => x + unreal(p) - p.fees, 0); }
+function dayPnl() { const t0 = dayStart(); return NX.closed.filter(c => c.t1 >= t0).reduce((x, c) => x + c.pnl, 0) + NX.pos.reduce((x, p) => x + unreal(p) - p.fees, 0); }
+function exposure() { return NX.pos.reduce((x, p) => x + p.qty * (pxOf(p.sym, p.src) || p.entry), 0); }
+function riskEvaluate(it) {          // it: {sym,src,side,entry,stop,scale}
+  const R = NX.risk, why = [], eq = equity(), dir = sgn(it.side), dist = Math.abs(it.entry - it.stop), now = Date.now();
+  if (LIVE_TRADING) why.push('Live-Handel ist nicht erlaubt'); if (NX.kill) why.push('Kill-Switch aktiv' + (NX.killWhy ? ' (' + NX.killWhy + ')' : '')); if (now < NX.pause.until) why.push('Pause bis ' + new Date(NX.pause.until).toLocaleTimeString('de-DE') + ' (' + NX.pause.why + ')');
+  if (!D.lastMsg || now - D.lastMsg > R.staleMs) why.push('Daten veraltet (> ' + Math.round(R.staleMs / 1000) + ' s)');
+  if (NX.pos.length >= R.maxPos) why.push('Max. offene Positionen (' + R.maxPos + ') erreicht'); if (NX.pos.some(p => p.sym === it.sym && p.src === it.src)) why.push('Auf diesem Markt läuft bereits eine Position');
+  if (dayPnl() <= -R.dayLossPct / 100 * NX.acct.eq0) why.push('Tagesverlust-Limit (' + R.dayLossPct + ' %) erreicht');
+  if (dist <= 0 || (it.entry - it.stop) * dir <= 0) why.push('Stop liegt nicht auf der richtigen Seite');
+  else { const cR = costBpOf(it.src) / 1e4 * it.entry / dist; if (cR > 0.5) why.push('Kosten ' + nf(cR, 2) + ' R pro Trade (> 0,5 R) – Stop zu eng für die Gebühren'); }
+  const bs = it.sym === ST.sym && it.src === ST.src ? bookStats(0.001) : null; if (bs && bs.spreadBp > R.maxSpreadBp) why.push('Spread ' + nf(bs.spreadBp, 1) + ' bp > Limit ' + R.maxSpreadBp + ' bp');
+  const riskUsd = eq * R.riskPct / 100 * (it.scale || 1); let qty = dist > 0 ? riskUsd / dist : 0, notional = qty * it.entry, capped = false;
+  const maxNot = Math.max(0, eq * R.maxLev - exposure()); if (notional > maxNot) { qty = maxNot / it.entry; notional = maxNot; capped = true; if (qty <= 0) why.push('Hebel-Limit (' + R.maxLev + '×) ausgeschöpft'); }
+  if (!(qty > 0) && !why.length) why.push('Positionsgröße 0');
+  return { ok: why.length === 0, why, qty, notional, riskUsd: qty * dist, capped, eq };
+}
+
+/* ===== Entscheidungs-Engine (Modul 21 – Ausschnitt): Kontext → Gegenprüfung → Nutzen → Freigabe ===== */
+const isTraderVariant = s => s.manual || (algoCfg(s.algo).trade && algoCfg(s.algo).tv === s.variant);
+function nxOnSignal(sig) {
+  if (NX.mode === 'off' || !isTraderVariant(sig)) return; const dec = decide(sig); NX.decisions.unshift(dec); if (NX.decisions.length > 400) NX.decisions.length = 400;
+  emit('decision.issued', { id: dec.id, verdict: dec.verdict, algo: dec.algo, side: dec.side }, sig.id);
+  if (dec.verdict === 'auto') nxExecute(dec); else if (dec.verdict === 'ask') { toast('Freigabe nötig: ' + algoName(dec.algo) + ' ' + (dec.side === 'long' ? 'Long' : 'Short') + ' ' + dec.sym, 6000); }
+}
+function decide(sig) {
+  const ctx = marketCtx(), st = algoStats(sig.algo, sig.variant), dir = sgn(sig.side), R = NX.risk, dec = { id: nid('D'), t: Date.now(), sig: sig.id, algo: sig.algo, variant: sig.variant, sym: sig.sym, src: sig.src, side: sig.side, px: sig.px, stop: sig.stop, target: sig.target, ctx: { regime: ctx.regime, fund: ctx.fund, imb: ctx.imb, oi1h: ctx.oi1h, atrPct: ctx.atrPct, volPct: ctx.volPct }, checks: [], challenge: [], reasons: [], verdict: '', scale: 1, ev: null, state: 'neu' };
+  const chk = (n, ok, d) => dec.checks.push({ n, ok, d: d || '' });
+  chk('Modus', NX.mode !== 'off', NX.mode === 'auto' ? 'Papier automatisch' : 'Vorschlag + Freigabe'); chk('Kill-Switch aus', !NX.kill); chk('Datenfrische', !!D.lastMsg && Date.now() - D.lastMsg < R.staleMs);
+  /* Nutzen: Vorwärts-Statistik dieser Variante, konservativ (untere Schranke) */
+  if (st.n >= R.minN) { dec.ev = { n: st.n, avg: st.avg, lo: st.lo }; if (st.avg <= 0 || st.lo < -0.3) { dec.reasons.push('Keine belegte Erwartung: Ø ' + nf(st.avg, 2) + ' R, konservativ ' + nf(st.lo, 2) + ' R (n=' + st.n + ')'); } else dec.scale = 1; }
+  else { dec.ev = { n: st.n, avg: null, lo: null }; dec.scale = R.probe; dec.challenge.push('Statistik fehlt (n=' + st.n + ' < ' + R.minN + ') → nur Probe-Größe ' + Math.round(R.probe * 100) + ' %'); }
+  chk('Erwartung', !dec.reasons.length, st.n >= R.minN ? 'Ø ' + nf(st.avg, 2) + ' R' : 'Exploration (n=' + st.n + ')');
+  /* Gegenprüfung (adversarial): was spricht gegen den Trade? */
+  if ((ctx.trend === 'auf' && dir < 0) || (ctx.trend === 'ab' && dir > 0)) dec.challenge.push('Trend (' + ctx.trend + ') läuft gegen die Richtung');
+  if (ctx.fund != null && ((dir > 0 && ctx.fund > 0.03) || (dir < 0 && ctx.fund < -0.03))) dec.challenge.push('Funding ' + nf(ctx.fund, 4) + ' %/8h: Seite ist überfüllt');
+  if (ctx.imb != null && ((dir > 0 && ctx.imb < 0.6) || (dir < 0 && ctx.imb > 1.67))) dec.challenge.push('Orderbuch stützt die Gegenseite (Bid/Ask ' + nf(ctx.imb, 2) + ')');
+  const costR = costBpOf(sig.src) / 1e4 * sig.px / Math.abs(sig.px - sig.stop); if (costR > 0.25) dec.challenge.push('Kosten fressen ' + nf(costR, 2) + ' R pro Trade');
+  if (ctx.vol === 'ruhig') dec.challenge.push('Sehr ruhiger Markt – Ziel evtl. zu weit');
+  const rk = riskEvaluate({ sym: sig.sym, src: sig.src, side: sig.side, entry: sig.px, stop: sig.stop, scale: dec.scale }); dec.risk = { ok: rk.ok, why: rk.why, qty: rk.qty, notional: rk.notional, riskUsd: rk.riskUsd, capped: rk.capped };
+  chk('Risiko-Engine', rk.ok, rk.ok ? 'Risiko ' + nf(rk.riskUsd, 2) + ' $' : rk.why.join(' · '));
+  if (!rk.ok) { dec.verdict = 'veto'; dec.reasons.push(...rk.why); }
+  else if (dec.reasons.length) dec.verdict = 'skip';
+  else if (NX.mode === 'ask' || dec.challenge.filter(c => !c.startsWith('Statistik')).length >= 2) { dec.verdict = 'ask'; dec.state = 'wartet'; if (NX.mode === 'auto') dec.reasons.push('≥ 2 Gegenargumente → Mensch entscheidet'); }
+  else dec.verdict = 'auto';
+  return dec;
+}
+function nxApprove(id) { const d = NX.decisions.find(x => x.id === id); if (!d || d.state !== 'wartet') return; if (Date.now() - d.t > 180e3) { d.state = 'abgelaufen'; emit('decision.expired', { id }, d.sig); return; } d.state = 'freigegeben'; emit('decision.approved', { id }, d.sig); nxExecute(d, true); }
+function nxReject(id) { const d = NX.decisions.find(x => x.id === id); if (!d || d.state !== 'wartet') return; d.state = 'abgelehnt'; emit('decision.rejected', { id }, d.sig); }
+function pendingExpiry() { const now = Date.now(); for (const d of NX.decisions) if (d.state === 'wartet' && now - d.t > 180e3) { d.state = 'abgelaufen'; emit('decision.expired', { id: d.id }, d.sig); } }
+
+/* ===== Order-Lebenszyklus (Zustandsautomat, idempotent) – simulierte Ausführung gegen das echte Live-Orderbuch ===== */
+const ORD_NEXT = { created: ['risk_checked', 'rejected'], risk_checked: ['submitted', 'rejected'], submitted: ['partial', 'filled', 'cancelled', 'rejected'], partial: ['partial', 'filled', 'cancelled'], filled: [], cancelled: [], rejected: [] };
+function ordGo(o, st, info) { if (!ORD_NEXT[o.st] || !ORD_NEXT[o.st].includes(st)) { emit('order.illegal_transition', { id: o.id, from: o.st, to: st }, o.dec); return false; } o.st = st; o.hist.push({ t: Date.now(), st, info: info || '' }); emit('order.' + st, { id: o.id, kind: o.kind, sym: o.sym, side: o.side, qty: o.qty, filled: o.filled, avg: o.avg }, o.dec); return true; }
+function mkOrder(p) { const cid = p.cid; if (NX.orders.some(o => o.cid === cid)) return null; const o = Object.assign({ id: nid('O'), cid, st: 'created', hist: [{ t: Date.now(), st: 'created', info: '' }], filled: 0, avg: 0, fee: 0, tries: 0, t: Date.now() }, p); NX.orders.unshift(o); if (NX.orders.length > 400) NX.orders.length = 400; emit('order.created', { id: o.id, kind: o.kind, sym: o.sym, side: o.side, qty: o.qty }, o.dec); return o; }
+function walkBook(side, qty, sym, src) {      // liefert {qty, avg} gegen das aktuelle Buch
+  if (sym !== ST.sym || src !== ST.src) return null; const bk = D.feed && D.feed.getBook && D.feed.getBook(); if (!bk) return null; const lv = side === 'buy' ? bk.asks : bk.bids; let left = qty, cost = 0, got = 0;
+  for (const [p, q] of lv) { const t = Math.min(left, q); cost += t * p; got += t; left -= t; if (left <= 1e-12) break; } return got > 0 ? { qty: got, avg: cost / got } : null;
+}
+function submitOrder(o, opts) {
+  opts = opts || {}; if (!ordGo(o, 'risk_checked', opts.riskInfo || '')) return; ordGo(o, 'submitted', 'simuliert');
+  setTimeout(() => settle(o, opts), 250 + Math.random() * 450);
+}
+function settle(o, opts) {
+  if (o.st !== 'submitted' && o.st !== 'partial') return; const left = o.qty - o.filled; o.tries++;
+  let fill = null; if (opts.forcePx) { fill = { qty: left, avg: opts.forcePx }; } else { fill = walkBook(o.side, left, o.sym, o.src); if (!fill && pxOf(o.sym, o.src) && (o.sym !== ST.sym || o.src !== ST.src)) { const slip = NX.cost.slipBp / 1e4; fill = { qty: left, avg: pxOf(o.sym, o.src) * (1 + sgn(o.side) * slip) }; } }
+  if (!fill && o.kind === 'exit' && o.tries >= 2 && pxOf(o.sym, o.src)) fill = { qty: left, avg: pxOf(o.sym, o.src) * (1 + sgn(o.side) * NX.cost.slipBp * 3 / 1e4) };   /* Ausstieg muss immer gelingen */
+  if (!fill) { if (o.tries >= 3) { ordGo(o, 'cancelled', 'kein Orderbuch'); onOrderDone(o); } else setTimeout(() => settle(o, opts), 1000); return; }
+  if (opts.stopPx) { const worst = o.side === 'sell' ? opts.stopPx * (1 - NX.cost.slipBp / 1e4) : opts.stopPx * (1 + NX.cost.slipBp / 1e4); fill.avg = o.side === 'sell' ? Math.min(fill.avg, worst) : Math.max(fill.avg, worst); }
+  const q = Math.min(left, fill.qty), px = fill.avg; o.avg = (o.avg * o.filled + px * q) / (o.filled + q); o.filled += q; o.fee += q * px * feeOf(o.src) / 1e4;
+  if (o.qty - o.filled > o.qty * 1e-9) { ordGo(o, 'partial', nf(o.filled / o.qty * 100, 0) + ' % gefüllt'); if (o.tries >= 3 && o.kind === 'entry') { ordGo(o, 'cancelled', 'Rest storniert'); onOrderDone(o); } else setTimeout(() => settle(o, opts), 1000); }
+  else { ordGo(o, 'filled', 'Ø ' + o.avg); onOrderDone(o); }
+}
+function onOrderDone(o) {
+  if (o.filled <= 0) { if (o.kind === 'entry') { const d = NX.decisions.find(x => x.id === o.dec); if (d) d.state = 'nicht ausgeführt'; } return; }
+  if (o.kind === 'entry') openPos(o); else closePosFill(o);
+}
+function nxExecute(dec, manual) {
+  const sig = NX.signals.find(s => s.id === dec.sig); const px = dec.sym === ST.sym && dec.src === ST.src && D.last ? D.last.p : dec.px;
+  const rk = riskEvaluate({ sym: dec.sym, src: dec.src, side: dec.side, entry: px, stop: dec.stop, scale: dec.scale }); dec.risk2 = { ok: rk.ok, why: rk.why };
+  if (!rk.ok) { dec.state = 'Veto bei Ausführung'; dec.verdict = 'veto'; dec.reasons.push(...rk.why); emit('risk.veto', { dec: dec.id, why: rk.why }, dec.sig); return; }
+  const o = mkOrder({ cid: dec.id + ':entry', kind: 'entry', sym: dec.sym, src: dec.src, side: dec.side === 'long' ? 'buy' : 'sell', qty: rk.qty, dec: dec.id, sig: dec.sig, stop: dec.stop, target: dec.target, riskUsd: rk.riskUsd, ctx: dec.ctx, algo: dec.algo, variant: dec.variant }); if (!o) return;
+  dec.state = 'ausgeführt (Papier)'; dec.order = o.id; submitOrder(o, { riskInfo: 'Risiko ' + nf(rk.riskUsd, 2) + ' $' });
+}
+function openPos(o) {
+  const dir = o.side === 'buy' ? 1 : -1, p = { id: nid('P'), sym: o.sym, src: o.src, side: dir > 0 ? 'long' : 'short', qty: o.filled, entry: o.avg, stop: o.stop, target: o.target, t0: Date.now(), chk: Date.now(), dec: o.dec, sig: o.sig, algo: o.algo, variant: o.variant, fees: o.fee, riskUsd: Math.abs(o.avg - o.stop) * o.filled, ctx: o.ctx || {}, path: [[Date.now(), o.avg]], mfe: 0, mae: 0, orders: [o.id], closing: false };
+  NX.pos.push(p); NX.acct.fees += o.fee; emit('position.opened', { id: p.id, sym: p.sym, side: p.side, qty: p.qty, entry: p.entry }, o.dec); nxChanged();
+}
+function nxClose(id, reason, why) {
+  const p = NX.pos.find(x => x.id === id); if (!p || p.closing) return; p.closing = true; const o = mkOrder({ cid: p.id + ':exit', kind: 'exit', sym: p.sym, src: p.src, side: p.side === 'long' ? 'sell' : 'buy', qty: p.qty, dec: p.dec, sig: p.sig, pos: p.id, why: reason, algo: p.algo, variant: p.variant }); if (!o) return;
+  p.exitWhy = reason; p.orders.push(o.id); const opts = {}; if (reason === 'Stop') opts.stopPx = p.stop; if (reason === 'Ziel') opts.forcePx = p.target; submitOrder(o, Object.assign(opts, { riskInfo: reason }));
+}
+function closePosFill(o) {
+  const p = NX.pos.find(x => x.id === o.pos); if (!p) return; const dir = p.side === 'long' ? 1 : -1, gross = dir * (o.avg - p.entry) * p.qty, fees = p.fees + o.fee, pnl = gross - fees;
+  NX.pos = NX.pos.filter(x => x !== p); NX.acct.realized += pnl; NX.acct.fees += o.fee;
+  const R = p.riskUsd ? pnl / p.riskUsd : 0, c = { id: nid('T'), pos: p.id, t0: p.t0, t1: Date.now(), sym: p.sym, src: p.src, side: p.side, qty: p.qty, entry: p.entry, exit: o.avg, stop: p.stop, target: p.target, reason: p.exitWhy || o.why, pnl, gross, fees, R, riskUsd: p.riskUsd, algo: p.algo, variant: p.variant, dec: p.dec, sig: p.sig, ctx: p.ctx, mfe: p.mfe, mae: p.mae, path: p.path.slice(-500), note: '', tag: '' };
+  c.path.push([c.t1, o.avg]); NX.closed.unshift(c); while (NX.closed.length > 500) { const d = NX.closed.pop(); NX.acct.archived = (NX.acct.archived || 0) + d.pnl; }
+  emit('position.closed', { id: p.id, pnl: +pnl.toFixed(2), R: +R.toFixed(2), reason: c.reason }, p.dec); nxReconcile(); nxChanged();
+  const streak = lossStreak(); if (streak >= NX.risk.lossStreak) { NX.pause = { until: Date.now() + NX.risk.pauseMin * 60e3, why: streak + ' Verluste in Folge' }; emit('risk.pause', NX.pause); toast('Risiko-Engine: Pause ' + NX.risk.pauseMin + ' min (' + streak + ' Verluste in Folge)', 7000); }
+}
+function lossStreak() { let n = 0; for (const c of NX.closed) { if (c.R < 0) n++; else break; } return n; }
+/* Abgleich: Konto muss sich aus den gebuchten Trades exakt herleiten lassen */
+function nxReconcile() {
+  const sum = NX.closed.reduce((x, c) => x + c.pnl, 0) + (NX.acct.archived || 0), ok = Math.abs(NX.acct.realized - sum) < 0.01;
+  const r = { t: Date.now(), ok, realized: NX.acct.realized, fromTrades: sum }; NX.recon = r; if (!ok) emit('reconcile.mismatch', r); return r;
+}
+/* Überwachung offener Positionen: Stop/Ziel gegen echte Trades; andere Märkte per REST-Kurs */
+let restBusy = {};
+async function restPx(sym, src) {
+  if (src === 'hl') { const r = await jget('https://api.hyperliquid.xyz/info', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ type: 'allMids' }) }); return +r[sym]; }
+  const base = src === 'bns' ? 'https://api.binance.com/api/v3' : 'https://fapi.binance.com/fapi/v1'; const r = await jget(base + '/ticker/price?symbol=' + sym + 'USDT'); return +r.price;
+}
+function monitorPositions() {
+  const now = Date.now();
+  for (const p of NX.pos.slice()) {
+    if (p.closing) continue; const dir = p.side === 'long' ? 1 : -1;
+    if (p.sym === ST.sym && p.src === ST.src && D.last) {
+      if (now - p.chk > 120000) {          /* Lücke: App war zu / Datenstrom weg – Kurs jetzt gegen Stop/Ziel prüfen */
+        emit('incident.opened', { what: 'Position war ' + dur(now - p.chk) + ' unbewacht', pos: p.id }); const pxn = D.last.p; p.chk = now;
+        if ((dir > 0 && pxn <= p.stop) || (dir < 0 && pxn >= p.stop)) { nxClose(p.id, 'Stop (Lücke)'); continue; } if ((dir > 0 && pxn >= p.target) || (dir < 0 && pxn <= p.target)) { nxClose(p.id, 'Ziel (Lücke)'); continue; }
+        emit('incident.resolved', { what: 'Position wieder überwacht', pos: p.id });
+      }
+      const rg = rangeSince(p.chk); p.chk = now; if (rg) { p.mfe = Math.max(p.mfe, (dir > 0 ? rg.hi - p.entry : p.entry - rg.lo) / Math.abs(p.entry - p.stop)); p.mae = Math.max(p.mae, (dir > 0 ? p.entry - rg.lo : rg.hi - p.entry) / Math.abs(p.entry - p.stop));
+        const hitS = dir > 0 ? rg.lo <= p.stop : rg.hi >= p.stop, hitT = dir > 0 ? rg.hi >= p.target : rg.lo <= p.target; if (hitS) { nxClose(p.id, 'Stop'); continue; } if (hitT) { nxClose(p.id, 'Ziel'); continue; } }
+      if (!p.lp || now - p.lp >= 5000) { p.lp = now; p.path.push([now, D.last.p]); if (p.path.length > 900) p.path.splice(1, 2); }
+    } else {
+      const k = p.sym + '|' + p.src; if (restBusy[k] && now - restBusy[k] < 5000) continue; restBusy[k] = now;
+      restPx(p.sym, p.src).then(px => { if (!(px > 0)) return; LASTPX[k] = px; p.chk = Date.now(); if ((dir > 0 && px <= p.stop) || (dir < 0 && px >= p.stop)) nxClose(p.id, 'Stop'); else if ((dir > 0 && px >= p.target) || (dir < 0 && px <= p.target)) nxClose(p.id, 'Ziel'); else { p.path.push([Date.now(), px]); if (p.path.length > 900) p.path.splice(1, 2); } }).catch(() => { });
+    }
+  }
+}
+/* Sicherheits-Wächter (unabhängig von Strategien) */
+let staleOpen = false;
+function autoSafety() {
+  const now = Date.now(); if (!NX.kill && dayPnl() <= -NX.risk.dayLossPct / 100 * NX.acct.eq0 && NX.acct.eq0 > 0) nxKill(true, 'Tagesverlust-Limit ' + NX.risk.dayLossPct + ' %', true);
+  const stale = NX.pos.some(p => p.sym === ST.sym && p.src === ST.src) && D.lastMsg && now - D.lastMsg > 30000;
+  if (stale && !staleOpen) { staleOpen = true; emit('incident.opened', { what: 'Daten veraltet bei offener Position', age: Math.round((now - D.lastMsg) / 1000) }); toast('Warnung: Datenstrom still, offene Papier-Position unbewacht', 7000); }
+  if (!stale && staleOpen) { staleOpen = false; emit('incident.resolved', { what: 'Datenstrom wieder aktiv' }); }
+}
+function nxKill(on, why, closeAll) {
+  if (on === NX.kill) return; NX.kill = on; NX.killWhy = on ? (why || 'manuell') : ''; NX.killAt = Date.now(); emit(on ? 'killswitch.on' : 'killswitch.off', { why: NX.killWhy });
+  if (on) { for (const d of NX.decisions) if (d.state === 'wartet') { d.state = 'abgebrochen (Kill-Switch)'; } if (closeAll) NX.pos.slice().forEach(p => nxClose(p.id, 'Kill-Switch')); toast('Kill-Switch AN: ' + NX.killWhy, 6000); }
+}
+function nxSetMode(m) { if (NX.mode === m) return; const old = NX.mode; NX.mode = m; NX.cfgLog.unshift({ t: Date.now(), path: 'mode', old, val: m, why: 'manuell' }); emit('mode.changed', { from: old, to: m }); }
+
+/* Eigener Setup (manuell) läuft durch dieselbe Pipeline: Entscheidung → Risiko-Engine → Papier-Order */
+function nxManual(side, stop, target) {
+  if (!D.last) { toast('Noch kein Kurs'); return null; } const ctx = marketCtx(), px = D.last.p; if (!(stop > 0)) { const atr = ctx.atr || px * 0.003; stop = px - sgn(side) * atr; }
+  const dist = Math.abs(px - stop); if (!(target > 0)) target = px + sgn(side) * dist * 1.5;
+  const sig = { id: nid('S'), t: Date.now(), k: nxKey(), sym: ST.sym, src: ST.src, tf: ST.tf, algo: 'manual', variant: 'manuell', side, px, stop, target, rr: Math.abs(target - px) / dist, atr: ctx.atr || 0, why: ['Manueller Setup'], reg: ctx.regime || '', st: 'open', h: {}, out: '', R: null, mfe: 0, mae: 0, last: Date.now(), manual: true };
+  const m = NX.mode; if (m === 'off') { toast('Modus ist „Aus“ – erst Vorschlag oder Auto wählen'); return null; } fireSignal(sig); return sig;
+}
+
+/* Takt */
+function nxTick() { if (D.last) LASTPX[nxKey()] = D.last.p; algoKeyCheck(); try { trackSignals(); algoTick(); monitorPositions(); pendingExpiry(); autoSafety(); } catch (e) { console.error(e); emit('engine.error', { m: String(e && e.message || e) }); } }
+
+'use strict';
+/* ===== NEXUS: Oberfläche – Navigation, Router, Hilfen, Modulübersicht ===== */
+const NXV = { cur: 'tape', tab: {}, open: {}, form: { stop: '', target: '', note: '' }, arm: null, replay: null, tlf: 'alle', hypf: false };
+const E = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const px = p => p == null || !isFinite(p) ? '–' : nf(p, Math.abs(p) < 1 ? 5 : Math.abs(p) < 100 ? 3 : Math.abs(p) < 10000 ? 2 : 1);
+const pn = (x, d = 2) => x == null || !isFinite(x) ? '–' : (x > 0 ? '+' : x < 0 ? '−' : '') + nf(Math.abs(x), d);
+const cl = x => x > 0 ? 'up' : x < 0 ? 'dn' : '';
+const tm = t => new Date(t).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const dtm = t => new Date(t).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+const ago = t => { const s = Math.max(0, (Date.now() - t) / 1000); return s < 90 ? 'vor ' + Math.round(s) + ' s' : s < 5400 ? 'vor ' + Math.round(s / 60) + ' min' : s < 172800 ? 'vor ' + Math.round(s / 3600) + ' h' : 'vor ' + Math.round(s / 86400) + ' d'; };
+const dur = ms => { const m = Math.round(ms / 60e3); return m < 90 ? m + ' min' : (m / 60).toFixed(1).replace('.', ',') + ' h'; };
+const chip2 = (t, c) => '<span class="c2 ' + (c || '') + '">' + E(t) + '</span>';
+const sideC = s => s === 'long' ? chip2('LONG', 'up') : chip2('SHORT', 'dn');
+const btnA = (a, label, cls) => '<button class="btn sm ' + (cls || '') + '" data-a="' + E(a) + '">' + label + '</button>';
+const card = (title, body, extra) => '<section class="card' + (extra ? ' ' + extra : '') + '">' + (title ? '<h3>' + title + '</h3>' : '') + body + '</section>';
+const kv = (k, v, c) => '<div class="kv"><span>' + k + '</span><b class="' + (c || '') + '">' + v + '</b></div>';
+const empty = t => '<div class="empty">' + t + '</div>';
+const verdictC = v => ({ auto: 'up', ask: 'warn', veto: 'dn', skip: 'mute' })[v] || '';
+const verdictT = d => ({ auto: 'Papier-Order', ask: d.state === 'wartet' ? 'wartet auf Freigabe' : d.state, veto: 'Veto', skip: 'übersprungen' })[d.verdict] || d.verdict;
+const lblS = s => ({ created: 'erstellt', risk_checked: 'Risiko geprüft', submitted: 'gesendet (simuliert)', partial: 'teilgefüllt', filled: 'gefüllt', cancelled: 'storniert', rejected: 'abgelehnt' })[s] || s;
+const PAPER = '<div class="ban">PAPIER-HANDEL · simuliert gegen echte Live-Kurse · Live-Orders sind gesperrt</div>';
+
+/* ----- Router ----- */
+const NAVS = [['tape', 'Tape', '<path d="M3 17l5-6 4 3 6-9"/>'], ['00', 'Command', '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>'], ['02', 'Lab', '<path d="M9 3h6M10 3v6l-5 9a2 2 0 002 3h10a2 2 0 002-3l-5-9V3"/>'], ['03', 'Trader', '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'], ['05', 'Journal', '<path d="M5 4h11a3 3 0 013 3v13H8a3 3 0 01-3-3z"/><path d="M9 9h6M9 13h6"/>'], ['more', 'Mehr', '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>']];
+function buildNav() {
+  $('#nav').innerHTML = NAVS.map(([id, l, svg]) => '<button data-go="' + id + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + svg + '</svg><span>' + l + '</span><i></i></button>').join('');
+  $('#nav').onclick = e => { const b = e.target.closest('button[data-go]'); if (b) go(b.dataset.go); };
+}
+function go(id, push) {
+  NXV.cur = id; if (push !== false) { try { history.pushState(null, '', id === 'tape' ? location.pathname + location.search : '#' + id); } catch (e) { /* */ } }
+  document.body.classList.toggle('onTape', id === 'tape'); $('#main').hidden = id !== 'tape'; $('#nxView').hidden = id === 'tape';
+  $$('#nav button').forEach(b => b.classList.toggle('on', b.dataset.go === id || (b.dataset.go === 'more' && id !== 'tape' && !NAVS.some(n => n[0] === id)) ));
+  if (id === 'tape') { setTimeout(() => { resize(); redraw(true); }, 20); } else { renderNx(true); }
+}
+addEventListener('popstate', () => { const h = location.hash.slice(1); go(h && (h === 'more' || modOf(h)) ? h : 'tape', false); });
+
+/* ----- Rendering ----- */
+const PANELS = {};                      // Modul-ID → { tabs:[[Abschnittsname, renderFn]] }
+function renderNx(force) {
+  if (NXV.cur === 'tape') return; const v = $('#nxView'); if (!v || v.hidden) return; const a = document.activeElement;
+  if (!force && a && v.contains(a) && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)) return;
+  const body = $('#nxBody'), st = body ? body.scrollTop : 0, tabs = $('#nxTabs'), ts = tabs ? tabs.scrollLeft : 0;
+  if (NXV.cur === 'more') { $('#nxHead').innerHTML = '<div class="mh"><h2>Alle Module</h2></div>'; $('#nxTabs').innerHTML = ''; body.innerHTML = vMore(); }
+  else {
+    const m = modOf(NXV.cur); if (!m) { go('more'); return; } const P = PANELS[m.id], implNames = IMPL[m.id] || [], cur = NXV.tab[m.id] != null ? NXV.tab[m.id] : 0, sec = m.s[cur] || m.s[0], fn = P && P[sec];
+    $('#nxHead').innerHTML = '<div class="mh"><button class="btn sm" data-a="go:more">‹ Module</button><h2><small>' + m.id + '</small> ' + E(m.id === '00' ? 'NEXUS Command Center' : m.n) + '</h2>' + chip2({ live: 'gebaut', part: 'teilweise', spec: 'spezifiziert' }[modState(m)], { live: 'up', part: 'warn', spec: '' }[modState(m)]) + '</div>';
+    $('#nxTabs').innerHTML = m.s.map((s, i) => '<button class="tb' + (i === cur ? ' on' : '') + (implNames.includes(s) ? '' : ' spec') + '" data-a="tab:' + i + '">' + E(s) + '</button>').join('');
+    let html; try { html = fn ? fn() : vSpec(m, sec); } catch (e) { console.error(e); html = card('Fehler in dieser Ansicht', '<p class="mut">' + E(e.message) + '</p>'); }
+    body.innerHTML = html;
+  }
+  body.scrollTop = st; tabs.scrollLeft = ts; nxBadge();
+}
+function nxBadge() { const n = NX.decisions.filter(d => d.state === 'wartet').length, b = $('#nav button[data-go="03"] i'); if (b) { b.textContent = n || ''; b.style.display = n ? 'flex' : 'none'; } const k = $('#nav button[data-go="00"]'); if (k) k.classList.toggle('alarm', NX.kill); }
+
+function vSpec(m, sec) {
+  return card(E(sec), '<p class="mut">Dieser Abschnitt ist im Handover spezifiziert, aber noch <b>nicht gebaut</b>. Er wird nicht vorgetäuscht – keine Platzhalter-Zahlen.</p><p class="mut">Modulzweck: ' + E(m.p) + '</p>' +
+    '<p class="mut">Nächster Schritt laut Plan: Abschnitte dieses Moduls schrittweise gegen echte Daten bauen (siehe Reihenfolge unter „Mehr“).</p>');
+}
+function vMore() {
+  const total = MODS.reduce((x, m) => x + m.s.length, 0), done = MODS.reduce((x, m) => x + (IMPL[m.id] || []).length, 0);
+  let h = card('Fortschritt', '<div class="bar"><i style="width:' + (done / total * 100).toFixed(1) + '%"></i></div>' + kv('Abschnitte gebaut', done + ' von ' + total) + '<p class="mut sm">„Gebaut“ heißt: läuft auf echten Live-Daten oder echter Logik im Browser. Alles Handeln ist Papier. Spezifiziert = noch nicht umgesetzt, nichts vorgetäuscht.</p>');
+  for (const [name, ids] of LAYERS) h += '<div class="lay">' + E(name) + '</div><div class="mg">' + ids.map(id => { const m = modOf(id), n = (IMPL[id] || []).length, s = modState(m); return '<button class="mc" data-a="go:' + id + '"><div><small>' + id + '</small> ' + E(m.n) + '</div><div class="bar sm"><i style="width:' + (n / m.s.length * 100).toFixed(0) + '%"></i></div><div class="mut sm">' + n + '/' + m.s.length + ' Abschnitte ' + chip2({ live: 'gebaut', part: 'teilweise', spec: 'spezifiziert' }[s], { live: 'up', part: 'warn', spec: '' }[s]) + '</div></button>'; }).join('') + '</div>';
+  h += '<div class="lay">Basis</div><div class="mg"><button class="mc" data-a="go:00"><div><small>00</small> ' + E(modOf('00').n) + '</div><div class="mut sm">' + (IMPL['00'] || []).length + '/' + modOf('00').s.length + ' Abschnitte</div></button></div>';
+  h += card('Daten sichern', '<p class="mut sm">Alles (Konto, Journal, Signale, Konfiguration) liegt nur in diesem Browser. Sichere es als Datei und spiele es bei Bedarf wieder ein.</p><div class="row">' + btnA('exp', 'Sicherung herunterladen') + '<label class="btn sm">Sicherung einspielen<input type="file" id="impf" accept=".json,application/json" hidden></label></div>');
+  return h;
+}
+
+/* ----- Ereignisse (ein Handler für alle Aktionen) ----- */
+function armed(key) { const a = NXV.arm; return a && a.key === key && Date.now() - a.t < 4000; }
+function arm(key) { NXV.arm = { key, t: Date.now() }; renderNx(true); setTimeout(() => renderNx(true), 4100); }
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-a]'); if (!t || !$('#nxView').contains(t)) return; const [a, ...r] = t.dataset.a.split(':'), arg = r.join(':');
+  const A = {
+    go: () => { go(arg); }, tab: () => { NXV.tab[NXV.cur] = +arg; renderNx(true); },
+    mode: () => { nxSetMode(arg); renderNx(true); },
+    kill: () => { if (arg === 'on') { if (!armed('kill')) return arm('kill'); nxKill(true, 'manuell', false); } else nxKill(false); renderNx(true); },
+    killclose: () => { if (!armed('killc')) return arm('killc'); nxKill(true, 'manuell', true); renderNx(true); },
+    approve: () => { nxApprove(arg); renderNx(true); }, reject: () => { nxReject(arg); renderNx(true); },
+    close: () => { nxClose(arg, 'Manuell'); renderNx(true); }, closeall: () => { if (!armed('closeall')) return arm('closeall'); NX.pos.slice().forEach(p => nxClose(p.id, 'Manuell')); renderNx(true); },
+    manual: () => { const f = NXV.form; nxManual(arg, parseFloat(String(f.stop).replace(',', '.')), parseFloat(String(f.target).replace(',', '.'))); renderNx(true); },
+    open: () => { NXV.open[arg] = !NXV.open[arg]; renderNx(true); },
+    algoon: () => { const c = algoCfg(arg); cfgSet('algos.' + arg + '.on', !c.on, 'Lab'); renderNx(true); },
+    algotrade: () => { const c = algoCfg(arg); cfgSet('algos.' + arg + '.trade', !c.trade, 'Lab'); renderNx(true); },
+    tv: () => { const [id, v] = arg.split(':'); algoCfg(id); cfgSet('algos.' + id + '.tv', v, 'Lab'); renderNx(true); },
+    replay: () => { NXV.replay = arg; renderNx(true); },
+    tagt: () => { const [id, tg] = arg.split(':'), c = NX.closed.find(x => x.id === id); if (c) { c.tag = c.tag === tg ? '' : tg; emit('journal.tagged', { id, tag: c.tag }); } renderNx(true); },
+    hypadd: () => { const f = NXV.form; if (!f.hyp || !f.hyp.trim()) return; NX.hyp.unshift({ id: nid('H'), t: Date.now(), text: f.hyp.trim(), falsif: (f.fal || '').trim(), st: 'offen' }); f.hyp = ''; f.fal = ''; emit('hypothesis.registered', { text: NX.hyp[0].text }); renderNx(true); },
+    hypst: () => { const [id, s] = arg.split(':'), h = NX.hyp.find(x => x.id === id); if (h) { h.st = s; emit('hypothesis.' + (s === 'verworfen' ? 'rejected' : s === 'bestätigt' ? 'confirmed' : 'reopened'), { id }); } renderNx(true); },
+    tlf: () => { NXV.tlf = arg; renderNx(true); },
+    exp: () => { const b = new Blob([nxExport()], { type: 'application/json' }), u = URL.createObjectURL(b), a2 = document.createElement('a'); a2.href = u; a2.download = 'nexus-sicherung-' + new Date().toISOString().slice(0, 10) + '.json'; document.body.appendChild(a2); a2.click(); a2.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000); emit('backup.exported', {}); },
+    learn: () => { const s = (NXV.sugg || [])[+arg]; if (s && s.apply) { s.apply(); NXV.sugg = null; } renderNx(true); },
+    reset: () => { if (!armed('reset')) return arm('reset'); NX.pos = []; NX.closed = []; NX.orders = []; NX.decisions = []; NX.acct.realized = 0; NX.acct.fees = 0; NX.acct.archived = 0; NX.acct.since = Date.now(); NX.pause = { until: 0, why: '' }; emit('account.reset', { eq0: NX.acct.eq0 }); renderNx(true); },
+    cfgundo: () => { cfgRollback(+arg); renderNx(true); },
+    costreset: () => { NX.risk = Object.assign(NX.risk, RISK_DEF); emit('config.reset', {}); renderNx(true); },
+  };
+  if (A[a]) { e.preventDefault(); A[a](); }
+});
+document.addEventListener('change', e => {
+  const t = e.target; if (!$('#nxView').contains(t) && t.id !== 'impf') return;
+  if (t.id === 'impf') { const f = t.files[0]; if (f) f.text().then(nxImport).catch(x => toast('Einspielen fehlgeschlagen: ' + x.message, 6000)); return; }
+  if (t.dataset.cfg) { const f = RISK_FIELDS.find(x => 'risk.' + x.k === t.dataset.cfg) || (t.dataset.cfg === 'acct.eq0' ? { min: 100, max: 1e7 } : t.dataset.cfg === 'cost.slipBp' ? { min: 0, max: 50 } : t.dataset.cfg.startsWith('cost.feeBp') ? { min: 0, max: 30 } : null); let v = parseFloat(String(t.value).replace(',', '.')); if (!isFinite(v) || !f) { renderNx(true); return; } v = clamp(v, f.min, f.max); cfgSet(t.dataset.cfg, v, 'manuell'); renderNx(true); }
+  if (t.dataset.form) { NXV.form[t.dataset.form] = t.value; if (t.dataset.rr) renderNx(true); }
+});
+document.addEventListener('input', e => { const t = e.target; if (t.dataset && t.dataset.form) NXV.form[t.dataset.form] = t.value; });
+
+function nxInit() {
+  buildNav(); onNX(() => { clearTimeout(nxInit.t); nxInit.t = setTimeout(() => renderNx(), 300); });
+  setInterval(() => { nxTick(); }, 1000); setInterval(() => { if (NXV.cur !== 'tape' && !document.hidden) renderNx(); }, 1500);
+  const h = location.hash.slice(1); if (h && (h === 'more' || modOf(h))) go(h, false); else go('tape', false);
+}
+
+'use strict';
+/* ===== NEXUS: Ansichten der gebauten Module (00 Command Center · 02 Lab · 03 Trader · 04 Learning · 05 Journal · 08 Portfolio & Risk) ===== */
+const RISK_FIELDS = [
+  { k: 'riskPct', l: 'Risiko pro Trade', u: '% Equity', min: 0.05, max: 2, step: 0.05 }, { k: 'maxPos', l: 'Max. offene Positionen', u: '', min: 1, max: 10, step: 1 },
+  { k: 'dayLossPct', l: 'Tagesverlust-Limit', u: '% Startkapital', min: 0.5, max: 10, step: 0.5 }, { k: 'maxLev', l: 'Max. Gesamt-Hebel', u: '×', min: 1, max: 20, step: 1 },
+  { k: 'maxSpreadBp', l: 'Max. Spread', u: 'bp', min: 0.5, max: 20, step: 0.5 }, { k: 'staleMs', l: 'Daten veraltet nach', u: 'ms', min: 5000, max: 60000, step: 1000 },
+  { k: 'lossStreak', l: 'Pause nach Verlusten in Folge', u: '', min: 2, max: 10, step: 1 }, { k: 'pauseMin', l: 'Pausenlänge', u: 'min', min: 5, max: 240, step: 5 },
+  { k: 'probe', l: 'Probe-Größe ohne Statistik', u: '× Risiko', min: 0.1, max: 1, step: 0.05 }, { k: 'minN', l: 'Signale bis Erwartung zählt', u: '', min: 10, max: 100, step: 5 },
+];
+const RISK_DEF = Object.assign({}, NX.risk);
+const numIn = (path, val, f) => '<input type="number" inputmode="decimal" data-cfg="' + path + '" value="' + val + '"' + (f ? ' min="' + f.min + '" max="' + f.max + '" step="' + f.step + '"' : '') + '>';
+
+/* ----- kleine Grafiken ----- */
+function svgLine(vals, o) {
+  o = o || {}; const w = o.w || 320, h = o.h || 110, pad = 6; if (vals.length < 2) return '<div class="empty">Noch zu wenig Daten</div>';
+  const lo = Math.min(...vals), hi = Math.max(...vals), sp = hi - lo || 1, X = i => pad + i / (vals.length - 1) * (w - 2 * pad), Y = v => h - pad - (v - lo) / sp * (h - 2 * pad);
+  const d = vals.map((v, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1)).join(''), up = vals[vals.length - 1] >= vals[0], c = up ? 'var(--up)' : 'var(--dn)';
+  return '<svg viewBox="0 0 ' + w + ' ' + h + '" class="sv"><path d="' + d + 'L' + X(vals.length - 1).toFixed(1) + ' ' + h + 'L' + X(0).toFixed(1) + ' ' + h + 'Z" fill="' + c + '" opacity=".1"/><path d="' + d + '" fill="none" stroke="' + c + '" stroke-width="1.6"/>' + (o.base != null && o.base > lo && o.base < hi ? '<line x1="0" x2="' + w + '" y1="' + Y(o.base).toFixed(1) + '" y2="' + Y(o.base).toFixed(1) + '" stroke="var(--faint)" stroke-dasharray="3 3"/>' : '') + '</svg>';
+}
+function svgReplay(c) {
+  const P = c.path || []; if (P.length < 2) return '<div class="empty">Kein Kursverlauf gespeichert</div>'; const w = 340, h = 170, pad = 8, ps = P.map(x => x[1]).concat([c.stop, c.target, c.entry]), lo = Math.min(...ps), hi = Math.max(...ps), sp = hi - lo || 1, t0 = P[0][0], t1 = P[P.length - 1][0] || t0 + 1;
+  const X = t => pad + (t - t0) / ((t1 - t0) || 1) * (w - 2 * pad - 30), Y = v => h - pad - (v - lo) / sp * (h - 2 * pad), ln = (v, col, lab) => '<line x1="0" x2="' + (w - 30) + '" y1="' + Y(v).toFixed(1) + '" y2="' + Y(v).toFixed(1) + '" stroke="' + col + '" stroke-dasharray="4 3" opacity=".8"/><text x="' + (w - 28) + '" y="' + (Y(v) + 3).toFixed(1) + '" fill="' + col + '" font-size="9" font-family="var(--mono)">' + lab + '</text>';
+  const d = P.map((p, i) => (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1)).join(''), ex = c.pnl >= 0 ? 'var(--up)' : 'var(--dn)';
+  return '<svg viewBox="0 0 ' + w + ' ' + h + '" class="sv big">' + ln(c.target, 'var(--up)', 'Ziel') + ln(c.stop, 'var(--dn)', 'Stop') + ln(c.entry, 'var(--acc)', 'Einst.') + '<path d="' + d + '" fill="none" stroke="var(--fg)" stroke-width="1.4"/><circle cx="' + X(P[0][0]).toFixed(1) + '" cy="' + Y(c.entry).toFixed(1) + '" r="4" fill="var(--acc)"/><circle cx="' + X(t1).toFixed(1) + '" cy="' + Y(c.exit).toFixed(1) + '" r="4" fill="' + ex + '"/></svg>';
+}
+
+/* ----- Statistik ----- */
+function perf(list) {
+  const n = list.length, w = list.filter(c => c.pnl > 0), l = list.filter(c => c.pnl <= 0), gp = w.reduce((x, c) => x + c.pnl, 0), gl = -l.reduce((x, c) => x + c.pnl, 0), chron = list.slice().reverse();
+  let eq = NX.acct.eq0, pk = eq, dd = 0; const curve = [eq]; for (const c of chron) { eq += c.pnl; curve.push(eq); pk = Math.max(pk, eq); dd = Math.max(dd, (pk - eq) / pk); }
+  return { n, win: n ? w.length / n : 0, avgR: mean(list.map(c => c.R)), pnl: list.reduce((x, c) => x + c.pnl, 0), pf: gl > 0 ? gp / gl : (gp > 0 ? Infinity : 0), dd, curve, fees: list.reduce((x, c) => x + c.fees, 0) };
+}
+const healthC = () => ({ ok: 'up', warn: 'warn', bad: 'dn' })[health()];
+
+/* ----- wiederverwendbare Bausteine ----- */
+function modeSwitch() {
+  return '<div class="seg2">' + [['off', 'Aus', 'nur Signale'], ['ask', 'Vorschlag', 'du gibst frei'], ['auto', 'Auto', 'Papier automatisch']].map(([m, l, s]) => '<button class="' + (NX.mode === m ? 'on' : '') + '" data-a="mode:' + m + '"><b>' + l + '</b><small>' + s + '</small></button>').join('') + '</div>';
+}
+function killBox() {
+  if (NX.kill) return '<div class="alarmbox"><b>KILL-SWITCH AKTIV</b><div class="mut">' + E(NX.killWhy) + ' · seit ' + tm(NX.killAt) + '</div><div class="row">' + btnA('kill:off', 'Freigeben (Handel wieder erlaubt)') + '</div></div>';
+  return '<div class="row">' + btnA('kill:on', armed('kill') ? 'Wirklich stoppen? Nochmal tippen' : 'Kill-Switch (neue Orders sperren)', armed('kill') ? 'dnb' : '') + btnA('killclose', armed('killc') ? 'Wirklich? Nochmal tippen' : 'Stoppen + alles schließen', armed('killc') ? 'dnb' : '') + '</div>';
+}
+function sigRow(s) {
+  const out = s.st === 'done' ? (s.out === 'T' ? chip2('Ziel ' + pn(s.R, 2) + ' R', 'up') : s.out === 'S' ? chip2('Stop ' + pn(s.R, 2) + ' R', 'dn') : chip2('Zeit ' + pn(s.R, 2) + ' R', cl(s.R))) : s.st === 'open' ? chip2('läuft ' + (s.k !== nxKey() ? '(anderer Markt)' : ''), 'warn') : chip2('verfallen', '');
+  return '<div class="li" data-a="open:' + s.id + '"><div class="l1">' + sideC(s.side) + ' <b>' + E(algoName(s.algo)) + '</b> <span class="mut">' + E(s.variant) + ' · ' + s.sym + ' · ' + s.tf + '</span><span class="rt">' + ago(s.t) + '</span></div><div class="l2">@ ' + px(s.px) + ' · Stop ' + px(s.stop) + ' · Ziel ' + px(s.target) + ' ' + out + '</div>' +
+    (NXV.open[s.id] ? '<div class="det">' + s.why.map(w => '<div>• ' + E(w) + '</div>').join('') + '<div class="mut sm">Regime ' + E(s.reg || '–') + ' · MFE ' + nf(s.mfe, 2) + ' R · MAE ' + nf(s.mae, 2) + ' R · Kosten eingerechnet ' + nf(costBpOf(s.src), 1) + ' bp · ID ' + s.id + '</div>' + (s.h.m5 != null || s.h.m15 != null || s.h.m60 != null ? '<div class="mut sm">Netto nach 5/15/60 min: ' + ['m5', 'm15', 'm60'].map(k => s.h[k] != null ? pn(s.h[k], 1) + ' bp' : '–').join(' · ') + '</div>' : '') + '</div>' : '') + '</div>';
+}
+function decRow(d) {
+  const o = NXV.open[d.id];
+  return '<div class="li" data-a="open:' + d.id + '"><div class="l1">' + sideC(d.side) + ' <b>' + E(algoName(d.algo)) + '</b> <span class="mut">' + E(d.variant) + ' · ' + d.sym + '</span><span class="rt">' + ago(d.t) + '</span></div><div class="l2">' + chip2(verdictT(d), verdictC(d.verdict)) + ' ' + (d.risk && d.risk.ok ? '<span class="mut">Risiko ' + nf(d.risk.riskUsd, 2) + ' $ · ' + nf(d.risk.qty, 4) + ' ' + d.sym + '</span>' : '') + (d.reasons.length ? '<div class="mut sm">' + E(d.reasons.join(' · ')) + '</div>' : '') + '</div>' +
+    (d.state === 'wartet' ? '<div class="row" onclick="event.stopPropagation()">' + btnA('approve:' + d.id, 'Freigeben', 'upb') + btnA('reject:' + d.id, 'Ablehnen') + '<span class="mut sm">läuft ab in ' + Math.max(0, Math.round((180e3 - (Date.now() - d.t)) / 1000)) + ' s</span></div>' : '') +
+    (o ? '<div class="det"><div class="h4">Prüfungen</div>' + d.checks.map(c => '<div>' + (c.ok ? '<span class="up">✓</span>' : '<span class="dn">✗</span>') + ' ' + E(c.n) + (c.d ? ' <span class="mut">– ' + E(c.d) + '</span>' : '') + '</div>').join('') +
+      '<div class="h4">Gegenargumente</div>' + (d.challenge.length ? d.challenge.map(c => '<div>• ' + E(c) + '</div>').join('') : '<div class="mut">keine gefunden</div>') +
+      '<div class="h4">Nutzen</div><div class="mut">' + (d.ev && d.ev.avg != null ? 'Vorwärts-Statistik n=' + d.ev.n + ', Ø ' + nf(d.ev.avg, 2) + ' R, konservativ ' + nf(d.ev.lo, 2) + ' R' : 'Keine belastbare Statistik (n=' + (d.ev ? d.ev.n : 0) + ') → Exploration mit ' + Math.round(d.scale * 100) + ' % Größe') + '</div>' +
+      '<div class="mut sm">Kontext: ' + E(d.ctx.regime || '–') + ' · Funding ' + (d.ctx.fund != null ? nf(d.ctx.fund, 4) : '–') + ' · Bid/Ask ' + (d.ctx.imb != null ? nf(d.ctx.imb, 2) : '–') + ' · Signal ' + d.sig + ' · Entscheidung ' + d.id + (d.order ? ' · Order ' + d.order : '') + '</div></div>' : '') + '</div>';
+}
+function posRow(p) {
+  const pxn = pxOf(p.sym, p.src), u = unreal(p), R = p.riskUsd ? (u - p.fees) / p.riskUsd : 0;
+  return '<div class="li"><div class="l1">' + sideC(p.side) + ' <b>' + p.sym + '</b> <span class="mut">' + nf(p.qty, 4) + ' · ' + E(SRC[p.src]) + '</span><span class="rt ' + cl(u - p.fees) + '"><b>' + pn(u - p.fees, 2) + ' $</b> · ' + pn(R, 2) + ' R</span></div><div class="l2">Einstieg ' + px(p.entry) + ' → jetzt ' + px(pxn) + ' · Stop ' + px(p.stop) + ' · Ziel ' + px(p.target) + ' <span class="mut">· ' + dur(Date.now() - p.t0) + ' · ' + E(algoName(p.algo)) + '</span>' + (p.sym !== ST.sym || p.src !== ST.src ? ' ' + chip2('Kurs per REST', 'warn') : '') + '</div><div class="row">' + (p.closing ? chip2('schließt …', 'warn') : btnA('close:' + p.id, 'Schließen')) + '</div></div>';
+}
+function ordRow(o) {
+  const op = NXV.open[o.id];
+  return '<div class="li" data-a="open:' + o.id + '"><div class="l1">' + chip2(o.kind === 'entry' ? 'Einstieg' : 'Ausstieg', '') + ' <b>' + (o.side === 'buy' ? 'Kauf' : 'Verkauf') + ' ' + nf(o.qty, 4) + ' ' + o.sym + '</b><span class="rt">' + chip2(lblS(o.st), o.st === 'filled' ? 'up' : o.st === 'rejected' || o.st === 'cancelled' ? 'dn' : 'warn') + '</span></div><div class="l2">' + (o.filled ? 'Ø ' + px(o.avg) + ' · Gebühr ' + nf(o.fee, 3) + ' $ · ' : '') + ago(o.t) + (o.why ? ' · ' + E(o.why) : '') + '</div>' +
+    (op ? '<div class="det">' + o.hist.map(h => '<div><span class="mut">' + tm(h.t) + '</span> ' + lblS(h.st) + (h.info ? ' <span class="mut">– ' + E(h.info) + '</span>' : '') + '</div>').join('') + '<div class="mut sm">ID ' + o.id + ' · Client-ID ' + E(o.cid) + ' (verhindert Doppel-Orders)</div></div>' : '') + '</div>';
+}
+function riskEditor() {
+  return card('Limits (harte Grenzen – nicht umgehbar)', '<p class="mut sm">Diese Werte bindet die Risiko-Engine. Strategien, Signale und der Auto-Modus können sie nicht überschreiben. Jede Änderung wird protokolliert und ist rücknehmbar.</p><div class="fields">' + RISK_FIELDS.map(f => '<label class="fl"><span>' + f.l + (f.u ? ' <small>' + f.u + '</small>' : '') + '</span>' + numIn('risk.' + f.k, NX.risk[f.k], f) + '</label>').join('') + '</div><div class="row">' + btnA('costreset', 'Standardwerte') + '</div>') +
+    card('Änderungsprotokoll', NX.cfgLog.length ? NX.cfgLog.slice(0, 12).map((c, i) => '<div class="li"><div class="l1"><b>' + E(c.path) + '</b> <span class="mut">' + E(String(c.old)) + ' → ' + E(String(c.val)) + '</span><span class="rt">' + ago(c.t) + '</span></div><div class="l2 mut sm">' + E(c.why) + ' ' + (c.path !== 'mode' ? btnA('cfgundo:' + i, 'Zurücknehmen') : '') + '</div></div>').join('') : empty('Noch keine Änderungen'));
+}
+function usageMeters() {
+  const R = NX.risk, eq = equity(), dl = Math.max(0, -dayPnl()) / (R.dayLossPct / 100 * NX.acct.eq0), lev = exposure() / Math.max(1, eq) / R.maxLev, pp = NX.pos.length / R.maxPos, m = (l, v, t) => '<div class="meter"><span>' + l + '</span><div class="bar sm ' + (v > 0.8 ? 'hot' : '') + '"><i style="width:' + clamp(v * 100, 0, 100).toFixed(0) + '%"></i></div><b>' + t + '</b></div>';
+  return m('Positionen', pp, NX.pos.length + ' / ' + R.maxPos) + m('Tagesverlust', dl, nf(dl * 100, 0) + ' %') + m('Hebel', lev, nf(exposure() / Math.max(1, eq), 2) + '× / ' + R.maxLev + '×');
+}
+function bestNow() {
+  const w = NX.decisions.find(d => d.state === 'wartet'); if (w) return { t: 'Freigabe wartet', s: sideC(w.side) + ' ' + E(algoName(w.algo)) + ' ' + w.sym, a: 'go:03' };
+  const o = NX.signals.find(s => s.st === 'open' && Date.now() - s.t < 15 * 60e3 && s.k === nxKey() && !s.manual); if (o) return { t: 'Aktuelles Signal', s: sideC(o.side) + ' ' + E(algoName(o.algo)) + ' (' + E(o.variant) + ') ' + ago(o.t), a: 'go:02' };
+  return { t: 'Kein belastbares Setup', s: '<span class="mut">Die Algorithmen laufen. Sobald eine Bedingung erfüllt ist, erscheint es hier.</span>' };
+}
+
+/* ===================== 00 · Command Center ===================== */
+const pStatus = () => card('System', '<div class="two">' + kv('Modus', { off: 'Aus (nur Signale)', ask: 'Vorschlag + Freigabe', auto: 'Auto (Papier)' }[NX.mode]) + kv('Live-Handel', 'GESPERRT', 'dn') + kv('Kill-Switch', NX.kill ? 'AKTIV' : 'aus', NX.kill ? 'dn' : 'up') + kv('Datenstrom', '<span class="' + healthC() + '">●</span> ' + (D.lastMsg ? ago(D.lastMsg) : '–')) + kv('Markt', ST.sym + ' · ' + E(SRC[ST.src]) + ' · ' + ST.tf) + kv('Pause', Date.now() < NX.pause.until ? E(NX.pause.why) : 'nein') + '</div>' + modeSwitch() + killBox());
+const pMarket = () => {
+  const c = marketCtx(), pe = perf(NX.closed); if (c.atr == null) return card('Markt & Portfolio', empty('Warte auf genug Kerzen …'));
+  return card('Markt & Portfolio', '<div class="two">' + kv('Preis', px(c.px)) + kv('Regime', E(c.regime)) + kv('Vola (Perzentil)', c.volPct + ' %') + kv('ATR', nf(c.atrPct, 2) + ' %') + kv('Funding/8h', c.fund != null ? nf(c.fund, 4) + ' %' : '–', cl(c.fund)) + kv('Basis', c.basis != null ? nf(c.basis, 3) + ' %' : '–') + kv('OI 1 h', c.oi1h != null ? pn(c.oi1h, 2) + ' %' : '–', cl(c.oi1h)) + kv('CVD 12 Kerzen', c.cvd12 != null ? pn(c.cvd12, 0) : '–', cl(c.cvd12)) + kv('Bid/Ask ±0,25 %', c.imb != null ? nf(c.imb, 2) : '–') + kv('Spread', c.spreadBp != null ? nf(c.spreadBp, 2) + ' bp' : '–') + '</div><div class="h4">Papier-Konto</div><div class="two">' + kv('Equity', nf(equity(), 2) + ' $') + kv('Tag', pn(dayPnl(), 2) + ' $', cl(dayPnl())) + kv('Offen', NX.pos.length + ' Pos.') + kv('Trades', pe.n) + '</div>');
+};
+const pApprovals = () => { const w = NX.decisions.filter(d => d.state === 'wartet'); return card('Freigaben (' + w.length + ')', w.length ? w.map(decRow).join('') : empty('Nichts wartet auf dich.')); };
+const pSignals = () => card('Letzte Signale', NX.signals.length ? NX.signals.slice(0, 6).map(sigRow).join('') : empty('Noch keine Signale. Die Algorithmen prüfen jede geschlossene Kerze (' + ST.tf + ') bzw. alle 5 s / 60 s.'));
+const pPositions = () => card('Offene Positionen (' + NX.pos.length + ')', NX.pos.length ? NX.pos.map(posRow).join('') : empty('Keine offene Papier-Position.'));
+const EV_GROUP = { signal: 'Signale', decision: 'Entscheidungen', order: 'Orders', position: 'Positionen' };
+const evGroup = t => EV_GROUP[t.split('.')[0]] || 'System';
+function evText(e) { const d = e.d || {}, k = Object.keys(d).filter(x => typeof d[x] !== 'object').slice(0, 5).map(x => x + ' ' + (typeof d[x] === 'number' ? +d[x].toFixed(4) : d[x])).join(' · '); return k; }
+const evLine = e => '<div class="tl ' + (/veto|killswitch.on|incident.opened|mismatch|illegal|error|pause/.test(e.type) ? 'bad' : /incident.resolved|position.closed|filled/.test(e.type) ? 'ok' : '') + '"><time>' + tm(e.t) + '</time><b>' + E(e.type) + '</b><span>' + E(evText(e)) + '</span></div>';
+const pRecent = () => card('Entscheidungen & Vorfälle', (NX.decisions.slice(0, 3).map(decRow).join('') || '') + '<div class="h4">Ereignisse</div>' + (NX.events.filter(e => /^(decision|risk|killswitch|incident|position|order\.(filled|rejected)|mode|reconcile)/.test(e.type)).slice(0, 8).map(evLine).join('') || empty('Noch nichts passiert.')));
+const pModules = () => { const total = MODS.reduce((x, m) => x + m.s.length, 0), done = MODS.reduce((x, m) => x + (IMPL[m.id] || []).length, 0); return card('Module', '<div class="bar"><i style="width:' + (done / total * 100).toFixed(1) + '%"></i></div>' + kv('Abschnitte gebaut', done + ' / ' + total) + '<div class="row">' + btnA('go:more', 'Alle 24 Module ›') + '</div>'); };
+const pPerf = () => { const p = perf(NX.closed); return card('Leistung & Lernen (Papier)', '<div class="two">' + kv('Trades', p.n) + kv('Trefferquote', p.n ? nf(p.win * 100, 0) + ' %' : '–') + kv('Ø R', p.n ? pn(p.avgR, 2) : '–', cl(p.avgR)) + kv('P&L', pn(p.pnl, 2) + ' $', cl(p.pnl)) + kv('Max. Drawdown', p.n ? nf(p.dd * 100, 1) + ' %' : '–') + kv('Gebühren', nf(p.fees, 2) + ' $') + '</div>' + svgLine(p.curve, { base: NX.acct.eq0 }) + '<p class="mut sm">Ehrlicher Hinweis: Wenige Trades sind Zufall. Aussagekraft erst ab Dutzenden Trades – siehe Lab → Validation.</p>'); };
+const pLifecycle = () => {
+  const rows = []; let c = { idee: 0, test: 0, kand: 0, verw: 0 }; for (const a of ALGOS) for (const v of VARS) { const st = algoStats(a.id, v), vd = algoVerdict(st); if (st.n === 0 && st.tot === 0) c.idee++; else if (vd.k === 'kand') c.kand++; else if (vd.k === 'verw') c.verw++; else c.test++; }
+  return card('Strategie-Lebenszyklus (Vorwärts-Test)', '<div class="two">' + kv('Idee / ohne Signal', c.idee) + kv('im Vorwärts-Test', c.test) + kv('Kandidat (belegt)', c.kand, 'up') + kv('Verworfen', c.verw, 'dn') + '</div><p class="mut sm">Reihenfolge laut Plan: Idee → Hypothese → Vorwärts-Test → Kandidat → Freigabe. „Kein Vorteil“ ist ein gültiges Ergebnis.</p>' + btnA('go:02', 'Zum Lab ›'));
+};
+const pBest = () => { const b = bestNow(); return card('Gibt es jetzt einen guten Trade?', '<div class="best"><b>' + b.t + '</b><div>' + b.s + '</div>' + (b.a ? btnA(b.a, 'Ansehen ›') : '') + '</div>'); };
+PANELS['00'] = {
+  'NEXUS Intelligence Overview / Command Center': () => pBest() + pApprovals() + pStatus() + pMarket() + pPositions() + pSignals() + pPerf() + pRecent() + pModules(),
+  'System status and module navigation': () => pStatus() + vFeeds() + pModules(),
+  'Market and portfolio context': () => pMarket() + pPositions(),
+  'Risk and execution status': () => card('Risiko-Auslastung', usageMeters() + '<div class="row">' + btnA('go:03', 'Trader ›') + '</div>') + pPositions() + killBox(),
+  'Strategy lifecycle status': () => pLifecycle(),
+  'Recent decisions and incidents': () => pRecent() + card('Ereignisse (alle)', NX.events.slice(0, 30).map(evLine).join('')),
+  'Performance and learning summary': () => pPerf() + pLifecycle(),
+};
+function vFeeds() {
+  const f = D.feed, s = (f && f.status) || {}, row = (n, k) => kv(n, s[k] ? ago(s[k]) : '–', s[k] && Date.now() - s[k] < 20000 ? 'up' : 'dn');
+  return card('Datenverbindung · ' + E(SRC[ST.src]) + ' ' + ST.sym, row('Trades (WebSocket)', 'trades') + row('Orderbuch', 'depth') + row('Kerzen', 'kline') + row('Kennzahlen (REST)', 'rest') + kv('Trades im Speicher', fq(D.ring.len)) + kv('Heatmap-Spalten', D.heat.length) + kv('Kerzen', D.candles.length));
+}
+
+/* ===================== 02 · Algorithm Lab ===================== */
+function statRow(a, v) { const st = algoStats(a.id, v), vd = algoVerdict(st); return { st, vd }; }
+PANELS['02'] = {
+  'Algorithm Lab Overview': () => {
+    let rows = ''; for (const a of ALGOS) for (const v of VARS) { const { st, vd } = statRow(a, v); rows += '<tr><td>' + E(a.name) + '</td><td>' + v + '</td><td>' + st.n + (st.open ? '+' + st.open : '') + '</td><td class="' + cl(st.avg) + '">' + (st.n ? pn(st.avg, 2) : '–') + '</td><td>' + chip2(vd.t.split(' (')[0], vd.c) + '</td></tr>'; }
+    return card('Stand aller Algorithmen (Vorwärts-Test)', '<p class="mut sm">Jeder Algorithmus läuft in 3 Varianten gleichzeitig auf den Live-Daten des offenen Marktes (' + ST.sym + ' · ' + ST.tf + '). Ergebnis in R (1 R = Abstand zum Stop), nach Gebühren und Slippage. Die Auswertung läuft nur, solange die App geöffnet ist.</p><div class="tw"><table class="tbl"><tr><th>Algorithmus</th><th>Variante</th><th>n</th><th>Ø R</th><th>Urteil</th></tr>' + rows + '</table></div>') + pSignals();
+  },
+  'Algorithms': () => ALGOS.map(a => { const c = algoCfg(a.id); return card('<span class="h">' + E(a.name) + '</span> ' + chip2(c.on ? 'läuft' : 'aus', c.on ? 'up' : ''),
+    '<p class="mut sm">' + E(a.hyp) + '</p><p class="mut sm">Falsifikation: ' + E(a.falsif) + '</p><div class="row">' + btnA('algoon:' + a.id, c.on ? 'Ausschalten' : 'Einschalten') + btnA('algotrade:' + a.id, c.trade ? 'Trader nutzt: ' + c.tv + ' ✓' : 'Trader nutzt nichts') + '</div>' +
+    (c.trade ? '<div class="seg2 sm">' + VARS.map(v => '<button class="' + (c.tv === v ? 'on' : '') + '" data-a="tv:' + a.id + ':' + v + '"><b>' + v + '</b></button>').join('') + '</div>' : '') +
+    VARS.map(v => { const { st, vd } = statRow(a, v); return '<div class="li"><div class="l1"><b>' + v + '</b> <span class="mut">' + E(a.pdesc(a.params[v])) + '</span></div><div class="l2">n ' + st.n + ' · Treffer ' + (st.n ? nf(st.win * 100, 0) + ' %' : '–') + ' · Ø ' + (st.n ? pn(st.avg, 2) + ' R' : '–') + ' ' + chip2(vd.t, vd.c) + '</div></div>'; }).join('')); }).join('') +
+    card('Geplant', '<p class="mut sm">„Spot-Perp Imbalance“ braucht zusätzlich den Spot-Datenstrom parallel zum Perp-Strom. Noch nicht gebaut.</p>'),
+  'Discoveries': () => card('Gefundene Signale (' + NX.signals.length + ')', NX.signals.length ? NX.signals.slice(0, 40).map(sigRow).join('') : empty('Noch keine Signale.')),
+  'Experiments': () => {
+    let rows = ''; for (const a of ALGOS) for (const v of VARS) { const st = algoStats(a.id, v); rows += '<tr><td>' + E(a.name) + ' · ' + v + '</td><td>' + st.tot + '</td><td>' + st.n + '</td><td>' + st.T + '/' + st.S + '/' + st.Z + '</td><td class="' + cl(st.avg) + '">' + (st.n ? pn(st.avg, 2) : '–') + '</td><td>' + (st.lo != null ? pn(st.lo, 2) : '–') + '</td></tr>'; }
+    return card('Experiment-Register (Vorwärts-Test, live)', '<p class="mut sm">Ziel / Stop / Zeit = wie die Signale endeten (Zeit = nach 60 min bewertet). „Konservativ“ = Ø − 1,28 Standardfehler. Nur Märkte, die geöffnet waren, werden ausgewertet. Es gibt keinen Backtest und keinen Blick in die Zukunft: Jedes Signal entsteht live und wird auf den danach eintreffenden Kursen bewertet.</p><div class="tw"><table class="tbl"><tr><th>Experiment</th><th>Sig.</th><th>n</th><th>Z/S/T</th><th>Ø R</th><th>konserv.</th></tr>' + rows + '</table></div>');
+  },
+  'Validation': () => ALGOS.map(a => card(E(a.name), VARS.map(v => { const { st, vd } = statRow(a, v), n = st.n; return '<div class="li"><div class="l1"><b>' + v + '</b> ' + chip2(vd.t, vd.c) + '</div><div class="ladder">' + [['Idee', true], ['Hypothese', true], ['Vorwärts-Test ≥ 20', n >= 20], ['Konservativ > 0 R', st.lo != null && st.lo > 0], ['Paper-Trading belegt', false], ['Freigabe', false]].map(([l, ok]) => '<span class="' + (ok ? 'ok' : '') + '">' + l + '</span>').join('') + '</div><div class="mut sm">n=' + n + (st.lo != null ? ' · Ø ' + pn(st.avg, 2) + ' R · konservativ ' + pn(st.lo, 2) + ' R' : '') + '</div></div>'; }).join('') + '<p class="mut sm">Stufen laut Evidenzleiter: Vorwärts-Test ist keine Garantie. Paper-Trading und Freigabe folgen erst, wenn mehrere Marktphasen abgedeckt sind (Regime-Analyse im Learning Lab).</p>')).join(''),
+};
+
+/* ===================== 03 · Autonomous Trader ===================== */
+PANELS['03'] = {
+  'Cockpit': () => PAPER + pBest() + pApprovals() + card('Steuerung', modeSwitch() + killBox()) + card('Eigener Setup (läuft durch dieselbe Prüfung)', '<p class="mut sm">' + ST.sym + ' @ ' + px(D.last ? D.last.p : null) + ' · leer lassen = Stop 1 ATR, Ziel 1,5 R.</p><div class="row"><label class="fl"><span>Stop</span><input type="text" inputmode="decimal" data-form="stop" value="' + E(NXV.form.stop) + '"></label><label class="fl"><span>Ziel</span><input type="text" inputmode="decimal" data-form="target" value="' + E(NXV.form.target) + '"></label></div><div class="row">' + btnA('manual:long', 'Long prüfen', 'upb') + btnA('manual:short', 'Short prüfen', 'dnb') + '</div>') + card('Auslastung', usageMeters()) + pPositions() + card('Konto', '<div class="two">' + kv('Equity', nf(equity(), 2) + ' $') + kv('Realisiert', pn(NX.acct.realized, 2) + ' $', cl(NX.acct.realized)) + kv('Gebühren', nf(NX.acct.fees, 2) + ' $') + kv('Tag', pn(dayPnl(), 2) + ' $', cl(dayPnl())) + '</div>'),
+  'Setups': () => card('Entscheidungen (' + NX.decisions.length + ')', NX.decisions.length ? NX.decisions.slice(0, 25).map(decRow).join('') : empty(NX.mode === 'off' ? 'Modus ist „Aus“. Wähle Vorschlag oder Auto im Cockpit.' : 'Noch keine Entscheidung.')) + card('Signale', NX.signals.slice(0, 10).map(sigRow).join('') || empty('Noch keine Signale.')),
+  'Positions': () => PAPER + pPositions() + card('Abgeschlossen (' + NX.closed.length + ')', NX.closed.length ? NX.closed.slice(0, 20).map(c => '<div class="li" data-a="replay:' + c.id + '"><div class="l1">' + sideC(c.side) + ' <b>' + c.sym + '</b> <span class="mut">' + E(algoName(c.algo)) + ' · ' + E(c.reason) + '</span><span class="rt ' + cl(c.pnl) + '"><b>' + pn(c.pnl, 2) + ' $</b> · ' + pn(c.R, 2) + ' R</span></div><div class="l2 mut sm">' + px(c.entry) + ' → ' + px(c.exit) + ' · ' + dur(c.t1 - c.t0) + ' · ' + ago(c.t1) + ' · Replay im Journal</div></div>').join('') : empty('Noch kein Trade abgeschlossen.')),
+  'Order Management': () => { const r = NX.recon || nxReconcile(); return PAPER + card('Abgleich', kv('Konto ↔ gebuchte Trades', r.ok ? 'stimmt ✓' : 'ABWEICHUNG', r.ok ? 'up' : 'dn') + kv('Realisiert', nf(r.realized, 2) + ' $') + kv('Aus Trades', nf(r.fromTrades, 2) + ' $') + '<p class="mut sm">Jede Order durchläuft: erstellt → Risiko geprüft → gesendet → (teil)gefüllt/storniert/abgelehnt. Ungültige Übergänge werden abgewiesen und protokolliert. Doppel-Orders verhindert die Client-ID. Die Simulation füllt gegen das echte Orderbuch (Ø-Preis über die Tiefe, Gebühren, Slippage).</p>') + card('Orders (' + NX.orders.length + ')', NX.orders.length ? NX.orders.slice(0, 30).map(ordRow).join('') : empty('Noch keine Orders.')); },
+  'Risk Engine': () => card('Status', usageMeters() + kv('Pause', Date.now() < NX.pause.until ? E(NX.pause.why) + ' bis ' + tm(NX.pause.until) : 'nein') + kv('Verluste in Folge', lossStreak()) + killBox()) + riskEditor() + card('Letzte Vetos', NX.events.filter(e => e.type === 'risk.veto' || e.type === 'risk.pause' || e.type === 'killswitch.on').slice(0, 8).map(evLine).join('') || empty('Noch kein Veto.')),
+  'Decision Log': () => card('Entscheidungsprotokoll', NX.decisions.length ? NX.decisions.slice(0, 60).map(decRow).join('') : empty('Noch keine Entscheidung.')),
+};
+
+/* ===================== 04 · Learning Lab ===================== */
+function groupBy(list, f) { const m = new Map(); for (const x of list) { const k = f(x); if (!m.has(k)) m.set(k, []); m.get(k).push(x); } return m; }
+function suggestions() {
+  const s = []; for (const a of ALGOS) { const c = algoCfg(a.id); for (const v of VARS) { const st = algoStats(a.id, v), vd = algoVerdict(st);
+    if (vd.k === 'verw' && c.trade && c.tv === v) s.push({ t: E(a.name) + ' · ' + v + ' hat nach n=' + st.n + ' keinen Vorteil (Ø ' + pn(st.avg, 2) + ' R). Vorschlag: nicht mehr handeln.', apply: () => cfgSet('algos.' + a.id + '.trade', false, 'Lernvorschlag') });
+    if (vd.k === 'kand' && !(c.trade && c.tv === v)) s.push({ t: E(a.name) + ' · ' + v + ' ist Kandidat (konservativ ' + pn(st.lo, 2) + ' R, n=' + st.n + '). Vorschlag: diese Variante handeln.', apply: () => { cfgSet('algos.' + a.id + '.tv', v, 'Lernvorschlag'); cfgSet('algos.' + a.id + '.trade', true, 'Lernvorschlag'); } }); } }
+  const p = perf(NX.closed); if (p.n >= 10 && p.fees > Math.abs(p.pnl) * 0.5 && p.pnl < p.fees * 3) s.push({ t: 'Gebühren fressen ' + nf(p.fees, 2) + ' $ bei ' + nf(p.pnl, 2) + ' $ Ergebnis. Vorschlag: weniger Trades / nur Signale mit größerem Ziel.', apply: null });
+  return s;
+}
+PANELS['04'] = {
+  'Performance': () => { const p = perf(NX.closed), by = groupBy(NX.closed, c => c.algo + ' · ' + c.variant); let rows = ''; for (const [k, l] of by) { const q = perf(l); rows += '<tr><td>' + E(k.replace(/^(\w+)/, (m) => algoName(m))) + '</td><td>' + q.n + '</td><td>' + nf(q.win * 100, 0) + ' %</td><td class="' + cl(q.avgR) + '">' + pn(q.avgR, 2) + '</td><td class="' + cl(q.pnl) + '">' + pn(q.pnl, 2) + '</td></tr>'; }
+    return PAPER + card('Equity (Papier)', svgLine(p.curve, { base: NX.acct.eq0 }) + '<div class="two">' + kv('Trades', p.n) + kv('Trefferquote', p.n ? nf(p.win * 100, 0) + ' %' : '–') + kv('Ø R', p.n ? pn(p.avgR, 2) : '–', cl(p.avgR)) + kv('Profit-Faktor', p.n ? (isFinite(p.pf) ? nf(p.pf, 2) : '∞') : '–') + kv('Max. Drawdown', p.n ? nf(p.dd * 100, 1) + ' %' : '–') + kv('P&L netto', pn(p.pnl, 2) + ' $', cl(p.pnl)) + '</div>') + card('Nach Algorithmus', rows ? '<div class="tw"><table class="tbl"><tr><th>Algo</th><th>n</th><th>Treffer</th><th>Ø R</th><th>P&L $</th></tr>' + rows + '</table></div>' : empty('Noch keine Trades.')); },
+  'Regime Analysis': () => { const sg = groupBy(NX.signals.filter(s => s.st === 'done' && !s.manual && s.reg), s => s.reg), tr = groupBy(NX.closed.filter(c => c.ctx && c.ctx.regime), c => c.ctx.regime);
+    const rows = m => [...m].map(([k, l]) => '<tr><td>' + E(k) + '</td><td>' + l.length + '</td><td class="' + cl(mean(l.map(x => x.R))) + '">' + pn(mean(l.map(x => x.R)), 2) + '</td></tr>').join('');
+    return card('Signale nach Marktregime (Vorwärts)', sg.size ? '<div class="tw"><table class="tbl"><tr><th>Trend / Vola</th><th>n</th><th>Ø R</th></tr>' + rows(sg) + '</table></div><p class="mut sm">Regime = Trend (EMA20 vs EMA50) / Volatilität (ATR-Perzentil der letzten Kerzen). Ein Vorteil, der nur in einem Regime besteht, ist kein Vorteil.</p>' : empty('Noch keine ausgewerteten Signale.')) + card('Trades nach Marktregime (Papier)', tr.size ? '<div class="tw"><table class="tbl"><tr><th>Trend / Vola</th><th>n</th><th>Ø R</th></tr>' + rows(tr) + '</table></div>' : empty('Noch keine Trades.')); },
+  'Error Journal': () => { const L = NX.closed.filter(c => c.pnl <= 0), auto = c => c.gross > 0 ? 'Kosten' : c.mfe >= 1 ? 'Gewinn nicht mitgenommen' : (c.t1 - c.t0 < 2 * D.tfMs && c.mfe < 0.3) ? 'Sofort gestoppt' : 'Reguläre Verlust', ac = groupBy(L, auto), tg = groupBy(NX.closed.filter(c => c.tag), c => c.tag);
+    return card('Automatische Fehlerklassen (' + L.length + ' Verlusttrades)', ac.size ? [...ac].map(([k, l]) => kv(k, l.length + ' · ' + pn(l.reduce((x, c) => x + c.pnl, 0), 2) + ' $')).join('') + '<p class="mut sm">Kosten = Brutto-Gewinn, Netto-Verlust · Gewinn nicht mitgenommen = lief ≥ 1 R ins Plus · Sofort gestoppt = Stop innerhalb von 2 Kerzen ohne echten Lauf.</p>' : empty('Noch keine Verlusttrades.')) + card('Deine Tags', tg.size ? [...tg].map(([k, l]) => kv(k, l.length)).join('') : '<p class="mut sm">Tags vergibst du im Journal → Error Analysis.</p>'); },
+  'Model Comparison': () => { let rows = ''; for (const a of ALGOS) for (const v of VARS) { const st = algoStats(a.id, v), w = st.n ? clamp((st.avg + 1) / 2, 0, 1) : 0; rows += '<div class="li"><div class="l1"><b>' + E(a.name) + '</b> <span class="mut">' + v + '</span><span class="rt ' + cl(st.avg) + '">' + (st.n ? pn(st.avg, 2) + ' R' : '–') + '</span></div><div class="bar sm"><i style="width:' + (w * 100).toFixed(0) + '%"></i></div><div class="mut sm">n=' + st.n + (st.lo != null ? ' · konservativ ' + pn(st.lo, 2) : '') + '</div></div>'; } return card('Varianten im Vergleich (Vorwärts)', rows); },
+  'Autonomous Learning': () => { const s = suggestions(); NXV.sugg = s; return card('Vorschläge des Systems', s.length ? s.map((x, i) => '<div class="li"><div class="l2">' + x.t + '</div>' + (x.apply ? '<div class="row">' + btnA('learn:' + i, 'Übernehmen') + '</div>' : '') + '</div>').join('') + '<p class="mut sm">Das System schlägt nur vor. Übernommen wird nichts ohne dein Tippen; jede Änderung steht im Änderungsprotokoll.</p>' : '<p class="mut">Keine Vorschläge. Sie entstehen, sobald genug Vorwärts-Daten da sind (n ≥ 20 pro Variante).</p>'); },
+};
+
+/* ===================== 05 · Journal & Decision Trace ===================== */
+const TAGS = ['Datenfehler', 'Regelverstoß', 'Marktregime', 'Kosten', 'Timing', 'Zufall'];
+PANELS['05'] = {
+  'Timeline': () => { const g = ['alle', 'Signale', 'Entscheidungen', 'Orders', 'Positionen', 'System'], ev = NX.events.filter(e => NXV.tlf === 'alle' || evGroup(e.type) === NXV.tlf).slice(0, 80); return card('Zeitleiste', '<div class="chips">' + g.map(x => '<button class="tb' + (NXV.tlf === x ? ' on' : '') + '" data-a="tlf:' + x + '">' + x + '</button>').join('') + '</div>' + (ev.length ? ev.map(evLine).join('') : empty('Keine Einträge.'))); },
+  'Trade Replay': () => { const L = NX.closed.slice(0, 25); if (!L.length) return card('Trade Replay', empty('Noch kein abgeschlossener Trade.')); const c = L.find(x => x.id === NXV.replay) || L[0], d = NX.decisions.find(x => x.id === c.dec), s = NX.signals.find(x => x.id === c.sig);
+    return card('Trade wählen', '<div class="chips">' + L.map(x => '<button class="tb' + (x.id === c.id ? ' on' : '') + '" data-a="replay:' + x.id + '">' + dtm(x.t1) + ' ' + (x.pnl >= 0 ? '+' : '−') + '</button>').join('') + '</div>') +
+      card(sideC(c.side) + ' ' + c.sym + ' · ' + E(algoName(c.algo)) + ' <span class="mut">' + E(c.variant) + '</span>', svgReplay(c) + '<div class="two">' + kv('Einstieg', px(c.entry)) + kv('Ausstieg', px(c.exit)) + kv('Grund', E(c.reason)) + kv('Dauer', dur(c.t1 - c.t0)) + kv('Ergebnis', pn(c.pnl, 2) + ' $ · ' + pn(c.R, 2) + ' R', cl(c.pnl)) + kv('Gebühren', nf(c.fees, 2) + ' $') + kv('Max. Plus', nf(c.mfe, 2) + ' R') + kv('Max. Minus', nf(c.mae, 2) + ' R') + '</div>') +
+      card('Warum? (Entscheidungskette)', (s ? '<div class="h4">Signal</div>' + s.why.map(w => '<div>• ' + E(w) + '</div>').join('') + '<div class="mut sm">Regime ' + E(s.reg) + '</div>' : '<div class="mut">Signal nicht mehr gespeichert</div>') + (d ? '<div class="h4">Prüfungen</div>' + d.checks.map(k => '<div>' + (k.ok ? '<span class="up">✓</span>' : '<span class="dn">✗</span>') + ' ' + E(k.n) + (k.d ? ' <span class="mut">– ' + E(k.d) + '</span>' : '') + '</div>').join('') + '<div class="h4">Gegenargumente</div>' + (d.challenge.map(k => '<div>• ' + E(k) + '</div>').join('') || '<div class="mut">keine</div>') : '')); },
+  'Hypotheses': () => card('Neue Hypothese', '<label class="fl wide"><span>Behauptung</span><input type="text" data-form="hyp" value="' + E(NXV.form.hyp || '') + '" placeholder="z. B. Nach Sweep über das Tageshoch fällt BTC innerhalb 1 h"></label><label class="fl wide"><span>Wann ist sie widerlegt?</span><input type="text" data-form="fal" value="' + E(NXV.form.fal || '') + '" placeholder="z. B. Ø Ergebnis ≤ 0 R nach 30 Fällen"></label><div class="row">' + btnA('hypadd', 'Registrieren') + '</div>') +
+    card('Deine Hypothesen', NX.hyp.length ? NX.hyp.map(h => '<div class="li"><div class="l1"><b>' + E(h.text) + '</b><span class="rt">' + chip2(h.st, h.st === 'bestätigt' ? 'up' : h.st === 'verworfen' ? 'dn' : 'warn') + '</span></div><div class="l2 mut sm">Widerlegt, wenn: ' + E(h.falsif || '–') + ' · ' + ago(h.t) + '</div><div class="row">' + ['offen', 'bestätigt', 'verworfen'].map(s => btnA('hypst:' + h.id + ':' + s, s)).join('') + '</div></div>').join('') : empty('Noch keine eigenen Hypothesen.')) +
+    card('Hypothesen der Algorithmen (automatisch bewertet)', ALGOS.map(a => { const best = VARS.map(v => ({ v, st: algoStats(a.id, v) })).sort((x, y) => y.st.n - x.st.n)[0], vd = algoVerdict(best.st); return '<div class="li"><div class="l1"><b>' + E(a.name) + '</b><span class="rt">' + chip2(vd.t, vd.c) + '</span></div><div class="l2 mut sm">' + E(a.hyp) + '</div></div>'; }).join('')),
+  'Error Analysis': () => { const L = NX.closed.filter(c => c.pnl <= 0).slice(0, 25); return card('Verlusttrades taggen', L.length ? L.map(c => '<div class="li"><div class="l1">' + sideC(c.side) + ' <b>' + c.sym + '</b> <span class="mut">' + E(algoName(c.algo)) + ' · ' + E(c.reason) + '</span><span class="rt dn">' + pn(c.pnl, 2) + ' $</span></div><div class="chips">' + TAGS.map(t => '<button class="tb' + (c.tag === t ? ' on' : '') + '" data-a="tagt:' + c.id + ':' + t + '">' + t + '</button>').join('') + '</div></div>').join('') : empty('Keine Verlusttrades – oder noch keine Trades.')); },
+  'Audit Trail': () => { const k = chainOk(); return card('Integrität', kv('Ereigniskette', k.ok ? 'lückenlos ✓ (' + k.n + ' Einträge)' : 'BRUCH bei #' + k.at, k.ok ? 'up' : 'dn') + '<p class="mut sm">Jedes Ereignis trägt eine Prüfsumme über sich und den Vorgänger. Änderungen oder Lücken fallen auf. (Das ist eine Integritätsprüfung, keine Verschlüsselung.)</p><div class="row">' + btnA('exp', 'Gesamt-Sicherung herunterladen') + '</div>') + card('Letzte Einträge', NX.events.slice(0, 60).map(e => '<div class="tl"><time>#' + e.i + ' ' + tm(e.t) + '</time><b>' + E(e.type) + '</b><span class="mut">' + e.h.slice(0, 8) + '</span></div>').join('')); },
+};
+
+/* ===================== 08 · Portfolio & Risk Management ===================== */
+function calcBox() {
+  const f = NXV.form, num = (k, d) => { const v = parseFloat(String(f[k] != null && f[k] !== '' ? f[k] : d).replace(',', '.')); return isFinite(v) ? v : d; };
+  const eq = num('c_eq', Math.round(equity())), rp = num('c_rp', NX.risk.riskPct), en = num('c_en', D.last ? D.last.p : 0), st = num('c_st', 0), fe = num('c_fe', feeOf(ST.src)), dist = Math.abs(en - st), dir = st < en ? 1 : -1;
+  const inp = (k, l, v) => '<label class="fl"><span>' + l + '</span><input type="text" inputmode="decimal" data-form="' + k + '" data-rr="1" value="' + E(f[k] != null ? f[k] : v) + '"></label>';
+  let res = '<p class="mut sm">Stop eingeben.</p>'; if (st > 0 && en > 0 && dist > 0) { const risk = eq * rp / 100, qty = risk / dist, notl = qty * en, rt = 2 * notl * fe / 1e4; res = '<div class="two">' + kv('Richtung', dir > 0 ? 'Long' : 'Short', dir > 0 ? 'up' : 'dn') + kv('Risiko', nf(risk, 2) + ' $') + kv('Menge', nf(qty, 4)) + kv('Positionswert', nf(notl, 0) + ' $') + kv('Hebel', nf(notl / eq, 2) + '×') + kv('Gebühren Hin+Zurück', nf(rt, 2) + ' $ (' + nf(rt / risk, 2) + ' R)') + '</div>' + [1, 1.5, 2, 3].map(r => kv('Ziel ' + r + ' R', px(en + dir * dist * r) + ' → ' + nf(risk * r - rt, 2) + ' $ netto')).join(''); }
+  return card('Positionsgrößen-Rechner', '<div class="fields">' + inp('c_eq', 'Equity $', Math.round(equity())) + inp('c_rp', 'Risiko %', NX.risk.riskPct) + inp('c_en', 'Einstieg', D.last ? String(D.last.p) : '') + inp('c_st', 'Stop', '') + inp('c_fe', 'Gebühr bp', feeOf(ST.src)) + '</div>' + res);
+}
+function dd() { return perf(NX.closed).dd; }
+PANELS['08'] = {
+  'Cockpit': () => PAPER + card('Konto', '<div class="two">' + kv('Equity', nf(equity(), 2) + ' $') + kv('Start', nf(NX.acct.eq0, 0) + ' $') + kv('Gesamt', pn(equity() - NX.acct.eq0, 2) + ' $', cl(equity() - NX.acct.eq0)) + kv('Tag', pn(dayPnl(), 2) + ' $', cl(dayPnl())) + kv('Offenes Risiko', nf(NX.pos.reduce((x, p) => x + p.riskUsd, 0), 2) + ' $') + kv('Max. Drawdown', nf(dd() * 100, 1) + ' %') + '</div>' + usageMeters()) + card('Startkapital & Zurücksetzen', '<label class="fl"><span>Startkapital $ (Papier)</span>' + numIn('acct.eq0', NX.acct.eq0, { min: 100, max: 1e7, step: 100 }) + '</label><div class="row">' + btnA('reset', armed('reset') ? 'Wirklich zurücksetzen? Nochmal tippen' : 'Papierkonto zurücksetzen', armed('reset') ? 'dnb' : '') + '</div><p class="mut sm">Setzt Positionen, Trades, Orders und Entscheidungen zurück. Signal-Statistik und Journal-Ereignisse bleiben.</p>'),
+  'Exposure': () => { const L = NX.pos.filter(p => p.side === 'long').reduce((x, p) => x + p.qty * (pxOf(p.sym, p.src) || p.entry), 0), S = NX.pos.filter(p => p.side === 'short').reduce((x, p) => x + p.qty * (pxOf(p.sym, p.src) || p.entry), 0), eq = equity(); return card('Exposure', '<div class="two">' + kv('Long', nf(L, 0) + ' $') + kv('Short', nf(S, 0) + ' $') + kv('Netto', pn(L - S, 0) + ' $') + kv('Brutto-Hebel', nf((L + S) / eq, 2) + '×') + '</div>') + pPositions() + '<p class="mut sm">Korrelationen zwischen Märkten brauchen mehrere gleichzeitige Datenströme – kommt mit der Multi-Asset-Anbindung.</p>'; },
+  'Position Size Calculator': () => calcBox(),
+  'Cost Model': () => { const n = 10000; return card('Kostenmodell (Papier)', '<div class="fields">' + Object.keys(SRC).map(k => '<label class="fl"><span>Taker-Gebühr ' + E(SRC[k]) + ' <small>bp</small></span>' + numIn('cost.feeBp.' + k, NX.cost.feeBp[k], { min: 0, max: 30, step: 0.5 }) + '</label>').join('') + '<label class="fl"><span>Slippage zusätzlich <small>bp je Seite</small></span>' + numIn('cost.slipBp', NX.cost.slipBp, { min: 0, max: 50, step: 0.5 }) + '</label></div>' + kv('Hin + Zurück (' + E(SRC[ST.src]) + ')', nf(costBpOf(ST.src), 1) + ' bp = ' + nf(costBpOf(ST.src) / 1e4 * n, 2) + ' $ je 10.000 $') + '<p class="mut sm">Annahmen: Ein- und Ausstieg als Market-Order (Taker). Orderbuch-Tiefe wird real durchlaufen, Stop-Ausstiege mit Zusatz-Slippage, Ziele als Limit bei Berührung (Taker-Gebühr zur Sicherheit). Funding wird noch nicht abgerechnet.</p>'); },
+  'Limits': () => riskEditor(),
+  'Stress Tests': () => { if (!NX.pos.length) return card('Stresstest', empty('Keine offene Position. Der Test rechnet Preisschocks auf offene Positionen.')); const eq = equity(), rows = [-20, -10, -5, -2, 2, 5, 10, 20].map(s => { const u = NX.pos.reduce((x, p) => x + sgn(p.side) * (p.qty * (pxOf(p.sym, p.src) || p.entry)) * s / 100, 0); return '<tr><td>' + pn(s, 0) + ' %</td><td class="' + cl(u) + '">' + pn(u, 2) + ' $</td><td>' + nf((eq + u) / eq * 100 - 100, 2) + ' %</td></tr>'; }).join(''), stops = NX.pos.reduce((x, p) => x + p.riskUsd, 0);
+    return card('Preisschock auf alle offenen Positionen', '<div class="tw"><table class="tbl"><tr><th>Schock</th><th>P&L</th><th>Equity</th></tr>' + rows + '</table></div>') + card('Stop-Szenarien', kv('Alle Stops treffen', '−' + nf(stops, 2) + ' $ (' + nf(stops / eq * 100, 2) + ' %)') + kv('Mit 3× Slippage', '−' + nf(stops + NX.pos.reduce((x, p) => x + p.qty * p.entry * NX.cost.slipBp * 3 / 1e4, 0), 2) + ' $')); },
+  'Kill-Switch': () => PAPER + card('Kill-Switch', '<p class="mut sm">Sperrt sofort jede neue Order und bricht wartende Freigaben ab. Optional schließt er alle offenen Papier-Positionen. Er wirkt unabhängig von Strategien und Modus. Automatisch ausgelöst wird er beim Tagesverlust-Limit.</p>' + killBox()) + card('Verlauf', NX.events.filter(e => e.type.startsWith('killswitch')).slice(0, 10).map(evLine).join('') || empty('Noch nie ausgelöst.')),
+};
+
+'use strict';
+/* ===== Start ===== */
+(async () => { try { await nxLoad(); } catch (e) { /* ohne gespeicherten Zustand */ } init(); nxInit(); })();
 
 </script></body></html>
