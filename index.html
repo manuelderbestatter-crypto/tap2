@@ -2648,7 +2648,288 @@ document.addEventListener('click', e => {
 });
 
 'use strict';
+/* ===== NEXUS Block 5a: 22 Strategie-Entdeckung – Musteranalyse auf echten Börsen-Kerzen, mit Kosten, Mehrfachtest-Korrektur und Zufalls-Nullmodell ===== */
+const DISC = { data: {}, res: null, comb: null, rob: null, busy: '', err: '' };
+NX.disc = NX.disc || { list: [], runs: [], tests: 0 }; NX.custom = NX.custom || [];
+const HZ = [3, 6, 12], DSYMS = ['BTC', 'ETH', 'SOL', 'HYPE', 'XRP', 'DOGE', 'BNB', 'SUI', 'AVAX', 'LINK'], DTFS = ['1m', '5m', '15m', '1h'];
+
+/* ---- Vorberechnung (nur Vergangenheit je Kerze) ---- */
+function pre(C) {
+  const n = C.length, P = { n, C, o: [], h: [], l: [], c: [], v: [], d: [], t: [], atr: new Array(n).fill(null), vp: new Array(n).fill(null), cum: [] }; let cs = 0, tr = [];
+  for (let i = 0; i < n; i++) { const x = C[i], dd = deltaOf(x); P.o.push(x.o); P.h.push(x.h); P.l.push(x.l); P.c.push(x.c); P.v.push(x.v); P.d.push(dd); P.t.push(x.t); cs += dd || 0; P.cum.push(cs); tr.push(i ? Math.max(x.h - x.l, Math.abs(x.h - C[i - 1].c), Math.abs(x.l - C[i - 1].c)) : x.h - x.l); }
+  let s = 0; for (let i = 0; i < n; i++) { s += tr[i]; if (i >= 14) s -= tr[i - 14]; if (i >= 13) P.atr[i] = s / 14; }
+  const ap = P.atr.map((a, i) => a == null ? null : a / P.c[i]); for (let i = 213; i < n; i++) { const cur = ap[i]; let k = 0, m = 0; for (let j = i - 199; j <= i; j++) if (ap[j] != null) { m++; if (ap[j] <= cur) k++; } P.vp[i] = m ? k / m : null; }
+  return P;
+}
+const hi = (P, a, b) => { let m = -Infinity; for (let k = a; k <= b; k++) if (P.h[k] > m) m = P.h[k]; return m; }, lo = (P, a, b) => { let m = Infinity; for (let k = a; k <= b; k++) if (P.l[k] < m) m = P.l[k]; return m; };
+const runLen = (P, i, up) => { let k = 0; while (i - k >= 0 && (up ? P.c[i - k] > P.o[i - k] : P.c[i - k] < P.o[i - k])) k++; return k; };
+const FEATS = {
+  dbuy: ['Kerzen-Delta stark positiv (> +20 % des Volumens)', (P, i, s) => P.d[i] != null && P.v[i] > 0 && P.d[i] / P.v[i] > 0.2 * s],
+  dsell: ['Kerzen-Delta stark negativ (< −20 % des Volumens)', (P, i, s) => P.d[i] != null && P.v[i] > 0 && P.d[i] / P.v[i] < -0.2 * s],
+  rtop: ['Schluss im obersten Zehntel der 60-Kerzen-Spanne', (P, i, s) => { if (i < 60) return false; const h = hi(P, i - 59, i), l = lo(P, i - 59, i); return (P.c[i] - l) / (h - l || 1) > 1 - 0.1 / s; }],
+  rbot: ['Schluss im untersten Zehntel der 60-Kerzen-Spanne', (P, i, s) => { if (i < 60) return false; const h = hi(P, i - 59, i), l = lo(P, i - 59, i); return (P.c[i] - l) / (h - l || 1) < 0.1 / s; }],
+  vlow: ['Sehr ruhiger Markt (ATR im untersten Fünftel)', (P, i, s) => P.vp[i] != null && P.vp[i] < 0.2 / s],
+  vhigh: ['Sehr wilder Markt (ATR im obersten Fünftel)', (P, i, s) => P.vp[i] != null && P.vp[i] > 1 - 0.2 / s],
+  sup: ['3 grüne Kerzen in Folge', (P, i, s) => runLen(P, i, true) >= Math.max(2, Math.round(3 * s))],
+  sdn: ['3 rote Kerzen in Folge', (P, i, s) => runLen(P, i, false) >= Math.max(2, Math.round(3 * s))],
+  bup: ['Schluss über dem 20-Kerzen-Hoch (Ausbruch)', (P, i, s) => { const n = Math.round(20 * s); return i > n && P.c[i] > hi(P, i - n, i - 1); }],
+  bdn: ['Schluss unter dem 20-Kerzen-Tief (Ausbruch)', (P, i, s) => { const n = Math.round(20 * s); return i > n && P.c[i] < lo(P, i - n, i - 1); }],
+  wlow: ['Langer unterer Docht (≥ 55 %) mit Schluss oben', (P, i, s) => { const r = P.h[i] - P.l[i]; return r > 0 && (Math.min(P.o[i], P.c[i]) - P.l[i]) / r >= Math.min(0.95, 0.55 * s) && (P.c[i] - P.l[i]) / r > 0.6; }],
+  wup: ['Langer oberer Docht (≥ 55 %) mit Schluss unten', (P, i, s) => { const r = P.h[i] - P.l[i]; return r > 0 && (P.h[i] - Math.max(P.o[i], P.c[i])) / r >= Math.min(0.95, 0.55 * s) && (P.h[i] - P.c[i]) / r > 0.6; }],
+  mup: ['12-Kerzen-Anstieg über 1,5 ATR', (P, i, s) => i >= 12 && P.atr[i] != null && P.c[i] - P.c[i - 12] > 1.5 * s * P.atr[i]],
+  mdn: ['12-Kerzen-Rückgang über 1,5 ATR', (P, i, s) => i >= 12 && P.atr[i] != null && P.c[i - 12] - P.c[i] > 1.5 * s * P.atr[i]],
+  cbear: ['Neues 20er-Hoch, CVD macht kein neues Hoch', (P, i) => { if (i < 21) return false; let m = -Infinity; for (let k = i - 19; k < i; k++) m = Math.max(m, P.cum[k]); return P.h[i] >= hi(P, i - 19, i - 1) && P.cum[i] < m; }],
+  cbull: ['Neues 20er-Tief, CVD macht kein neues Tief', (P, i) => { if (i < 21) return false; let m = Infinity; for (let k = i - 19; k < i; k++) m = Math.min(m, P.cum[k]); return P.l[i] <= lo(P, i - 19, i - 1) && P.cum[i] > m; }],
+};
+for (let b = 0; b < 6; b++) FEATS['hr' + b] = ['Uhrzeit ' + String(b * 4).padStart(2, '0') + '–' + String(b * 4 + 4).padStart(2, '0') + ' Uhr (UTC)', (P, i) => Math.floor(new Date(P.t[i]).getUTCHours() / 4) === b];
+const FEAT_NEEDS_D = new Set(['dbuy', 'dsell', 'cbear', 'cbull']);
+const ftxt = ks => ks.map(k => FEATS[k][0]).join(' UND ');
+
+/* ---- Statistik ---- */
+const normCdf = z => { const t = 1 / (1 + 0.2316419 * Math.abs(z)), d = 0.3989423 * Math.exp(-z * z / 2), p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274)))); return z > 0 ? 1 - p : p; };
+const pTwo = t => 2 * (1 - normCdf(Math.abs(t)));
+function bh(items) { const s = items.map((x, i) => [x.p, i]).sort((a, b) => a[0] - b[0]), m = items.length; let mn = 1; for (let r = m - 1; r >= 0; r--) { const q = Math.min(1, s[r][0] * m / (r + 1)); mn = Math.min(mn, q); items[s[r][1]].q = mn; } }
+const rng32 = a => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+const roundTripBp = src => costBpOf(src || 'bnf');
+
+/* Kern: alle Muster × Horizonte prüfen */
+function mine(C, defs, opts) {
+  opts = opts || {}; const P = pre(C), N = P.n, W = 220, hasD = P.d.some(x => x != null), out = [], R = {}, base = {}, cost = roundTripBp('bnf');
+  for (const h of HZ) { const r = new Float64Array(N); let s = 0, c = 0; for (let i = W; i < N - h; i++) { r[i] = 1e4 * Math.log(P.c[i + h] / P.c[i]); s += r[i]; c++; } R[h] = r; base[h] = c ? s / c : 0; }
+  const ev = defs.map(ks => { if (!hasD && ks.some(k => FEAT_NEEDS_D.has(k))) return null; const fs = ks.map(k => FEATS[k][1]), hits = []; for (let i = W; i < N - 1; i++) { let ok = true; for (const f of fs) if (!f(P, i, 1)) { ok = false; break; } if (ok) hits.push(i); } return hits; });
+  const rows = [];
+  defs.forEach((ks, di) => { if (!ev[di]) return; for (const h of HZ) {
+    const idx = []; let last = -1e9; for (const i of ev[di]) if (i < N - h && i - last >= h) { idx.push(i); last = i; } if (idx.length < 10) continue;
+    const r = idx.map(i => R[h][i]), mu = mean(r), s = sd(r) || 1e-9, t = (mu - base[h]) / (s / Math.sqrt(r.length)), cut = Math.floor(idx.length * 0.6), a = r.slice(0, cut), b = r.slice(cut), muB = b.length ? mean(b) : 0, tB = b.length > 2 ? (muB - base[h]) / ((sd(b) || 1e-9) / Math.sqrt(b.length)) : 0;
+    rows.push({ key: ks.join('+') + '|' + h, ks, h, n: r.length, mu, ex: mu - base[h], sd: s, t, p: pTwo(t), net: Math.abs(mu - base[h]) - cost, dir: mu - base[h] >= 0 ? 'long' : 'short', oosN: b.length, oosT: tB, oosOk: b.length >= 8 && Math.sign(muB - base[h]) === Math.sign(mu - base[h]) && Math.abs(tB) > 1, idx, thirds: [0, 1, 2].map(k => { const seg = r.slice(Math.floor(r.length * k / 3), Math.floor(r.length * (k + 1) / 3)); return seg.length ? mean(seg) - base[h] : 0; }) });
+  } });
+  bh(rows);
+  /* Zufalls-Nullmodell: Ereignis-Zeitpunkte zirkulär verschieben → wie groß wird das Maximum |t| rein durch Zufall? */
+  const rand = rng32(N * 2654435761 >>> 0), NP = opts.perms || 150, maxT = []; const L = {}; for (const h of HZ) L[h] = N - h - W;
+  for (let k = 0; k < NP; k++) { const sh = 100 + Math.floor(rand() * (N - 400)); let mx = 0; for (const row of rows) { const Lh = L[row.h], r = row.idx.map(i => R[row.h][W + ((i - W + sh) % Lh)]); const mu = mean(r), s = sd(r) || 1e-9, t = Math.abs((mu - base[row.h]) / (s / Math.sqrt(r.length))); if (t > mx) mx = t; } maxT.push(mx); }
+  for (const row of rows) { row.pf = (maxT.filter(x => x >= Math.abs(row.t)).length + 1) / (NP + 1); row.verdict = row.q < 0.1 && row.pf < 0.1 && row.net > 0 && row.n >= 30 && row.oosOk ? 'cand' : row.p < 0.05 ? 'spur' : 'none'; row.tests = rows.length; }
+  rows.sort((a, b) => a.p - b.p); return { rows, base, m: rows.length, N, hasD, maxT: pctl(maxT, 0.95), from: C[W].t, to: C[N - 1].t, cost };
+}
+async function discLoad(sym, tf, pages) {
+  const key = sym + '|' + tf, c = DISC.data[key]; if (c && Date.now() - c.at < 600e3) return c.C; let all = [], end = null;
+  for (let p = 0; p < (pages || 2); p++) { const r = await jget('https://fapi.binance.com/fapi/v1/klines?symbol=' + sym + 'USDT&interval=' + tf + '&limit=1500' + (end ? '&endTime=' + end : '')); if (!r.length) break; all = r.map(k => ({ t: k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5], d: k[9] != null ? 2 * +k[9] - +k[5] : null })).concat(all); end = r[0][0] - 1; }
+  const seen = new Set(); all = all.filter(x => !seen.has(x.t) && seen.add(x.t)).sort((a, b) => a.t - b.t); all.pop(); DISC.data[key] = { at: Date.now(), C: all }; return all;
+}
+const dForm = () => ({ sym: NXV.form.dsym || ST.sym, tf: NXV.form.dtf || '5m' });
+async function discRun() {
+  if (DISC.busy) return; const f = dForm(); DISC.busy = 'Lade Kerzen …'; DISC.err = ''; renderNx(true);
+  try { const C = await discLoad(f.sym, f.tf); DISC.busy = 'Rechne …'; renderNx(true); await sleep(30); const res = mine(C, Object.keys(FEATS).map(k => [k])); res.sym = f.sym; res.tf = f.tf; res.t = Date.now(); DISC.res = res; DISC.comb = null; NX.disc.tests += res.m; NX.disc.runs.unshift({ t: res.t, sym: f.sym, tf: f.tf, m: res.m, cand: res.rows.filter(r => r.verdict === 'cand').length, spur: res.rows.filter(r => r.verdict === 'spur').length, N: res.N, comb: false }); NX.disc.runs.length = Math.min(NX.disc.runs.length, 60); emit('disc.mined', { sym: f.sym, tf: f.tf, m: res.m, cand: NX.disc.runs[0].cand }); NXV.dsel = null; }
+  catch (e) { DISC.err = String(e.message || e); } DISC.busy = ''; renderNx(true);
+}
+async function discComb() {
+  const R = DISC.res; if (!R || DISC.busy) return; DISC.busy = 'Kombinationen rechnen …'; renderNx(true); await sleep(30);
+  try { const C = DISC.data[R.sym + '|' + R.tf].C, ks = Object.keys(FEATS).filter(k => !k.startsWith('hr')), defs = []; for (let i = 0; i < ks.length; i++) for (let j = i + 1; j < ks.length; j++) defs.push([ks[i], ks[j]]); const res = mine(C, defs, { perms: 100 }); res.sym = R.sym; res.tf = R.tf; res.t = Date.now(); DISC.comb = res; NX.disc.tests += res.m; NX.disc.runs.unshift({ t: res.t, sym: R.sym, tf: R.tf, m: res.m, cand: res.rows.filter(r => r.verdict === 'cand').length, spur: res.rows.filter(r => r.verdict === 'spur').length, N: res.N, comb: true }); emit('disc.mined', { sym: R.sym, tf: R.tf, m: res.m, comb: true }); }
+  catch (e) { DISC.err = String(e.message || e); } DISC.busy = ''; renderNx(true);
+}
+async function discRobust(row) {
+  if (DISC.busy) return; DISC.busy = 'Prüfe andere Märkte …'; renderNx(true); const R = DISC.res, out = [];
+  try { for (const s of ['BTC', 'ETH', 'SOL'].filter(x => x !== R.sym)) { const C = await discLoad(s, R.tf); const r = mine(C, [row.ks], { perms: 20 }).rows.find(x => x.h === row.h); out.push({ s, r }); }
+    const C0 = DISC.data[R.sym + '|' + R.tf].C; for (const sc of [0.8, 1.25]) { const P = pre(C0); let hits = [], last = -1e9; for (let i = 220; i < P.n - row.h; i++) if (row.ks.every(k => FEATS[k][1](P, i, sc)) && i - last >= row.h) { hits.push(i); last = i; } const r = hits.map(i => 1e4 * Math.log(P.c[i + row.h] / P.c[i])), base = R.base[row.h]; out.push({ s: 'Strenge ×' + sc, r: r.length >= 8 ? { n: r.length, ex: mean(r) - base, t: (mean(r) - base) / ((sd(r) || 1e-9) / Math.sqrt(r.length)), dir: mean(r) - base >= 0 ? 'long' : 'short' } : null }); } }
+  catch (e) { DISC.err = String(e.message || e); } DISC.rob = { key: row.key, out, t: Date.now() }; DISC.busy = ''; renderNx(true);
+}
+
+/* ---- Erzeugte Algorithmen (laufen live im Lab, vorwärts ausgewertet) ---- */
+function mkCustom(c) {
+  return { id: c.id, name: c.name, kind: 'candle', cool: Math.max(3, c.h), custom: true, from: c.from, created: c.t,
+    hyp: 'Nach „' + ftxt(c.ks) + '“ (' + c.sym + ' ' + c.tf + ') läuft der Preis in den nächsten ' + c.h + ' Kerzen ' + (c.dir === 'long' ? 'aufwärts' : 'abwärts') + ' – netto nach Kosten.',
+    falsif: 'Verworfen, wenn nach ≥ 30 ausgewerteten Signalen die Netto-Erwartung ≤ 0 R ist. Entdeckt auf Vergangenheitsdaten – zählt erst durch Vorwärts-Belege.',
+    params: { locker: { s: 0.8 }, standard: { s: 1 }, streng: { s: 1.25 } }, pdesc: p => 'Strenge ×' + p.s + ' · nur Zeitrahmen ' + c.tf,
+    run(C0, p, ctx) { if (ST.tf !== c.tf || ctx.atr == null || C0.length < 120) return null; const P = pre(C0.slice(-260)), i = P.n - 1; if (!c.ks.every(k => FEATS[k][1](P, i, p.s))) return null; const w = C0.slice(-3); return { side: c.dir, ext: c.dir === 'long' ? Math.min(...w.map(x => x.l)) : Math.max(...w.map(x => x.h)), why: ['Muster: ' + ftxt(c.ks), 'Entdeckt: ' + c.sym + ' ' + c.tf + ', Horizont ' + c.h + ' Kerzen'] }; } };
+}
+function discInit() { for (const c of NX.custom) if (!ALGOS.some(a => a.id === c.id)) ALGOS.push(mkCustom(c)); }
+function discGenerate(id) {
+  const d = NX.disc.list.find(x => x.id === id); if (!d || d.algo) return; const c = { id: 'u' + (NX.custom.length + 1) + Math.floor(Math.random() * 90 + 10), name: 'Muster ' + d.ks.map(k => k).join('+') + ' ' + (d.dir === 'long' ? '↑' : '↓') + ' ' + d.tf, ks: d.ks, dir: d.dir, h: d.h, sym: d.sym, tf: d.tf, from: d.id, t: Date.now() };
+  NX.custom.push(c); ALGOS.push(mkCustom(c)); d.algo = c.id; d.state = 'im Vorwärtstest'; emit('disc.generated', { algo: c.id, from: d.id, rule: ftxt(c.ks), dir: c.dir }); toast('Algorithmus erzeugt – läuft jetzt im Lab (nur auf Zeitrahmen ' + d.tf + ')', 6000);
+}
+
+/* ================= Ansichten ================= */
+const VC = { cand: ['Kandidat', 'up'], spur: ['Spur', 'warn'], none: ['nichts', ''] };
+const patName = r => ftxt(r.ks);
+const dSel = () => { const A = (DISC.comb ? DISC.res.rows.concat(DISC.comb.rows) : (DISC.res ? DISC.res.rows : [])); return A.find(x => x.key === NXV.dsel) || (DISC.res && DISC.res.rows[0]) || null; };
+function dCtl() {
+  const f = dForm(); return '<div class="row"><select data-form="dsym">' + DSYMS.map(s => '<option' + (s === f.sym ? ' selected' : '') + '>' + s + '</option>').join('') + '</select><select data-form="dtf">' + DTFS.map(s => '<option' + (s === f.tf ? ' selected' : '') + '>' + s + '</option>').join('') + '</select>' + (DISC.busy ? '<span class="mut sm">' + DISC.busy + '</span>' : btnA('dmine', 'Muster suchen', 'upb')) + '</div>' + (DISC.err ? '<div class="dn sm">' + E(DISC.err) + '</div>' : '');
+}
+function dTable(res, lim) {
+  return res.rows.slice(0, lim || 12).map(r => '<div class="li" data-a="dsel:' + r.key + '" style="cursor:pointer"><div class="r1"><b>' + E(patName(r)) + '</b><span class="sp"></span>' + chip2(VC[r.verdict][0], VC[r.verdict][1]) + '</div><div class="mut sm">' + (r.dir === 'long' ? 'Long' : 'Short') + ' · h ' + r.h + ' · n ' + r.n + ' · Ex <span class="' + cl(r.ex) + '">' + pn(r.ex, 1) + ' bp</span> · t ' + nf(r.t, 1) + ' · q ' + nf(r.q, 2) + ' · netto <span class="' + cl(r.net) + '">' + pn(r.net, 1) + '</span></div></div>').join('');
+}
+function vDiscCenter() {
+  const R = DISC.res, L = NX.disc.list, st = k => L.filter(x => x.state === k).length;
+  return card('Entdeckungs-Pipeline', '<div class="two">' + kv('Datenstand', R ? R.sym + ' ' + R.tf + ' · ' + R.N + ' Kerzen' : 'noch nicht geladen') + kv('Letzter Lauf', R ? ago(R.t) : '–') + kv('Muster getestet (gesamt)', NX.disc.tests) + kv('Kandidaten im Lauf', R ? R.rows.filter(r => r.verdict === 'cand').length : '–') + kv('Registriert', L.length) + kv('Im Vorwärtstest', st('im Vorwärtstest')) + '</div>' + dCtl()) +
+    card('So läuft es', '<div class="mut sm">1 Muster suchen auf echten Börsen-Kerzen (bis 3 000) → 2 Strenge Prüfung: Kosten, Mehrfachtest-Korrektur, Zufalls-Nullmodell, Out-of-Sample → 3 Kandidat registrieren → 4 Algorithmus erzeugen → 5 Vorwärtstest im Lab → 6 Freigabe (Modul 09).<br><b>Wichtig:</b> Ein Treffer aus der Vergangenheit ist nur eine Hypothese. Erst der Vorwärtstest auf echten Folgekursen zählt.</div>') + (R ? card('Beste Funde', dTable(R, 5)) : '');
+}
+function vDiscMining() {
+  const R = DISC.res; return card('Muster suchen · Binance Perp', dCtl() + (R ? '<div class="two">' + kv('Kerzen', R.N) + kv('Zeitraum', dur2(R.to - R.from)) + kv('Getestete Muster', R.m) + kv('Kosten je Trade', nf(R.cost, 1) + ' bp') + kv('Kandidaten', R.rows.filter(r => r.verdict === 'cand').length, R.rows.some(r => r.verdict === 'cand') ? 'up' : '') + kv('Spuren', R.rows.filter(r => r.verdict === 'spur').length) + '</div>' + dTable(R, 15) + '<p class="mut sm">Ex bp = Ø Ertrag nach dem Muster minus Ø aller Kerzen (Drift entfernt). q = Fehlerrate nach Mehrfachtest-Korrektur (Benjamini-Hochberg). netto = |Ex| − Kosten. Tippe eine Zeile an, dann zeigen die anderen Tabs Details.' + (R.hasD ? '' : ' (Keine Delta-Daten – Orderflow-Muster ausgelassen)') + '</p>' : '<p class="mut sm">Wähle Markt und Zeitrahmen, dann „Muster suchen“. Es werden ' + Object.keys(FEATS).length + ' Muster × 3 Horizonte geprüft.</p>'));
+}
+function vDiscPattern() {
+  const r = dSel(); if (!r) return card('Muster', empty('Erst Muster suchen.'));
+  const base = DISC.res.base[r.h], P = pre(DISC.data[DISC.res.sym + '|' + DISC.res.tf].C); let cum = 0; const pts = r.idx.map(i => [P.t[i], cum += (1e4 * Math.log(P.c[i + r.h] / P.c[i]) - base) * (r.dir === 'long' ? 1 : -1)]);
+  return card(E(patName(r)), '<div class="two">' + kv('Richtung', r.dir === 'long' ? 'Long' : 'Short', r.dir === 'long' ? 'up' : 'dn') + kv('Horizont', r.h + ' Kerzen') + kv('Ereignisse', r.n) + kv('Ø Mehrertrag', pn(r.ex, 1) + ' bp') + kv('t / p', nf(r.t, 2) + ' / ' + nf(r.p, 3)) + kv('q (Mehrfachtest)', nf(r.q, 3)) + kv('Zufalls-Nullmodell p', nf(r.pf, 3)) + kv('Netto nach Kosten', pn(r.net, 1) + ' bp', cl(r.net)) + '</div>' + ncHTML('dpat', 150, specSeries({ pts, name: 'Kumulierter Mehrertrag in Handelsrichtung (bp)', fmt: v => nf(v, 0), color: r.dir === 'long' ? C_.up : C_.dn })) + '<div class="row">' + chip2(VC[r.verdict][0], VC[r.verdict][1]) + btnA('dreg:' + r.key, 'Als Hypothese registrieren', 'upb') + '</div>');
+}
+function vDiscHyp() {
+  const L = NX.disc.list; return card('Hypothesen aus der Entdeckung', L.length ? L.map(d => '<div class="li"><div class="r1"><b>' + E(ftxt(d.ks).slice(0, 60)) + '</b><span class="sp"></span>' + chip2(d.state, d.state === 'im Vorwärtstest' ? 'up' : d.state === 'verworfen' ? 'dn' : 'warn') + '</div><div class="mut sm">' + d.sym + ' ' + d.tf + ' · ' + (d.dir === 'long' ? 'Long' : 'Short') + ' · h ' + d.h + ' · gefunden ' + ago(d.t) + ' · Ex ' + pn(d.ex, 1) + ' bp (n=' + d.n + ')</div><div class="row">' + (d.algo ? '' : btnA('dgen:' + d.id, 'Algorithmus erzeugen', 'upb')) + (d.state !== 'verworfen' ? btnA('ddel:' + d.id, 'Verwerfen', 'dnb') : '') + '</div></div>').join('') : empty('Noch nichts registriert. Registrieren geht im Tab „Pattern Discovery“.'));
+}
+function vDiscArch() {
+  const r = dSel(); if (!r) return card('Architektur', empty('Erst Muster suchen und eins wählen.'));
+  return card('Regelwerk des gewählten Musters', '<div class="li"><b>Einstieg</b><div class="mut sm">Sobald eine Kerze schließt und gilt: ' + E(patName(r)) + '</div></div><div class="li"><b>Richtung</b><div class="mut sm">' + (r.dir === 'long' ? 'Long' : 'Short') + ' (aus dem Vorzeichen des Mehrertrags)</div></div><div class="li"><b>Stop</b><div class="mut sm">Hinter dem Extrem der letzten 3 Kerzen + 0,3 ATR (Regel der Lab-Engine)</div></div><div class="li"><b>Ziel</b><div class="mut sm">1,5 R (Standard der Lab-Engine), Zeitlimit 60 min</div></div><div class="li"><b>Varianten</b><div class="mut sm">Locker ×0,8 · Standard ×1 · Streng ×1,25 – laufen parallel</div></div><div class="li"><b>Einschränkung</b><div class="mut sm">Läuft nur auf dem Zeitrahmen ' + DISC.res.tf + ' und auf dem Markt, der im Chart gewählt ist. Zeitlimit des Lab (60 min) passt zu Horizont ≤ ' + Math.round(60 * 60e3 / ({ '1m': 60e3, '5m': 300e3, '15m': 900e3, '1h': 3600e3 }[DISC.res.tf])) + ' Kerzen.</div></div>');
+}
+function vDiscFeat() {
+  const R = DISC.res; return card('Muster-Bausteine', Object.keys(FEATS).map(k => { const n = R ? R.rows.filter(r => r.ks.length === 1 && r.ks[0] === k && r.h === 3)[0] : null; return '<div class="li"><div class="r1"><span>' + E(FEATS[k][0]) + '</span><span class="sp"></span><span class="mut sm">' + (n ? n.n + ' Ereignisse' : FEAT_NEEDS_D.has(k) && R && !R.hasD ? 'keine Delta-Daten' : '–') + '</span></div></div>'; }).join('') + '<p class="mut sm">Jeder Baustein nutzt nur Kerzen bis zur eben geschlossenen – kein Blick in die Zukunft. Ereignisse = Treffer mit Mindestabstand von h Kerzen (keine Doppelzählung überlappender Fenster).</p>');
+}
+function vDiscSignal() {
+  const A = ALGOS.map(a => { const S = NX.signals.filter(s => s.algo === a.id && s.st === 'done'), m = k => { const v = S.map(s => s.h[k]).filter(x => x != null); return v.length ? mean(v) : null; }; return [a, S.length, S.length ? mean(S.map(s => s.mfe)) : null, S.length ? mean(S.map(s => s.mae)) : null, m('m5'), m('m15'), m('m60')]; });
+  return card('Signalqualität der Lab-Algorithmen', '<div class="tw"><table class="tbl"><tr><th>Algorithmus</th><th>n</th><th>MFE</th><th>MAE</th><th>5 m</th><th>15 m</th><th>60 m</th></tr>' + A.map(r => '<tr><td>' + E(r[0].name.slice(0, 26)) + '</td><td>' + r[1] + '</td><td>' + (r[2] != null ? nf(r[2], 2) : '–') + '</td><td>' + (r[3] != null ? nf(r[3], 2) : '–') + '</td>' + [4, 5, 6].map(k => '<td class="' + cl(r[k]) + '">' + (r[k] != null ? pn(r[k], 1) : '–') + '</td>').join('') + '</tr>').join('') + '</table></div><p class="mut sm">MFE/MAE in R (beste/schlechteste Bewegung bis zum Ausgang). 5/15/60 m = Ertrag in bp nach Kosten. Zeigt, ob Signale früh richtig liegen oder erst gegen dich laufen.</p>');
+}
+function vDiscAlpha() {
+  const C = DISC.comb; return card('Kombinationen (zwei Muster gleichzeitig)', (DISC.res ? '<div class="row">' + (DISC.busy ? '<span class="mut sm">' + DISC.busy + '</span>' : btnA('dcomb', 'Alle Paare prüfen', 'upb')) + '</div>' : '<p class="mut sm">Erst unter „Opportunity Mining“ suchen.</p>') + (C ? '<div class="two">' + kv('Geprüfte Paare × Horizonte', C.m) + kv('Kandidaten', C.rows.filter(r => r.verdict === 'cand').length, C.rows.some(r => r.verdict === 'cand') ? 'up' : '') + '</div>' + dTable(C, 12) + '<p class="mut sm">Je mehr Kombinationen, desto mehr Zufallstreffer – deshalb wird hier gegen alle ' + C.m + ' Tests korrigiert. Meist bleibt nach der Korrektur nichts übrig, und das ist die ehrliche Antwort.</p>' : ''));
+}
+function vDiscGen() {
+  const L = NX.disc.list, r = dSel(); return card('Algorithmus aus Muster erzeugen', L.length ? L.map(d => '<div class="li"><div class="r1"><b>' + E(ftxt(d.ks).slice(0, 50)) + '</b><span class="sp"></span>' + (d.algo ? chip2('läuft als ' + d.algo, 'up') : btnA('dgen:' + d.id, 'Erzeugen', 'upb')) + '</div></div>').join('') : empty('Erst ein Muster als Hypothese registrieren.')) + '<p class="mut sm">Erzeugt wird kein fremder Code, sondern ein Eintrag mit dem festen Regelwerk (Muster-Baustein + Richtung + Lab-Standard für Stop/Ziel). Er erscheint sofort im Algorithmen-Lab (3 Varianten) und wird dort wie alle anderen vorwärts ausgewertet.</p>';
+}
+function vDiscReg() {
+  return card('Alle Algorithmen', ALGOS.map(a => { const S = NX.signals.filter(s => s.algo === a.id).length, c = algoCfg(a.id); return '<div class="li"><div class="r1"><b>' + E(a.name) + '</b><span class="sp"></span>' + chip2(a.custom ? 'entdeckt' : 'handgebaut', a.custom ? 'warn' : '') + chip2(c.on ? 'an' : 'aus', c.on ? 'up' : '') + '</div><div class="mut sm">' + S + ' Signale' + (a.created ? ' · erzeugt ' + ago(a.created) : '') + '</div></div>'; }).join(''));
+}
+function vDiscCost() {
+  const r = dSel(); if (!r) return card('Kosten', empty('Erst Muster suchen.')); const cost = DISC.res.cost, ex = Math.abs(r.ex);
+  return card('Kosten-Empfindlichkeit · ' + E(patName(r).slice(0, 40)), '<div class="two">' + kv('Mehrertrag', nf(ex, 1) + ' bp') + kv('Kosten (Standard)', nf(cost, 1) + ' bp') + kv('Break-even-Kosten', nf(ex, 1) + ' bp') + kv('Netto', pn(ex - cost, 1) + ' bp', cl(ex - cost)) + '</div>' + [0.5, 1, 1.5, 2].map(k => '<div class="kv"><span>Kosten ×' + k + ' (' + nf(cost * k, 1) + ' bp)</span><b class="' + cl(ex - cost * k) + '">' + pn(ex - cost * k, 1) + ' bp</b></div>').join('') + '<div class="h4">Horizonte des Musters</div>' + DISC.res.rows.filter(x => x.ks.join('+') === r.ks.join('+')).map(x => '<div class="kv"><span>h = ' + x.h + ' Kerzen</span><b class="' + cl(x.net) + '">' + pn(x.net, 1) + ' bp netto</b></div>').join('') + '<p class="mut sm">Den besten Horizont auszusuchen ist selbst ein Test – er ist oben schon in die Korrektur eingerechnet, nicht aber „nach dem Ergebnis frisch wählen“.</p>');
+}
+function vDiscRobust() {
+  const r = dSel(); if (!r) return card('Robustheit', empty('Erst Muster suchen.')); const o = DISC.rob && DISC.rob.key === r.key ? DISC.rob : null;
+  return card('Robustheit · ' + E(patName(r).slice(0, 40)), '<div class="h4">Zeitliche Stabilität (Drittel der Ereignisse)</div>' + r.thirds.map((v, i) => '<div class="kv"><span>Drittel ' + (i + 1) + '</span><b class="' + cl(v * (r.dir === 'long' ? 1 : -1)) + '">' + pn(v, 1) + ' bp</b></div>').join('') + '<div class="two">' + kv('Out-of-Sample (letzte 40 %)', r.oosOk ? 'konsistent' : 'nicht konsistent', r.oosOk ? 'up' : 'dn') + kv('Zufalls-Nullmodell p', nf(r.pf, 3), r.pf < 0.1 ? 'up' : 'dn') + '</div><div class="row">' + (DISC.busy ? '<span class="mut sm">' + DISC.busy + '</span>' : btnA('drob:' + r.key, 'Andere Märkte + Nachbar-Einstellungen prüfen', 'upb')) + '</div>' +
+    (o ? '<div class="h4">Ergebnis</div>' + o.out.map(x => '<div class="kv"><span>' + E(x.s) + '</span><b class="' + (x.r ? cl(x.r.ex * (r.dir === 'long' ? 1 : -1)) : 'mut') + '">' + (x.r ? (x.r.dir === r.dir ? 'gleiche Richtung' : 'Gegenrichtung') + ' · ' + pn(x.r.ex, 1) + ' bp · n=' + x.r.n : 'zu wenig Ereignisse') + '</b></div>').join('') + '<p class="mut sm">Ein echtes Muster zeigt sich in anderen Märkten und bei leicht veränderten Schwellen in derselben Richtung. Springt es um, war es Zufall.</p>' : ''));
+}
+function vDiscCompare() {
+  const rows = [], F = DISC.res ? DISC.res.rows.filter(r => r.verdict !== 'none').slice(0, 6) : []; for (const r of F) rows.push([E(patName(r).slice(0, 36)) + ' <span class="mut sm">(Vergangenheit)</span>', r.n, pn(r.net, 1) + ' bp', VC[r.verdict][0]]);
+  for (const x of stratList().filter(x => x.st.n >= 5)) rows.push([E(x.name) + ' ' + x.v + ' <span class="mut sm">(vorwärts)</span>', x.st.n, pn(x.st.avg, 2) + ' R', x.vd.t.split(' –')[0]]);
+  return card('Vergleich', rows.length ? '<div class="tw"><table class="tbl"><tr><th>Strategie</th><th>n</th><th>Ertrag netto</th><th>Urteil</th></tr>' + rows.map(r => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td><td>' + r[2] + '</td><td>' + E(r[3]) + '</td></tr>').join('') + '</table></div><p class="mut sm">Einheiten unterscheiden sich (bp aus Vergangenheit, R aus Vorwärtstest). Vergleichbar ist nur das Urteil – und vorwärts gewinnt immer.</p>' : empty('Noch nichts zu vergleichen.'));
+}
+function vDiscDoc() {
+  const L = NX.disc.list, d = L.find(x => x.id === NXV.ddoc) || L[0]; if (!d) return card('Dokumentation', empty('Erst eine Hypothese registrieren.'));
+  const txt = 'Strategie-Dossier: ' + ftxt(d.ks) + '\nMarkt/Zeitrahmen: ' + d.sym + ' ' + d.tf + ' (Binance Perp, Kerzen ' + dtm(d.from) + ' – ' + dtm(d.to) + ')\nRichtung: ' + (d.dir === 'long' ? 'Long' : 'Short') + ', Horizont ' + d.h + ' Kerzen\nBefund: n=' + d.n + ', Mehrertrag ' + pn(d.ex, 1) + ' bp, t=' + nf(d.t, 2) + ', q=' + nf(d.q, 3) + ', Zufalls-p=' + nf(d.pf, 3) + ', netto ' + pn(d.net, 1) + ' bp\nGetestet wurden insgesamt ' + d.tests + ' Muster in diesem Lauf (Korrektur eingerechnet); über alle Läufe: ' + NX.disc.tests + '.\nOut-of-Sample: ' + (d.oosOk ? 'konsistent' : 'nicht konsistent') + '\nStatus: ' + d.state + (d.algo ? ' (Algorithmus ' + d.algo + ')' : '') + '\nGrenzen: Vergangenheitsdaten, ein Markt, Kosten nach Modell, keine Marktwirkung. Gilt erst nach Vorwärtstest.';
+  return card('Dossier', '<div class="seg2">' + L.slice(0, 6).map(x => '<button class="' + (x.id === d.id ? 'on' : '') + '" data-a="ddoc:' + x.id + '"><b>' + x.ks.join('+').slice(0, 10) + '</b><small>' + x.tf + '</small></button>').join('') + '</div><pre style="white-space:pre-wrap;font:11.5px var(--mono);color:var(--mute)">' + E(txt) + '</pre>');
+}
+PANELS['22'] = { 'Strategy Discovery Command Center': vDiscCenter, 'Opportunity Mining': vDiscMining, 'Pattern Discovery': vDiscPattern, 'Strategy Hypothesis Registry': vDiscHyp, 'Strategy Architecture Designer': vDiscArch, 'Feature Engineering': vDiscFeat, 'Signal Research': vDiscSignal, 'Alpha Combination': vDiscAlpha, 'Strategy Code Generation': vDiscGen, 'Algorithm Registry': vDiscReg, 'Cost-Aware Optimization': vDiscCost, 'Robustness Testing': vDiscRobust, 'Strategy Comparison': vDiscCompare, 'Strategy Documentation': vDiscDoc, 'Development Audit Trail': () => evAudit(/^disc\./, 'Entwicklungs-Protokoll') };
+IMPL['22'] = Object.keys(PANELS['22']);
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-a]'); if (!t || !$('#nxView').contains(t)) return; const [a, ...r] = t.dataset.a.split(':'), arg = r.join(':');
+  const A = {
+    dmine: () => discRun(), dcomb: () => discComb(), drob: () => { const row = DISC.res && DISC.res.rows.concat(DISC.comb ? DISC.comb.rows : []).find(x => x.key === arg); if (row) discRobust(row); },
+    dsel: () => { NXV.dsel = arg; NXV.tab['22'] = 2; if (NXV.cur !== '22') go('22'); else renderNx(true); },
+    ddoc: () => { NXV.ddoc = arg; renderNx(true); },
+    dreg: () => { const all = DISC.res.rows.concat(DISC.comb ? DISC.comb.rows : []), row = all.find(x => x.key === arg), src = row && DISC.comb && DISC.comb.rows.includes(row) ? DISC.comb : DISC.res; if (!row || NX.disc.list.some(x => x.key === row.key && x.sym === src.sym && x.tf === src.tf)) return toast('Schon registriert', 2500); NX.disc.list.unshift({ id: nid('Y'), key: row.key, ks: row.ks, dir: row.dir, h: row.h, sym: src.sym, tf: src.tf, t: Date.now(), from: src.from, to: src.to, n: row.n, ex: row.ex, tt: row.t, q: row.q, pf: row.pf, net: row.net, oosOk: row.oosOk, tests: row.tests, state: row.verdict === 'cand' ? 'Kandidat' : 'Spur (schwach)', algo: null }); const d = NX.disc.list[0]; NX.hyp.unshift({ id: nid('H'), t: Date.now(), text: 'Muster ' + ftxt(row.ks) + ' (' + src.sym + ' ' + src.tf + ') ' + (row.dir === 'long' ? 'steigt' : 'fällt') + ' in ' + row.h + ' Kerzen', falsif: 'Vorwärtstest: nach ≥ 30 Signalen Netto-Erwartung ≤ 0 R → verworfen', st: 'offen' }); emit('disc.registered', { id: d.id, key: row.key, verdict: row.verdict }); renderNx(true); },
+    dgen: () => { discGenerate(arg); renderNx(true); },
+    ddel: () => { const d = NX.disc.list.find(x => x.id === arg); if (d) { d.state = 'verworfen'; if (d.algo) cfgSet('algos.' + d.algo + '.on', false, 'Entdeckung verworfen'); emit('disc.discarded', { id: arg }); } renderNx(true); },
+  };
+  if (A[a] && ['dmine', 'dcomb', 'drob', 'dsel', 'ddoc', 'dreg', 'dgen', 'ddel'].includes(a)) { e.preventDefault(); A[a](); }
+});
+
+'use strict';
+/* ===== NEXUS Block 5b: 20 Research & Intelligence-Orchestrierung ===== */
+NX.res = NX.res || { items: [] };
+const RTYPES = { edge: 'Hat ein Muster/Algorithmus einen Vorteil?', markt: 'Marktverhalten verstehen', risiko: 'Risiko / Verlustquellen', daten: 'Datenqualität / Quellen' };
+const RTASKS = {
+  edge: [['Kerzen laden und Muster suchen (mit Korrektur)', 'mine'], ['Beste Funde auf Robustheit prüfen', 'open:22:11'], ['Als Hypothese registrieren', 'open:22:3'], ['Algorithmus erzeugen → Vorwärtstest im Lab', 'open:22:8'], ['Freigabe-Tore prüfen', 'open:09:2']],
+  markt: [['Struktur und Zeitrahmen ansehen', 'open:01:2'], ['Funding / OI / Basis prüfen', 'open:01:5'], ['Hypothese im Journal notieren', 'open:05:2']],
+  risiko: [['Stresstest ansehen', 'open:08:6'], ['Limits und Kosten prüfen', 'open:08:5'], ['Drawdown-Regeln prüfen', 'open:23:11']],
+  daten: [['Datenprüfung ausführen', 'data'], ['Verbindungstest', 'conn'], ['Datenqualität ansehen', 'open:06:4']],
+};
+const PRI = ['', 'hoch', 'mittel', 'niedrig'];
+const rItem = id => NX.res.items.find(x => x.id === id), rSel = () => rItem(NXV.rsel) || NX.res.items.find(x => x.st !== 'erledigt' && x.st !== 'verworfen') || NX.res.items[0];
+function gaps() {
+  const G = [], L = stratList(), few = L.filter(x => x.st.n < 20 && x.st.tot > 0);
+  if (!NX.disc.runs.length) G.push(['Noch nie nach Mustern gesucht', 'edge', 'Welche Muster haben auf echten Kerzen einen Vorteil nach Kosten?']);
+  if (few.length) G.push([few.length + ' Strategien haben < 20 Signale', 'daten', 'Wie lange dauert es, bis die Strategien genug Signale haben? (siehe Experiment-Planung)']);
+  if (!L.some(x => x.vd.k === 'kand')) G.push(['Keine Strategie mit belegtem Vorteil', 'edge', 'Welche Strategie bekommt als erste einen belegten Vorteil – und welche Variante?']);
+  if (NX.closed.length >= 5 && !NX.closed.some(c => c.tag)) G.push(['Trades ohne Fehler-Tags', 'risiko', 'Wo entstehen die Verluste (Regime, Algorithmus, Uhrzeit)?']);
+  if (!NX.disc.runs.some(r => r.sym !== ST.sym)) G.push(['Muster nur auf einem Markt geprüft', 'markt', 'Gelten die Funde auch auf ETH und SOL?']);
+  return G;
+}
+function vResCenter() {
+  const I = NX.res.items, op = I.filter(x => x.st === 'neu' || x.st === 'läuft'), G = gaps();
+  return card('Research-Lage', '<div class="two">' + kv('Offene Fragen', op.length) + kv('In Arbeit', I.filter(x => x.st === 'läuft').length) + kv('Erledigt', I.filter(x => x.st === 'erledigt').length) + kv('Muster getestet', NX.disc.tests) + '</div>' + (op[0] ? '<div class="h4">Als Nächstes</div>' + rCard(op.sort((a, b) => a.pri - b.pri || a.t - b.t)[0]) : '<p class="mut sm">Keine offene Frage. Nimm eine auf (Tab „Objective Intake“) oder übernimm einen Vorschlag.</p>')) +
+    card('Wissenslücken (aus dem Systemzustand)', G.length ? G.map((g, i) => '<div class="li"><div class="r1"><b>' + E(g[0]) + '</b></div><div class="mut sm">' + E(g[2]) + '</div><div class="row">' + btnA('rs_sug:' + i, 'Als Frage aufnehmen') + '</div></div>').join('') : '<span class="mut sm">Keine offensichtliche Lücke.</span>');
+}
+function rCard(x) { return '<div class="li"><div class="r1"><b>' + E(x.q) + '</b><span class="sp"></span>' + chip2(x.st, x.st === 'läuft' ? 'warn' : x.st === 'erledigt' ? 'up' : x.st === 'verworfen' ? 'dn' : '') + '</div><div class="mut sm">' + RTYPES[x.type] + ' · Priorität ' + PRI[x.pri] + ' · ' + ago(x.t) + ' · ' + x.tasks.filter(t => t.st === 'fertig').length + '/' + x.tasks.length + ' Schritte</div><div class="row">' + btnA('rs_sel:' + x.id, 'Öffnen') + '</div></div>'; }
+function vResIntake() {
+  const f = NXV.form; return card('Neue Frage', '<textarea data-form="rsq" rows="2" style="width:100%" placeholder="z. B. Funktioniert CVD-Divergenz nach Funding-Spitzen besser?">' + E(f.rsq || '') + '</textarea><div class="row"><select data-form="rst">' + Object.keys(RTYPES).map(k => '<option value="' + k + '"' + ((f.rst || 'edge') === k ? ' selected' : '') + '>' + RTYPES[k] + '</option>').join('') + '</select><select data-form="rsp">' + [1, 2, 3].map(p => '<option value="' + p + '"' + ((f.rsp || '2') == p ? ' selected' : '') + '>' + PRI[p] + '</option>').join('') + '</select>' + btnA('rs_add', 'Aufnehmen', 'upb') + '</div><p class="mut sm">Aus der Frage wird automatisch eine Aufgabenliste (Tab „Task Decomposition“).</p>');
+}
+function vResQueue() {
+  const I = NX.res.items.slice().sort((a, b) => (a.st === 'erledigt' || a.st === 'verworfen') - (b.st === 'erledigt' || b.st === 'verworfen') || a.pri - b.pri || a.t - b.t); return card('Warteschlange (Priorität, dann Alter)', I.length ? I.map(rCard).join('') : empty('Leer. Neue Frage unter „Objective Intake“.'));
+}
+function vResDecomp() {
+  const x = rSel(); if (!x) return card('Aufgaben', empty('Erst eine Frage aufnehmen.'));
+  return card(E(x.q), '<div class="seg2">' + NX.res.items.slice(0, 6).map(i => '<button class="' + (i.id === x.id ? 'on' : '') + '" data-a="rs_sel:' + i.id + '"><b>' + E(i.q.slice(0, 14)) + '</b><small>' + i.st + '</small></button>').join('') + '</div>' + x.tasks.map((t, i) => '<div class="li"><div class="r1">' + dot(t.st === 'fertig' ? 'ok' : 'mute') + '<span>' + (i + 1) + '. ' + E(t.n) + '</span><span class="sp"></span>' + (t.st === 'fertig' ? '' : btnA('rs_run:' + x.id + ':' + i, /^open/.test(t.r) ? 'Öffnen' : 'Ausführen', 'upb') + btnA('rs_done:' + x.id + ':' + i, '✓')) + '</div></div>').join('') + '<div class="row">' + btnA('rs_fin:' + x.id + ':erledigt', 'Frage abschließen', 'upb') + btnA('rs_fin:' + x.id + ':verworfen', 'Verwerfen', 'dnb') + '</div><label class="mut sm">Ergebnis / Notiz</label><textarea data-form="rsn" rows="2" style="width:100%">' + E(NXV.form.rsn != null ? NXV.form.rsn : (x.result || '')) + '</textarea><div class="row">' + btnA('rs_note:' + x.id, 'Notiz speichern') + '</div>');
+}
+function vResRoute() {
+  const R = [['Muster suchen, Kandidaten prüfen', 'Strategie-Entdeckung (22)', 'Kerzen von Binance, Statistik im Browser', !!DISC], ['Strategien vorwärts auswerten', 'Algorithmen-Lab (02)', 'Live-Kurse, Papier-Orders', true], ['Marktlage, Struktur, Funding', 'Markt-Intelligenz (01)', 'REST + Live-Ströme', NX.flags.rest !== false], ['Risiko, Stress, Kosten', 'Portfolio & Risiko (08/23)', 'Konto, Positionen, Orderbuch', true], ['Datenqualität, Verbindungen', 'Daten (06) / Konnektoren (16)', 'Messpunkte der Feeds', true], ['Fehler und Lernen', 'Journal (05) / Learning (04)', 'abgeschlossene Papier-Trades', true], ['Nachrichten, Makro, On-Chain', 'nicht vorhanden', 'bräuchte Schlüssel/Server', false]];
+  return card('Wer bearbeitet welche Art von Aufgabe', R.map(r => '<div class="li"><div class="r1">' + dot(r[3] ? 'ok' : 'mute') + '<b>' + E(r[0]) + '</b></div><div class="mut sm">→ ' + E(r[1]) + ' · ' + E(r[2]) + '</div></div>').join('') + '<p class="mut sm">Das System hat keine „freien“ KI-Agenten im Hintergrund – es nutzt feste, prüfbare Auswerte-Engines. Das ist Absicht: Jede Aussage lässt sich nachrechnen.</p>');
+}
+function vResSources() {
+  const hs = restStats(); return card('Genutzte Quellen', Object.keys(HOSTS).map(h => { const r = hs.find(x => x.h === h), w = OBS.ws[h]; return '<div class="li"><div class="r1"><b>' + E(HOSTS[h][0]) + '</b><span class="sp"></span><span class="mut sm">' + ((r ? r.n : 0) + ' Anfr.' + (w ? ' · ' + fq(w.n) + ' Nachr.' : '')) + '</span></div><div class="mut sm">' + E(HOSTS[h][1]) + '</div></div>'; }).join('')) +
+    card('Nicht angebunden (ehrlich)', '<div class="mut sm">• Nachrichten / Makro-Kalender: braucht Schlüssel oder Server<br>• On-Chain-Daten, Social-Stimmung: dito<br>• Tick-Historie über Tage: Börsen liefern sie nicht frei; das System sammelt selbst ab dem Öffnen<br>• Hyperliquid-Liquidationen: kein offener Strom</div>');
+}
+function grade(x) {
+  const s = x.st; if (s.n >= 30 && s.lo > 0) return ['A', 'up', 'vorwärts belegt (n ≥ 30, untere Schranke > 0)']; if (s.n >= 20 && s.lo > 0) return ['B', 'up', 'vorwärts vorläufig belegt']; if (s.n >= 20) return ['C', 'warn', 'genug Daten, kein Beleg']; if (s.n >= 10) return ['D', 'warn', 'zu wenig Daten']; return ['–', '', 'kaum Daten'];
+}
+function vResEvidence() {
+  const L = stratList().filter(x => x.st.tot > 0).sort((a, b) => b.st.n - a.st.n), D2 = NX.disc.list;
+  return card('Vorwärts-Evidenz je Strategie', L.length ? L.map(x => { const g = grade(x); return '<div class="li"><div class="r1"><b class="' + g[1] + '" style="font-size:15px;width:18px;display:inline-block">' + g[0] + '</b><b>' + E(x.name) + '</b> <span class="mut">' + x.v + '</span><span class="sp"></span><span class="mut sm">n=' + x.st.n + '</span></div><div class="mut sm">' + g[2] + '</div></div>'; }).join('') : empty('Noch keine Signale.')) +
+    card('Evidenz aus der Entdeckung (Vergangenheit)', D2.length ? D2.map(d => { const g = d.state === 'Kandidat' && d.oosOk ? ['B−', 'up', 'alle Prüfungen bestanden, aber nur Vergangenheit'] : ['C', 'warn', 'Spur: nicht alle Prüfungen bestanden']; return '<div class="li"><div class="r1"><b class="' + g[1] + '">' + g[0] + '</b><span>' + E(ftxt(d.ks).slice(0, 40)) + '</span></div><div class="mut sm">' + g[2] + '</div></div>'; }).join('') : '<span class="mut sm">Keine.</span>') +
+    '<p class="mut sm">A = vorwärts belegt, B = vorläufig, C = ohne Beleg, D = zu wenig Daten. Vergangenheits-Funde sind nie besser als B−: Sie werden erst durch den Vorwärtstest zu A.</p>';
+}
+function vResExp() {
+  const f = NXV.form, mu = parseFloat(String(f.epmu || '0.2').replace(',', '.')) || 0.2, S = stratList().filter(x => x.st.tot > 0 || ALGOS.length), z = 1.28 + 0.84;
+  const days = Math.max(1, (Date.now() - Math.min(...NX.signals.map(s => s.t), Date.now() - 86400e3)) / 86400e3);
+  return card('Wie viele Signale braucht ein Beleg?', '<div class="row"><label class="mut sm">Gesuchter Vorteil (R je Trade)</label><input type="number" inputmode="decimal" data-form="epmu" value="' + mu + '" step="0.05" min="0.05"></div><p class="mut sm">Rechnet: n = ((z₉₀ + z₈₀) · σ ÷ Vorteil)² – Konfidenz 90 %, Trennschärfe 80 %. σ kommt aus den bisherigen Signalen der Strategie (Standard 1,2 R, wenn noch zu wenig).</p>') +
+    card('Bedarf je Strategie', '<div class="tw"><table class="tbl"><tr><th>Strategie</th><th>σ</th><th>n nötig</th><th>hat</th><th>Signale/Tag</th><th>noch ca.</th></tr>' + stratList().filter(x => x.v === 'standard' || x.st.tot > 0).map(x => { const Rs = sigDone(x.aid, x.v).map(s => s.R), sg = Rs.length > 5 ? sd(Rs) : 1.2, need = Math.ceil((z * sg / mu) ** 2), rate = x.st.tot / days, left = Math.max(0, need - x.st.n); return '<tr><td>' + E(x.name.slice(0, 20)) + '<div class="mut sm">' + x.v + '</div></td><td>' + nf(sg, 2) + '</td><td>' + need + '</td><td>' + x.st.n + '</td><td>' + nf(rate, 1) + '</td><td>' + (left === 0 ? 'genug' : rate > 0.05 ? nf(left / rate, 1) + ' Tage' : '–') + '</td></tr>'; }).join('') + '</table></div><p class="mut sm">Kleiner Vorteil → viele Signale. Ein Vorteil von 0,1 R braucht ein Vielfaches von 0,3 R. Seltene Signale (wenige pro Tag) sind der eigentliche Engpass – deshalb lohnt Multi-Asset (Modul 23).</p>');
+}
+function vResInfo() {
+  const S = stratList().filter(x => x.st.n >= 2).map(x => { const se1 = x.st.se, se2 = x.st.n > 1 ? sd(sigDone(x.aid, x.v).map(s => s.R)) / Math.sqrt(x.st.n + 10) : null; return [x, se1, se2, se2 != null ? se1 - se2 : 0]; }).sort((a, b) => b[3] - a[3]), hs = restStats(), reqMin = hs.reduce((a, h) => a + h.n60, 0);
+  return card('Wo bringen mehr Daten am meisten?', S.length ? '<div class="tw"><table class="tbl"><tr><th>Strategie</th><th>n</th><th>SE jetzt</th><th>SE bei +10</th><th>Gewinn</th></tr>' + S.slice(0, 10).map(([x, a, b, g]) => '<tr><td>' + E(x.name.slice(0, 20)) + '<div class="mut sm">' + x.v + '</div></td><td>' + x.st.n + '</td><td>' + nf(a, 2) + '</td><td>' + nf(b, 2) + '</td><td>' + nf(g, 2) + '</td></tr>').join('') + '</table></div><p class="mut sm">SE = Standardfehler des Ø R. Wo er durch 10 weitere Signale am stärksten fällt, ist Beobachten am wertvollsten.</p>' : empty('Braucht ausgewertete Signale.')) +
+    card('Kosten-Budget', '<div class="two">' + kv('Anfragen letzte Minute', reqMin) + kv('Anfragen seit Start', hs.reduce((a, h) => a + h.n, 0)) + kv('Muster-Läufe', NX.disc.runs.length) + kv('Getestete Muster', NX.disc.tests) + '</div><p class="mut sm">Es kostet kein Geld, aber Anfragen-Limits der Börsen und Akku. Eine Mustersuche zieht ~2 Anfragen; die Rechenzeit liegt im Sekundenbereich.</p>');
+}
+function vResFals() {
+  const A = stratList().filter(x => x.st.tot > 0).map(x => [x.name + ' ' + x.v, x.st.n >= 30 && x.st.avg <= 0 ? ['FALSIFIZIERT', 'dn', 'n=' + x.st.n + ', Ø ' + pn(x.st.avg, 2) + ' R'] : x.st.n >= 30 && x.st.lo > 0 ? ['überlebt (vorläufig)', 'up', 'untere Schranke ' + pn(x.st.lo, 2)] : ['offen', 'warn', 'n=' + x.st.n + ' von 30']]), tests = NX.disc.tests;
+  return card('Widerlegungs-Kriterien (automatisch geprüft)', A.length ? A.map(a => '<div class="li"><div class="r1"><b>' + E(a[0]) + '</b><span class="sp"></span><span class="' + a[1][1] + '">' + a[1][0] + '</span></div><div class="mut sm">Kriterium: nach ≥ 30 Signalen Ø ≤ 0 R → verworfen · jetzt: ' + E(a[1][2]) + '</div></div>').join('') : empty('Noch keine Signale.')) +
+    card('Advokat des Teufels: Mustersuche', '<div class="two">' + kv('Muster je Lauf', DISC.res ? DISC.res.m : '–') + kv('Muster gesamt getestet', tests) + kv('Zufallstreffer bei 5 % erwartet', nf(tests * 0.05, 0)) + kv('Davon registriert', NX.disc.list.length) + '</div><p class="mut sm">Wer ' + tests + ' Muster prüft, findet rein zufällig etwa ' + nf(tests * 0.05, 0) + ' „signifikante“. Deshalb zählt nur, was die Korrektur, das Zufalls-Nullmodell, Out-of-Sample UND den Vorwärtstest übersteht.</p>');
+}
+function vResSynth() {
+  const C = []; for (const d of NX.disc.list.filter(d => d.algo)) { const L = VARIANTS.map(v => algoStats(d.algo, v)); L.forEach((s, i) => { if (s.n >= 20 && s.avg <= 0) C.push([E(ftxt(d.ks).slice(0, 40)), 'Entdeckung sagte ' + (d.dir === 'long' ? 'Long' : 'Short') + '-Vorteil, Vorwärtstest (' + VARIANTS[i] + ', n=' + s.n + ') zeigt Ø ' + pn(s.avg, 2) + ' R']); }); }
+  for (const a of ALGOS) { const S = VARIANTS.map(v => algoStats(a.id, v)); if (S.every(s => s.n >= 20) && S.some(s => s.avg > 0) && S.some(s => s.avg < 0)) C.push([E(a.name), 'Varianten widersprechen sich: ' + VARIANTS.map((v, i) => v + ' ' + pn(S[i].avg, 2)).join(' · ')]); }
+  for (const h of NX.hyp.filter(h => h.st === 'bestätigt')) { const m = stratList().find(x => h.text.includes(x.name) && x.vd.k === 'verw'); if (m) C.push([E(h.text.slice(0, 40)), 'Hypothese „bestätigt“, aber Lab-Urteil „verworfen“']); }
+  return card('Widersprüche zwischen den Quellen', C.length ? C.map(c => '<div class="li"><div class="r1"><b class="warn">' + c[0] + '</b></div><div class="mut sm">' + c[1] + '</div></div>').join('') : '<div class="best"><b class="up">Keine Widersprüche erkannt</b><div class="mut sm">Geprüft: Entdeckung vs. Vorwärtstest, Varianten untereinander, Hypothesen vs. Lab-Urteil.</div></div>');
+}
+function vResPromo() {
+  const rung = (d) => { const s = d.algo ? stratOf(skey(d.algo, 'standard')).stage : null; return d.state === 'verworfen' ? 'verworfen' : s === 'prod' ? 'Produktion' : s === 'canary' ? 'Canary' : d.algo ? 'Vorwärtstest' : 'Hypothese'; }, steps = ['Hypothese', 'Vorwärtstest', 'Canary', 'Produktion'];
+  return card('Beförderungs-Leiter', NX.disc.list.length ? NX.disc.list.map(d => { const r = rung(d), i = steps.indexOf(r); return '<div class="li"><div class="r1"><b>' + E(ftxt(d.ks).slice(0, 40)) + '</b><span class="sp"></span>' + chip2(r, r === 'verworfen' ? 'dn' : 'up') + '</div><div class="bar sm"><i style="width:' + ((i + 1) / 4 * 100) + '%"></i></div><div class="row">' + (d.algo ? btnA('go:09', 'Zur Freigabe') : btnA('dgen:' + d.id, 'Algorithmus erzeugen', 'upb')) + '</div></div>'; }).join('') : empty('Nichts auf der Leiter. Funde aus der Entdeckung (Modul 22) landen hier.')) + '<p class="mut sm">Eine Stufe weiter geht es nur mit Beleg: Hypothese → Algorithmus → Vorwärtstest (Lab) → Canary (Tore) → Produktion (Tore). Jede Stufe ist eine eigene, protokollierte Entscheidung von dir.</p>';
+}
+function vResMem() {
+  const R = NX.disc.runs, dup = {}; for (const r of R) { const k = r.sym + r.tf + (r.comb ? 'c' : ''); dup[k] = (dup[k] || 0) + 1; }
+  return card('Frühere Läufe', R.length ? R.slice(0, 20).map(r => '<div class="li"><div class="r1"><b>' + r.sym + ' ' + r.tf + (r.comb ? ' · Paare' : '') + '</b><span class="sp"></span><span class="mut sm">' + ago(r.t) + '</span></div><div class="mut sm">' + r.m + ' Tests · ' + r.N + ' Kerzen · ' + r.cand + ' Kandidaten · ' + r.spur + ' Spuren' + (dup[r.sym + r.tf + (r.comb ? 'c' : '')] > 1 ? ' <span class="warn">· mehrfach geprüft</span>' : '') + '</div></div>').join('') : empty('Noch keine Läufe.')) + card('Abgeschlossene Fragen', NX.res.items.filter(x => x.st === 'erledigt' || x.st === 'verworfen').map(x => '<div class="li"><div class="r1"><b>' + E(x.q) + '</b><span class="sp"></span>' + chip2(x.st) + '</div>' + (x.result ? '<div class="mut sm">' + E(x.result) + '</div>' : '') + '</div>').join('') || '<span class="mut sm">Keine.</span>') + '<p class="mut sm">Wiederholte Läufe auf denselben Daten erhöhen die Zahl der Zufallstreffer – das Gedächtnis macht das sichtbar.</p>';
+}
+PANELS['20'] = { 'Research Command Center': vResCenter, 'Objective Intake': vResIntake, 'Research Queue & Scheduler': vResQueue, 'Task Decomposition': vResDecomp, 'Agent Routing': vResRoute, 'Source Discovery': vResSources, 'Evidence Quality': vResEvidence, 'Hypothesis Registry': () => PANELS['05']['Hypotheses'](), 'Experiment Planning': vResExp, 'Information Gain & Cost Budget': vResInfo, 'Falsification / Adversarial Review': vResFals, 'Synthesis & Contradictions': vResSynth, 'Artifact Promotion': vResPromo, 'Research Memory': vResMem, 'Research Audit Trail': () => evAudit(/^research\.|^disc\./, 'Research-Protokoll') };
+IMPL['20'] = Object.keys(PANELS['20']);
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-a]'); if (!t || !$('#nxView').contains(t)) return; const [a, ...r] = t.dataset.a.split(':'), arg = r.join(':');
+  const mk = (q, type, pri) => { const x = { id: nid('R'), t: Date.now(), q, type, pri: +pri || 2, st: 'neu', tasks: RTASKS[type].map(([n, rr]) => ({ n, r: rr, st: 'offen' })), result: '' }; NX.res.items.unshift(x); emit('research.opened', { id: x.id, q: q.slice(0, 60), type }); NXV.rsel = x.id; return x; };
+  const A = {
+    rs_add: () => { const q = (NXV.form.rsq || '').trim(); if (!q) return toast('Bitte eine Frage eintippen', 2500); mk(q, NXV.form.rst || 'edge', NXV.form.rsp || 2); NXV.form.rsq = ''; NXV.tab['20'] = 3; renderNx(true); },
+    rs_sug: () => { const g = gaps()[+arg]; if (g) { mk(g[2], g[1], 2); NXV.tab['20'] = 3; renderNx(true); } },
+    rs_sel: () => { NXV.rsel = arg; NXV.tab['20'] = 3; if (NXV.cur !== '20') go('20'); else renderNx(true); },
+    rs_done: () => { const [id, i] = arg.split(':'), x = rItem(id); if (x && x.tasks[+i]) { x.tasks[+i].st = 'fertig'; if (x.st === 'neu') x.st = 'läuft'; emit('research.step', { id, step: x.tasks[+i].n.slice(0, 40) }); } renderNx(true); },
+    rs_run: () => { const [id, i] = arg.split(':'), x = rItem(id), tk = x && x.tasks[+i]; if (!tk) return; if (x.st === 'neu') x.st = 'läuft'; const rr = tk.r; if (rr === 'mine') { discRun().then(() => { tk.st = 'fertig'; emit('research.step', { id, step: 'Mustersuche' }); renderNx(true); }); } else if (rr === 'data') { qaRun('daten').then(() => { tk.st = 'fertig'; renderNx(true); }); } else if (rr === 'conn') { CONN.forEach(hcRun); tk.st = 'fertig'; } else if (rr.startsWith('open:')) { const [, m, tb] = rr.split(':'); NXV.tab[m] = +tb; go(m); } renderNx(true); },
+    rs_fin: () => { const [id, st] = arg.split(':'), x = rItem(id); if (x) { x.st = st; if (NXV.form.rsn) x.result = NXV.form.rsn; emit('research.closed', { id, st }); } renderNx(true); },
+    rs_note: () => { const x = rItem(arg); if (x) { x.result = NXV.form.rsn || ''; delete NXV.form.rsn; } renderNx(true); },
+  };
+  if (A[a] && /^rs_/.test(a)) { e.preventDefault(); A[a](); }
+});
+
+'use strict';
 /* ===== Start ===== */
-(async () => { try { await nxLoad(); } catch (e) { /* ohne gespeicherten Zustand */ } init(); nxInit(); })();
+(async () => { try { await nxLoad(); } catch (e) { /* ohne gespeicherten Zustand */ } try { discInit(); } catch (e) { console.error(e); } init(); nxInit(); })();
 
 </script></body></html>
