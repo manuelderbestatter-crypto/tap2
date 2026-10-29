@@ -97,6 +97,15 @@ body:not(.onTape) #tfSeg,body:not(.onTape) #modeSeg,body:not(.onTape) .pw,body:n
 @media (min-width:900px){#nxBody{max-width:900px;width:100%;margin:0 auto}#nxHead,#nxTabs{max-width:900px;width:100%;margin:0 auto}}
 .up{color:var(--up)}.dn{color:var(--dn)}.warn{color:var(--warn)}
 
+.nc{width:100%;border:1px solid var(--line);border-radius:6px;overflow:hidden;margin:4px 0 8px;background:var(--bg)}
+.card{background:var(--pn);border-radius:8px;padding:8px 10px 10px}
+.card h3{font-size:10px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);padding-bottom:6px;margin:0 0 6px;border-bottom:1px solid var(--line)}
+.card h3 .h{color:var(--fg);letter-spacing:.02em;text-transform:none;font-size:12px}
+.kv b,.rt,.tbl td,.meter b{font-feature-settings:'tnum'}
+.wl{display:grid;grid-template-columns:64px 1fr 86px 70px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #0f141a;cursor:pointer}.wl.on{background:rgba(77,163,255,.06);margin:0 -10px;padding:6px 10px}.wl .wn b{font-size:12.5px}.wl .wn small,.wl .wv small{display:block;color:var(--faint);font-size:9.5px}.wl .wp{text-align:right}.wl .wp b{font:500 12px var(--mono)}.wl .wp small{display:block;font:11px var(--mono)}.wl .wv{text-align:right}.wl .wv b{font:500 11px var(--mono)}.wl .nc{margin:0;border:0;background:transparent}
+@media (max-width:420px){.wl{grid-template-columns:56px 1fr 80px}.wl .wv{display:none}}
+#nav button span{font-size:9.5px}
+
 </style></head><body>
 <div id="app">
 <header id="top">
@@ -135,7 +144,7 @@ const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v == n
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ohne Speicher */ } };
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
-const SYMS = ['BTC', 'ETH', 'SOL', 'HYPE'];
+const SYMS = ['BTC', 'ETH', 'SOL', 'HYPE', 'XRP', 'DOGE', 'BNB', 'SUI', 'AVAX', 'LINK'];
 const SRC = { bnf: 'Binance Perp', hl: 'Hyperliquid', bns: 'Binance Spot' };
 const TFS = { '1m': 60e3, '5m': 300e3, '15m': 900e3, '1h': 3600e3, '4h': 14400e3 };
 
@@ -194,7 +203,7 @@ function onTrade(t, p, q, s, backfill) {
   pd.usd += p * q; pd.pq += p * q; pd.q += q;
   if (D.bubbles.length > 6000) D.bubbles.splice(0, 1000);
   if (!backfill) {
-    D.last = { t, p, s }; D.lastMsg = Date.now();
+    D.last = { t, p, s }; D.lastMsg = Date.now(); const lt = D.lastMsg - t; if (lt > -5000 && lt < 60000) { (D.lat = D.lat || []).push(lt); if (D.lat.length > 300) D.lat.shift(); }
     D.tape.push({ t, p, q, s }); if (D.tape.length > 80) D.tape.shift();
   }
 }
@@ -976,7 +985,7 @@ function trackSignals() {
 function algoStats(aid, vn) {
   const a = NX.signals.filter(s => s.algo === aid && s.variant === vn && s.st === 'done' && !s.manual), n = a.length, R = a.map(s => s.R), w = R.filter(x => x > 0).length, avg = mean(R), se = n > 1 ? sd(R) / Math.sqrt(n) : 0;
   const open = NX.signals.filter(s => s.algo === aid && s.variant === vn && s.st === 'open').length, tot = NX.signals.filter(s => s.algo === aid && s.variant === vn && !s.manual).length;
-  return { n, w, win: n ? w / n : 0, avg, lo: n > 1 ? avg - 1.28 * se : null, sum: R.reduce((x, y) => x + y, 0), open, tot, T: a.filter(s => s.out === 'T').length, S: a.filter(s => s.out === 'S').length, Z: a.filter(s => s.out === 'Z').length };
+  return { n, w, win: n ? w / n : 0, avg, se, lo0: avg - 1.28 * se, hi0: avg + 1.28 * se, lo: n > 1 ? avg - 1.28 * se : null, sum: R.reduce((x, y) => x + y, 0), open, tot, T: a.filter(s => s.out === 'T').length, S: a.filter(s => s.out === 'S').length, Z: a.filter(s => s.out === 'Z').length };
 }
 function algoVerdict(st) {
   if (st.n < 20) return { k: 'wenig', t: 'Zu wenig Daten (' + st.n + '/20)', c: 'warn' };
@@ -1085,7 +1094,7 @@ function closePosFill(o) {
   const p = NX.pos.find(x => x.id === o.pos); if (!p) return; const dir = p.side === 'long' ? 1 : -1, gross = dir * (o.avg - p.entry) * p.qty, fees = p.fees + o.fee, pnl = gross - fees;
   NX.pos = NX.pos.filter(x => x !== p); NX.acct.realized += pnl; NX.acct.fees += o.fee;
   const R = p.riskUsd ? pnl / p.riskUsd : 0, c = { id: nid('T'), pos: p.id, t0: p.t0, t1: Date.now(), sym: p.sym, src: p.src, side: p.side, qty: p.qty, entry: p.entry, exit: o.avg, stop: p.stop, target: p.target, reason: p.exitWhy || o.why, pnl, gross, fees, R, riskUsd: p.riskUsd, algo: p.algo, variant: p.variant, dec: p.dec, sig: p.sig, ctx: p.ctx, mfe: p.mfe, mae: p.mae, path: p.path.slice(-500), note: '', tag: '' };
-  c.path.push([c.t1, o.avg]); NX.closed.unshift(c); while (NX.closed.length > 500) { const d = NX.closed.pop(); NX.acct.archived = (NX.acct.archived || 0) + d.pnl; }
+  c.path.push([c.t1, o.avg]); if (c.sym === ST.sym && c.src === ST.src) { try { const rc = replayCandles(c.t0, c.t1); if (rc.c.length >= 3) c.cd = rc; } catch (e) { /* ohne Kerzen */ } } NX.closed.unshift(c); while (NX.closed.length > 500) { const d = NX.closed.pop(); NX.acct.archived = (NX.acct.archived || 0) + d.pnl; }
   emit('position.closed', { id: p.id, pnl: +pnl.toFixed(2), R: +R.toFixed(2), reason: c.reason }, p.dec); nxReconcile(); nxChanged();
   const streak = lossStreak(); if (streak >= NX.risk.lossStreak) { NX.pause = { until: Date.now() + NX.risk.pauseMin * 60e3, why: streak + ' Verluste in Folge' }; emit('risk.pause', NX.pause); toast('Risiko-Engine: Pause ' + NX.risk.pauseMin + ' min (' + streak + ' Verluste in Folge)', 7000); }
 }
@@ -1143,7 +1152,206 @@ function nxManual(side, stop, target) {
 }
 
 /* Takt */
-function nxTick() { if (D.last) LASTPX[nxKey()] = D.last.p; algoKeyCheck(); try { trackSignals(); algoTick(); monitorPositions(); pendingExpiry(); autoSafety(); } catch (e) { console.error(e); emit('engine.error', { m: String(e && e.message || e) }); } }
+function nxTick() { if (D.last) LASTPX[nxKey()] = D.last.p; algoKeyCheck(); try { miTick(); trackSignals(); algoTick(); monitorPositions(); pendingExpiry(); autoSafety(); } catch (e) { console.error(e); emit('engine.error', { m: String(e && e.message || e) }); } }
+
+'use strict';
+/* ===== NEXUS: Chart-Baukasten (gleiche Sprache wie die Chart-Engine: Canvas, Mono-Achsen, Preis-Pills, Fadenkreuz) ===== */
+const NC = { reg: {}, act: 0, list: [] };
+const NAX = 58, NTH = 20, MONO = '10px "JetBrains Mono",ui-monospace,monospace', MONO2 = '10.5px "JetBrains Mono",ui-monospace,monospace';
+function ncHTML(key, h, fn) { NC.reg[key] = fn; return '<div class="nc" data-k="' + key + '" style="height:' + h + 'px"></div>'; }
+function ncMount() { NC.list = []; $$('#nxBody .nc').forEach(el => { const fn = NC.reg[el.dataset.k]; if (fn) NC.list.push(new NCh(el, fn)); }); }
+const ncBusy = () => Date.now() - NC.act < 4500;
+
+class NCh {
+  constructor(el, fn) {
+    this.el = el; this.fn = fn; this.mx = -1; this.my = -1; this.dpr = Math.min(2.5, window.devicePixelRatio || 1);
+    const mk = () => { const c = document.createElement('canvas'); c.style.cssText = 'position:absolute;left:0;top:0;width:100%;height:100%;display:block'; el.appendChild(c); return c; };
+    this.c = mk(); this.o = mk(); this.o.style.pointerEvents = 'none'; el.style.position = 'relative'; el.style.touchAction = 'pan-y';
+    const mv = e => { const r = el.getBoundingClientRect(); this.mx = e.clientX - r.left; this.my = e.clientY - r.top; NC.act = Date.now(); this.over(); };
+    el.addEventListener('pointerdown', mv); el.addEventListener('pointermove', mv);
+    el.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { this.mx = -1; this.over(); } });
+    el.addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') setTimeout(() => { this.mx = -1; this.over(); }, 2500); });
+    this.size(); this.draw();
+  }
+  size() { const w = this.el.clientWidth, h = this.el.clientHeight; this.w = w; this.h = h; for (const c of [this.c, this.o]) { c.width = Math.round(w * this.dpr); c.height = Math.round(h * this.dpr); } this.cx = this.c.getContext('2d'); this.ox = this.o.getContext('2d'); this.cx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0); this.ox.setTransform(this.dpr, 0, 0, this.dpr, 0, 0); }
+  G(cx) {
+    const g = { cx, w: this.w, h: this.h, AX: NAX, pw: this.w - NAX, C, mono: MONO };
+    g.pill = (txt, y, bg, fg) => { cx.font = MONO2; cx.fillStyle = bg; cx.fillRect(g.pw, y - 9, NAX, 18); cx.fillStyle = fg || '#06080b'; cx.textAlign = 'left'; cx.textBaseline = 'middle'; cx.fillText(txt, g.pw + 6, y); };
+    g.hgrid = (top, bot, lo, hi, fmt, Y) => { const st = niceStep((hi - lo) / Math.max(2, (bot - top) / 46)); cx.font = MONO; cx.textBaseline = 'middle'; cx.lineWidth = 1;
+      for (let p = Math.ceil(lo / st) * st; p < hi; p += st) { const y = Math.round(Y(p)) + .5; if (y < top + 4 || y > bot - 4) continue; cx.strokeStyle = C.grid; cx.beginPath(); cx.moveTo(0, y); cx.lineTo(g.pw, y); cx.stroke(); cx.fillStyle = C.mute; cx.textAlign = 'left'; cx.fillText(fmt(p), g.pw + 6, y); } };
+    g.tgrid = (t0, t1, X, yTop, yBot) => { const steps = [1, 5, 15, 30, 60, 120, 240, 360, 720, 1440, 2880, 10080, 43200], need = 78 / Math.max(1e-9, g.pw / (t1 - t0)) / 60e3; let step = 60e3 * (steps.find(m => m >= need) || 43200); const tz = new Date().getTimezoneOffset() * 60e3; cx.font = MONO; cx.textBaseline = 'middle'; cx.textAlign = 'center';
+      for (let t = Math.ceil((t0 - tz) / step) * step + tz; t < t1; t += step) { const x = Math.round(X(t)) + .5; if (x < 20 || x > g.pw - 14) continue; const d = new Date(t), mid = (t - tz) % 864e5 === 0; cx.strokeStyle = C.grid; cx.beginPath(); cx.moveTo(x, yTop); cx.lineTo(x, yBot); cx.stroke(); cx.fillStyle = mid ? C.fg : C.mute; cx.fillText(mid || step >= 864e5 ? d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) : d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }), x, yBot + NTH / 2); } };
+    g.label = (txt, x, y, col, align) => { cx.font = '10px Inter,system-ui,sans-serif'; cx.fillStyle = col || C.faint; cx.textAlign = align || 'left'; cx.textBaseline = 'middle'; cx.fillText(txt, x, y); };
+    g.msg = t => { cx.fillStyle = C.mute; cx.font = '12px Inter,system-ui,sans-serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(t, this.w / 2, this.h / 2); };
+    g.hline = (y, col, dash, lw) => { cx.strokeStyle = col; cx.lineWidth = lw || 1; cx.setLineDash(dash || []); cx.beginPath(); cx.moveTo(0, Math.round(y) + .5); cx.lineTo(g.pw, Math.round(y) + .5); cx.stroke(); cx.setLineDash([]); cx.lineWidth = 1; };
+    return g;
+  }
+  draw() {
+    colors(); const cx = this.cx; cx.clearRect(0, 0, this.w, this.h); cx.fillStyle = C.bg; cx.fillRect(0, 0, this.w, this.h); this.g = this.G(cx);
+    try { this.spec = this.fn(this); this.spec.draw(this.g); } catch (e) { console.error(e); this.g.msg('Diagramm-Fehler'); } this.over();
+  }
+  over() {
+    const ox = this.ox; ox.clearRect(0, 0, this.w, this.h); if (this.mx < 0 || !this.spec || !this.spec.hover || this.mx > this.g.pw) return;
+    const g = this.G(ox); try { this.spec.hover(g, this.mx, this.my); } catch (e) { /* */ }
+  }
+}
+function ncCross(g, x, y, top, bot, ylabel, ycol) {
+  const ox = g.cx; ox.strokeStyle = C.mute; ox.setLineDash([3, 3]); ox.lineWidth = 1; ox.beginPath(); ox.moveTo(Math.round(x) + .5, 0); ox.lineTo(Math.round(x) + .5, bot); ox.stroke();
+  if (y != null && y >= top && y <= bot) { ox.beginPath(); ox.moveTo(0, Math.round(y) + .5); ox.lineTo(g.pw, Math.round(y) + .5); ox.stroke(); ox.setLineDash([]); if (ylabel != null) { ox.font = MONO2; ox.fillStyle = C.line; ox.fillRect(g.pw, y - 9, NAX, 18); ox.fillStyle = C.fg; ox.textAlign = 'left'; ox.textBaseline = 'middle'; ox.fillText(ylabel, g.pw + 6, y); } } ox.setLineDash([]);
+}
+function ncTimePill(g, x, txt, bot) { const ox = g.cx; ox.font = MONO2; const tw = ox.measureText(txt).width + 12; ox.fillStyle = C.line; ox.fillRect(clamp(x - tw / 2, 0, g.pw - tw), bot + 2, tw, 17); ox.fillStyle = C.fg; ox.textAlign = 'center'; ox.textBaseline = 'middle'; ox.fillText(txt, clamp(x, tw / 2, g.pw - tw / 2), bot + 11); }
+function ncReadout(g, parts, y) { const ox = g.cx; ox.font = MONO; ox.textBaseline = 'middle'; ox.textAlign = 'left'; let x = 8; for (const [k, v, col] of parts) { ox.fillStyle = C.faint; ox.fillText(k, x, y); x += ox.measureText(k).width + 4; ox.fillStyle = col || C.fg; ox.fillText(v, x, y); x += ox.measureText(v).width + 12; } }
+const pFmt = p => nf(p, Math.abs(p) < 1 ? 5 : Math.abs(p) < 100 ? 3 : Math.abs(p) < 10000 ? 2 : 1);
+const pFmtAx = (lo, hi) => { const sp = hi - lo; return p => nf(p, sp < 0.5 ? 4 : sp < 5 ? 3 : sp < 50 ? 2 : sp < 500 ? 1 : 0); };
+
+/* ----- Kerzen aus dem Trade-Speicher (für Replay) ----- */
+function ringCandles(t0, t1, step) {
+  const r = D.ring, m = new Map(); for (let i = 0; i < r.len; i++) { const j = rIdx(i), t = r.t[j]; if (t < t0) continue; if (t > t1) break; const k = Math.floor(t / step) * step, p = r.p[j]; let c = m.get(k); if (!c) { c = [k, p, p, p, p, 0]; m.set(k, c); } if (p > c[2]) c[2] = p; if (p < c[3]) c[3] = p; c[4] = p; c[5] += r.q[j]; }
+  return { step, c: [...m.values()].sort((a, b) => a[0] - b[0]) };
+}
+function replayCandles(t0, t1) { const pad = Math.max(3 * 60e3, (t1 - t0) * 0.6), a = t0 - pad, b = t1 + pad, span = b - a, steps = [5e3, 15e3, 30e3, 60e3, 120e3, 300e3, 900e3, 1800e3, 3600e3], st = steps.find(s => span / s <= 70) || 3600e3; return ringCandles(a, b, st); }
+
+/* ----- Positions-Werkzeug (Ziel-/Risikozone, beschriftete Linien) – gemeinsam für Replay und Live ----- */
+function ncPosTool(g, X, Y, o) {   // o: {t0,t1,entry,stop,target,side,exit,pnl,R,live,riskUsd}
+  const cx = g.cx, dir = o.side === 'long' ? 1 : -1, x0 = clamp(X(o.t0), 0, g.pw), x1 = clamp(o.t1 != null ? X(o.t1) : g.pw, 0, g.pw), yE = Y(o.entry), yS = Y(o.stop), yT = Y(o.target);
+  cx.fillStyle = C.up; cx.globalAlpha = .09; cx.fillRect(x0, Math.min(yE, yT), Math.max(2, x1 - x0), Math.abs(yT - yE)); cx.fillStyle = C.dn; cx.fillRect(x0, Math.min(yE, yS), Math.max(2, x1 - x0), Math.abs(yS - yE)); cx.globalAlpha = 1;
+  const line = (y, col, dash, txt, p, lw) => { g.hline(y, col, dash, lw || 1); g.label(txt, 6, y + (y < yE ? -7 : 7), col); g.pill(pFmt(p), clamp(y, 9, g.h - NTH - 9), col); };
+  const rr = Math.abs(o.target - o.entry) / (Math.abs(o.entry - o.stop) || 1);
+  line(yT, C.up, [5, 4], 'Ziel +' + nf(rr, 1) + ' R' + (o.riskUsd ? ' · +' + nf(o.riskUsd * rr, 0) + ' $' : ''), o.target);
+  line(yS, C.dn, [5, 4], 'Stop −1 R' + (o.riskUsd ? ' · −' + nf(o.riskUsd, 0) + ' $' : ''), o.stop);
+  line(yE, C.acc, [], 'Einstieg ' + (o.side === 'long' ? 'Long' : 'Short'), o.entry, 1.3);
+  /* Marker */
+  cx.fillStyle = C.acc; cx.beginPath(); cx.arc(x0, yE, 4.2, 0, 6.2832); cx.fill(); cx.strokeStyle = C.bg; cx.lineWidth = 1.5; cx.stroke(); cx.lineWidth = 1;
+  if (o.exit != null && o.t1 != null) { const ex = clamp(X(o.t1), 0, g.pw), ey = Y(o.exit), col = o.pnl >= 0 ? C.up : C.dn; cx.strokeStyle = col; cx.globalAlpha = .7; cx.setLineDash([2, 3]); cx.beginPath(); cx.moveTo(x0, yE); cx.lineTo(ex, ey); cx.stroke(); cx.setLineDash([]); cx.globalAlpha = 1;
+    cx.fillStyle = col; cx.beginPath(); cx.arc(ex, ey, 4.6, 0, 6.2832); cx.fill(); cx.strokeStyle = C.bg; cx.lineWidth = 1.5; cx.stroke(); cx.lineWidth = 1;
+    const txt = (o.pnl >= 0 ? '+' : '−') + nf(Math.abs(o.pnl), 2) + ' $  ·  ' + (o.R >= 0 ? '+' : '−') + nf(Math.abs(o.R), 2) + ' R'; cx.font = '600 11px "JetBrains Mono",monospace'; const tw = cx.measureText(txt).width + 14, bx = clamp(ex - tw / 2, 4, g.pw - tw - 4), by = ey + (dir * o.pnl >= 0 || true ? (ey > g.h / 2 ? -26 : 12) : 12);
+    cx.fillStyle = col; cx.globalAlpha = .16; cx.fillRect(bx, by, tw, 18); cx.globalAlpha = 1; cx.strokeStyle = col; cx.strokeRect(bx + .5, by + .5, tw - 1, 17); cx.fillStyle = col; cx.textAlign = 'left'; cx.textBaseline = 'middle'; cx.fillText(txt, bx + 7, by + 9); }
+}
+function ncCandle(cx, x, w, o, h, l, c, Y) { const up = c >= o, col = up ? C.up : C.dn; cx.strokeStyle = col; cx.fillStyle = col; const xx = Math.round(x) + .5; cx.beginPath(); cx.moveTo(xx, Math.round(Y(h))); cx.lineTo(xx, Math.round(Y(l))); cx.stroke(); const y1 = Y(Math.max(o, c)), y2 = Y(Math.min(o, c)); cx.fillRect(Math.round(x - w / 2), Math.round(y1), Math.max(1, Math.round(w)), Math.max(1, Math.round(y2 - y1))); }
+
+/* ===================== Spezifikationen ===================== */
+/* Equity-Kurve + Drawdown, Marker je Trade */
+function specEquity(list) {
+  return ch => {
+    const chron = list.slice().reverse(), t00 = chron.length ? chron[0].t0 : Date.now(), pts = [[Math.min(NX.acct.since, t00), NX.acct.eq0, null]]; let eq = NX.acct.eq0; for (const c of chron) { eq += c.pnl; pts.push([c.t1, eq, c]); } pts.push([Date.now(), equity(), null]); const dd = []; let pk = -1e18; for (const p of pts) { pk = Math.max(pk, p[1]); dd.push((p[1] - pk) / pk * 100); }
+    const x0 = pts[0][0], x1 = Math.max(pts[pts.length - 1][0], x0 + 60e3), ddH = Math.max(46, ch.h * 0.26), top = 6, bot = ch.h - NTH - ddH - 4, dTop = bot + 4, dBot = ch.h - NTH;
+    const lo0 = Math.min(...pts.map(p => p[1]), NX.acct.eq0), hi0 = Math.max(...pts.map(p => p[1]), NX.acct.eq0), pd = (hi0 - lo0) * 0.12 || NX.acct.eq0 * 0.002, lo = lo0 - pd, hi = hi0 + pd, pw = ch.w - NAX, X = t => 4 + (t - x0) / (x1 - x0) * (pw - 12), Y = v => top + (hi - v) / (hi - lo) * (bot - top), ddMin = Math.min(-0.2, ...dd) * 1.15, YD = v => dTop + 6 + (0 - v) / (0 - ddMin) * (dBot - dTop - 8);
+    return {
+      pts, draw(g) {
+        const cx = g.cx; cx.fillStyle = C.pn; cx.fillRect(0, top - 6, g.pw, bot - top + 6); cx.fillRect(0, dTop, g.pw, dBot - dTop); g.hgrid(top, bot, lo, hi, pFmtAx(lo, hi), Y); g.tgrid(x0, x1, X, 0, dBot);
+        if (pts.length < 3) { g.msg('Noch kein abgeschlossener Trade'); return; }
+        g.hline(Y(NX.acct.eq0), C.faint, [3, 4]); const last = pts[pts.length - 1][1], up = last >= NX.acct.eq0, col = up ? C.up : C.dn;
+        const grad = cx.createLinearGradient(0, top, 0, bot); grad.addColorStop(0, up ? 'rgba(47,212,138,.22)' : 'rgba(255,90,107,.22)'); grad.addColorStop(1, 'rgba(0,0,0,0)');
+        cx.save(); cx.beginPath(); cx.rect(0, top - 6, g.pw, bot - top + 6); cx.clip(); cx.beginPath(); pts.forEach((p, i) => { const x = X(p[0]), y = Y(p[1]); if (i) { cx.lineTo(x, Y(pts[i - 1][1])); cx.lineTo(x, y); } else cx.moveTo(x, y); }); cx.lineTo(X(x1), Y(last)); const path = new Path2D(); cx.strokeStyle = col; cx.lineWidth = 1.6; cx.stroke(); cx.lineTo(X(x1), bot); cx.lineTo(X(x0), bot); cx.closePath(); cx.fillStyle = grad; cx.fill(); cx.restore(); cx.lineWidth = 1;
+        for (const p of pts) if (p[2]) { cx.fillStyle = p[2].pnl >= 0 ? C.up : C.dn; cx.beginPath(); cx.arc(X(p[0]), Y(p[1]), 3, 0, 6.2832); cx.fill(); cx.strokeStyle = C.bg; cx.stroke(); }
+        g.pill(nf(last, 2), clamp(Y(last), top + 9, bot - 9), col); g.label('Equity $', 8, top + 7); g.label('Drawdown %', 8, dTop + 9);
+        cx.strokeStyle = C.line; cx.beginPath(); cx.moveTo(0, dTop - .5); cx.lineTo(g.w, dTop - .5); cx.moveTo(g.pw + .5, 0); cx.lineTo(g.pw + .5, dBot); cx.stroke();
+        cx.beginPath(); cx.moveTo(X(x0), YD(0)); pts.forEach((p, i) => { const x = X(p[0]); if (i) cx.lineTo(x, YD(dd[i - 1])); cx.lineTo(x, YD(dd[i])); }); cx.lineTo(X(x1), YD(dd[dd.length - 1])); cx.lineTo(X(x1), YD(0)); cx.closePath(); cx.fillStyle = 'rgba(255,90,107,.28)'; cx.fill();
+        g.pill(nf(dd[dd.length - 1], 1) + '%', clamp(YD(dd[dd.length - 1]), dTop + 9, dBot - 9), C.dn); cx.font = MONO; cx.fillStyle = C.mute; cx.textAlign = 'left'; cx.textBaseline = 'middle'; cx.fillText(nf(ddMin, 1), g.pw + 6, dBot - 8);
+      },
+      hover(g, mx, my) {
+        let bi = 0, bd = 1e18; pts.forEach((p, i) => { const d = Math.abs(X(p[0]) - mx); if (d < bd) { bd = d; bi = i; } }); const p = pts[bi], x = X(p[0]); ncCross(g, x, my, top, dBot, my < bot ? nf(lo + (bot - my) / (bot - top) * (hi - lo), 2) : null);
+        g.cx.fillStyle = C.fg; g.cx.beginPath(); g.cx.arc(x, Y(p[1]), 4, 0, 6.2832); g.cx.fill(); ncTimePill(g, x, new Date(p[0]).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }), dBot);
+        ncReadout(g, [['Equity', nf(p[1], 2) + ' $'], ['DD', nf(dd[bi], 2) + ' %', C.dn]].concat(p[2] ? [[p[2].sym + ' ' + (p[2].side === 'long' ? 'L' : 'S'), (p[2].pnl >= 0 ? '+' : '−') + nf(Math.abs(p[2].pnl), 2) + ' $ · ' + nf(p[2].R, 2) + ' R', p[2].pnl >= 0 ? C.up : C.dn]] : []), 14);
+      } };
+  };
+}
+/* Trade-Replay: echte Kerzen aus dem Trade-Speicher + Positions-Werkzeug */
+function specReplay(c) {
+  return ch => {
+    const rc = c.cd ? { step: c.cd.step, c: c.cd.c } : null, cs = rc ? rc.c : [], P = c.path || [];
+    let t0 = c.t0 - Math.max(120e3, (c.t1 - c.t0) * 0.5), t1 = c.t1 + Math.max(120e3, (c.t1 - c.t0) * 0.5), step = rc ? rc.step : 60e3;
+    const vals = [c.entry, c.stop, c.target, c.exit].concat(cs.length ? cs.flatMap(k => [k[2], k[3]]) : P.map(x => x[1])), lo0 = Math.min(...vals), hi0 = Math.max(...vals), pd = (hi0 - lo0) * 0.09 || 1, lo = lo0 - pd, hi = hi0 + pd, top = 6, bot = ch.h - NTH, pw = ch.w - NAX, X = t => 6 + (t - t0) / (t1 - t0) * (pw - 14), Y = v => top + (hi - v) / (hi - lo) * (bot - top), cw = cs.length ? Math.max(2, (pw - 14) / ((t1 - t0) / step) * 0.68) : 0;
+    return {
+      draw(g) {
+        const cx = g.cx; cx.fillStyle = C.pn; cx.fillRect(0, 0, g.pw, bot); g.hgrid(top, bot, lo, hi, pFmtAx(lo, hi), Y); g.tgrid(t0, t1, X, 0, bot); cx.strokeStyle = C.line; cx.beginPath(); cx.moveTo(g.pw + .5, 0); cx.lineTo(g.pw + .5, bot); cx.moveTo(0, bot + .5); cx.lineTo(g.w, bot + .5); cx.stroke();
+        cx.save(); cx.beginPath(); cx.rect(0, top - 6, g.pw, bot - top + 6); cx.clip();
+        if (cs.length) for (const k of cs) ncCandle(cx, X(k[0] + step / 2), cw, k[1], k[2], k[3], k[4], Y);
+        else { cx.beginPath(); P.forEach((p, i) => { const x = X(p[0]), y = Y(p[1]); i ? cx.lineTo(x, y) : cx.moveTo(x, y); }); cx.strokeStyle = C.fg; cx.lineWidth = 1.4; cx.stroke(); cx.lineWidth = 1; }
+        ncPosTool(g, X, Y, { t0: c.t0, t1: c.t1, entry: c.entry, stop: c.stop, target: c.target, side: c.side, exit: c.exit, pnl: c.pnl, R: c.R, riskUsd: c.riskUsd }); cx.restore();
+        g.label(c.sym + ' · ' + (cs.length ? (step >= 60e3 ? step / 60e3 + 'm' : step / 1e3 + 's') + '-Kerzen aus Live-Trades' : 'Kursverlauf (5 s)'), 8, 10);
+      },
+      hover(g, mx, my) {
+        const t = t0 + (mx - 6) / (pw - 14) * (t1 - t0); ncCross(g, mx, my, top, bot, my < bot ? pFmt(hi - (my - top) / (bot - top) * (hi - lo)) : null); ncTimePill(g, mx, new Date(t).toLocaleTimeString('de-DE'), bot);
+        const k = cs.find(q => t >= q[0] && t < q[0] + step); if (k) ncReadout(g, [['O', pFmt(k[1])], ['H', pFmt(k[2])], ['T', pFmt(k[3])], ['S', pFmt(k[4])], ['Vol', fq(k[5])]], 22);
+      } };
+  };
+}
+/* Live-Minichart: letzte Kerzen, EMA 20/50, offene Positionen, wartende Setups, Signale */
+function specMini(n, opts) {
+  opts = opts || {};
+  return ch => {
+    const A = D.candles, N = n || 80, cs = A.slice(Math.max(0, A.length - N)), tf = D.tfMs; if (cs.length < 3) return { draw: g => g.msg('Warte auf Kerzen …') };
+    const e = (per) => { const out = []; let v = A.length ? A[Math.max(0, A.length - N - per * 2)].c : 0; const a = 2 / (per + 1); for (let i = Math.max(0, A.length - N - per * 2); i < A.length; i++) { v = A[i].c * a + v * (1 - a); out.push([A[i].t, v]); } return out.filter(p => p[0] >= cs[0].t); }, e20 = e(20), e50 = e(50);
+    const mine = NX.pos.filter(p => p.sym === ST.sym && p.src === ST.src), wait = NX.decisions.filter(d => d.state === 'wartet' && d.sym === ST.sym && d.src === ST.src), sigs = NX.signals.filter(s => s.k === nxKey() && s.t >= cs[0].t && !s.manual);
+    let lo0 = Math.min(...cs.map(c => c.l)), hi0 = Math.max(...cs.map(c => c.h)); for (const p of mine.concat(wait)) { lo0 = Math.min(lo0, p.stop); hi0 = Math.max(hi0, p.target); } const lev = (opts.levels || []).filter(l => l.p > lo0 - (hi0 - lo0) * 0.6 && l.p < hi0 + (hi0 - lo0) * 0.6); for (const l of lev) { lo0 = Math.min(lo0, l.p); hi0 = Math.max(hi0, l.p); } const pd = (hi0 - lo0) * 0.07 || 1, lo = lo0 - pd, hi = hi0 + pd, top = 6, bot = ch.h - NTH, pw = ch.w - NAX, t0 = cs[0].t - tf * 0.5, t1 = cs[cs.length - 1].t + tf * 6, X = t => 6 + (t - t0) / (t1 - t0) * (pw - 10), Y = v => top + (hi - v) / (hi - lo) * (bot - top), cw = Math.max(1.5, (pw - 10) / ((t1 - t0) / tf) * 0.7);
+    return {
+      draw(g) {
+        const cx = g.cx; cx.fillStyle = C.pn; cx.fillRect(0, 0, g.pw, bot); g.hgrid(top, bot, lo, hi, pFmtAx(lo, hi), Y); g.tgrid(t0, t1, X, 0, bot); cx.strokeStyle = C.line; cx.beginPath(); cx.moveTo(g.pw + .5, 0); cx.lineTo(g.pw + .5, bot); cx.moveTo(0, bot + .5); cx.lineTo(g.w, bot + .5); cx.stroke();
+        cx.save(); cx.beginPath(); cx.rect(0, top - 6, g.pw, bot - top + 6); cx.clip();
+        for (const [arr, col] of [[e50, C.warn], [e20, C.acc]]) { cx.beginPath(); arr.forEach((p, i) => { const x = X(p[0] + tf / 2), y = Y(p[1]); i ? cx.lineTo(x, y) : cx.moveTo(x, y); }); cx.strokeStyle = col; cx.globalAlpha = .75; cx.lineWidth = 1.2; cx.stroke(); cx.globalAlpha = 1; cx.lineWidth = 1; }
+        for (const l of lev) { g.hline(Y(l.p), l.col || C.mute, l.dash || [6, 4]); g.label(l.label, 6, Y(l.p) - 6, l.col || C.mute); g.pill(pFmt(l.p), clamp(Y(l.p), 9, bot - 9), l.col || C.line, l.fg || '#06080b'); }
+        for (const c of cs) ncCandle(cx, X(c.t + tf / 2), cw, c.o, c.h, c.l, c.c, Y);
+        for (const s of sigs) { const x = X(s.t), y = Y(s.px), r = 5, up = s.side === 'long'; cx.fillStyle = up ? C.up : C.dn; cx.globalAlpha = .9; cx.beginPath(); if (up) { cx.moveTo(x, y + 6); cx.lineTo(x - r, y + 6 + r * 1.6); cx.lineTo(x + r, y + 6 + r * 1.6); } else { cx.moveTo(x, y - 6); cx.lineTo(x - r, y - 6 - r * 1.6); cx.lineTo(x + r, y - 6 - r * 1.6); } cx.closePath(); cx.fill(); cx.globalAlpha = 1; }
+        for (const p of mine) ncPosTool(g, X, Y, { t0: p.t0, t1: null, entry: p.entry, stop: p.stop, target: p.target, side: p.side, riskUsd: p.riskUsd });
+        for (const d of wait) { for (const [v, col, lab] of [[d.px, C.warn, 'Setup wartet'], [d.stop, C.dn, 'Stop'], [d.target, C.up, 'Ziel']]) { g.hline(Y(v), col, [2, 4]); g.label(lab, 6, Y(v) - 7, col); g.pill(pFmt(v), clamp(Y(v), 9, bot - 9), col); } }
+        cx.restore();
+        if (D.last) { const y = Y(D.last.p), lc = A[A.length - 1], up = lc ? lc.c >= lc.o : true; cx.save(); cx.beginPath(); cx.rect(0, top, g.pw, bot - top); cx.clip(); g.hline(y, C.mute, [3, 3]); cx.restore(); g.pill(pFmt(D.last.p), clamp(y, top + 9, bot - 9), up ? C.up : C.dn); }
+        g.label(ST.sym + ' · ' + ST.tf + '   EMA20', 8, 10); cx.fillStyle = C.acc; cx.fillRect(g.pw - 0, 0, 0, 0);
+      },
+      hover(g, mx, my) {
+        const t = t0 + (mx - 6) / (pw - 10) * (t1 - t0), c = cs.find(q => t >= q.t && t < q.t + tf); ncCross(g, mx, my, top, bot, my < bot ? pFmt(hi - (my - top) / (bot - top) * (hi - lo)) : null); ncTimePill(g, mx, new Date(c ? c.t : t).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }), bot);
+        if (c) { const d = deltaOf(c); ncReadout(g, [['O', pFmt(c.o)], ['H', pFmt(c.h)], ['T', pFmt(c.l)], ['S', pFmt(c.c)], ['Vol', fq(c.v)], ['Δ', d == null ? '–' : pn(d, 0), cl(d) === 'up' ? C.up : cl(d) === 'dn' ? C.dn : C.fg]], 22); }
+      } };
+  };
+}
+/* Allgemeine Zeitreihe (Funding, OI, ATR, …) */
+function specSeries(o) {   // o: {pts:[[t,v]], fmt, base, color, name, bars}
+  return ch => {
+    const pts = o.pts; if (!pts || pts.length < 2) return { draw: g => g.msg('Noch zu wenig Daten') };
+    const x0 = pts[0][0], x1 = pts[pts.length - 1][0], vals = pts.map(p => p[1]); let lo0 = Math.min(...vals), hi0 = Math.max(...vals); if (o.base != null) { lo0 = Math.min(lo0, o.base); hi0 = Math.max(hi0, o.base); } const pd = (hi0 - lo0) * 0.12 || Math.abs(hi0) * 0.01 || 1, lo = lo0 - pd, hi = hi0 + pd, top = 8, bot = ch.h - NTH, pw = ch.w - NAX, X = t => 4 + (t - x0) / (x1 - x0) * (pw - 10), Y = v => top + (hi - v) / (hi - lo) * (bot - top), fmt = o.fmt || pFmtAx(lo, hi), col = o.color || C.acc;
+    return {
+      draw(g) {
+        const cx = g.cx; cx.fillStyle = C.pn; cx.fillRect(0, 0, g.pw, bot); g.hgrid(top, bot, lo, hi, fmt, Y); g.tgrid(x0, x1, X, 0, bot); cx.strokeStyle = C.line; cx.beginPath(); cx.moveTo(g.pw + .5, 0); cx.lineTo(g.pw + .5, bot); cx.moveTo(0, bot + .5); cx.lineTo(g.w, bot + .5); cx.stroke();
+        if (o.base != null) g.hline(Y(o.base), C.faint, [3, 4]);
+        cx.save(); cx.beginPath(); cx.rect(0, top - 6, g.pw, bot - top + 6); cx.clip();
+        if (o.bars) { const bw = Math.max(1, (pw - 10) / pts.length * 0.7); for (const p of pts) { cx.fillStyle = p[1] >= (o.base || 0) ? C.up : C.dn; cx.globalAlpha = .8; const y0 = Y(o.base || 0), y1 = Y(p[1]); cx.fillRect(X(p[0]) - bw / 2, Math.min(y0, y1), bw, Math.max(1, Math.abs(y1 - y0))); cx.globalAlpha = 1; } }
+        else { const grad = cx.createLinearGradient(0, top, 0, bot); grad.addColorStop(0, col + '38'); grad.addColorStop(1, col + '00'); cx.beginPath(); pts.forEach((p, i) => { const x = X(p[0]), y = Y(p[1]); i ? cx.lineTo(x, y) : cx.moveTo(x, y); }); cx.strokeStyle = col; cx.lineWidth = 1.5; cx.stroke(); cx.lineWidth = 1; cx.lineTo(X(x1), bot); cx.lineTo(X(x0), bot); cx.closePath(); cx.fillStyle = grad; cx.fill(); }
+        cx.restore(); const lv = vals[vals.length - 1]; g.pill(fmt(lv), clamp(Y(lv), top + 9, bot - 9), col); g.label(o.name || '', 8, 11);
+      },
+      hover(g, mx, my) { let bi = 0, bd = 1e18; pts.forEach((p, i) => { const d = Math.abs(X(p[0]) - mx); if (d < bd) { bd = d; bi = i; } }); const p = pts[bi]; ncCross(g, X(p[0]), my, top, bot, my < bot ? fmt(hi - (my - top) / (bot - top) * (hi - lo)) : null); g.cx.fillStyle = C.fg; g.cx.beginPath(); g.cx.arc(X(p[0]), Y(p[1]), 3.5, 0, 6.2832); g.cx.fill(); ncTimePill(g, X(p[0]), new Date(p[0]).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }), bot); ncReadout(g, [[o.name || 'Wert', fmt(p[1])]], 22); } };
+  };
+}
+/* Mini-Verlauf (Watchlist) */
+function specSpark(vals, col) {
+  return ch => ({ draw(g) { const cx = g.cx; if (!vals || vals.length < 2) return; const lo = Math.min(...vals), hi = Math.max(...vals), sp = hi - lo || 1, up = vals[vals.length - 1] >= vals[0], c = col || (up ? C.up : C.dn), w = g.w, h = g.h, X = i => 2 + i / (vals.length - 1) * (w - 6), Y = v => 3 + (hi - v) / sp * (h - 6);
+    const grad = cx.createLinearGradient(0, 0, 0, h); grad.addColorStop(0, c + '30'); grad.addColorStop(1, c + '00'); cx.beginPath(); vals.forEach((v, i) => i ? cx.lineTo(X(i), Y(v)) : cx.moveTo(X(i), Y(v))); cx.strokeStyle = c; cx.lineWidth = 1.4; cx.stroke(); cx.lineTo(X(vals.length - 1), h); cx.lineTo(X(0), h); cx.closePath(); cx.fillStyle = grad; cx.fill(); cx.fillStyle = c; cx.beginPath(); cx.arc(X(vals.length - 1), Y(vals[vals.length - 1]), 2.4, 0, 6.2832); cx.fill(); } });
+}
+/* Forest-Plot: Ø R mit Konfidenzband je Variante */
+function specForest(items) {
+  return ch => {
+    const rowH = 28, top = 22, vals = items.flatMap(i => i.n > 1 ? [i.lo0, i.hi0] : [i.avg]).concat([-1, 1]), m = Math.max(1.2, Math.min(4, Math.max(...vals.map(Math.abs)))) * 1.1, pw = ch.w - 8, lab = Math.min(150, pw * 0.4), X = v => lab + (v + m) / (2 * m) * (pw - lab - 10);
+    return { draw(g) { const cx = g.cx; cx.font = MONO; cx.textBaseline = 'middle'; for (let v = Math.ceil(-m); v <= m; v++) { const x = Math.round(X(v)) + .5; cx.strokeStyle = v === 0 ? C.mute : C.grid; cx.beginPath(); cx.moveTo(x, top - 6); cx.lineTo(x, top + items.length * rowH); cx.stroke(); cx.fillStyle = C.mute; cx.textAlign = 'center'; cx.fillText((v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v) + ' R', x, 8); }
+      items.forEach((it, i) => { const y = top + i * rowH + rowH / 2; if (i % 2 === 0) { cx.fillStyle = C.pn; cx.fillRect(0, y - rowH / 2, g.w, rowH); } cx.fillStyle = it.n ? C.fg : C.faint; cx.font = '11px Inter,system-ui,sans-serif'; cx.textAlign = 'left'; cx.fillText(it.l, 8, y - 4); cx.fillStyle = C.faint; cx.font = '9.5px "JetBrains Mono",monospace'; cx.fillText('n=' + it.n, 8, y + 8);
+        if (it.n < 1) return; const col = it.avg > 0 ? C.up : C.dn; if (it.n > 1) { cx.strokeStyle = col; cx.globalAlpha = .6; cx.lineWidth = 2; cx.beginPath(); cx.moveTo(X(it.lo0), y); cx.lineTo(X(it.hi0), y); cx.stroke(); cx.lineWidth = 1; for (const v of [it.lo0, it.hi0]) { cx.beginPath(); cx.moveTo(X(v), y - 4); cx.lineTo(X(v), y + 4); cx.stroke(); } cx.globalAlpha = 1; }
+        cx.fillStyle = col; cx.beginPath(); cx.arc(X(it.avg), y, 4.5, 0, 6.2832); cx.fill(); cx.strokeStyle = C.bg; cx.stroke(); });
+    }, hover(g, mx, my) { const i = Math.floor((my - top) / rowH); const it = items[i]; if (!it) return; g.cx.font = MONO; ncReadout(g, [[it.l, it.n ? 'Ø ' + pn(it.avg, 2) + ' R · 80 %-Band ' + pn(it.lo0, 2) + ' … ' + pn(it.hi0, 2) : 'keine Daten']], ch.h - 8); } };
+  };
+}
+/* Tiefen-Chart (kumuliert, Bid/Ask) */
+function specDepth(range) {
+  return ch => {
+    const bs = bookStats(range); if (!bs) return { draw: g => g.msg('Orderbuch lädt …') }; const mid = bs.mid, lim = mid * range, B = [], A = []; let cb = 0, ca = 0;
+    for (const [p, q] of bs.bk.bids) { if (mid - p > lim) break; cb += q * p; B.push([p, cb]); } for (const [p, q] of bs.bk.asks) { if (p - mid > lim) break; ca += q * p; A.push([p, ca]); }
+    const mx = Math.max(cb, ca, 1) * 1.08, top = 8, bot = ch.h - NTH, pw = ch.w - NAX, X = p => 4 + (p - (mid - lim)) / (2 * lim) * (pw - 8), Y = v => bot - v / mx * (bot - top);
+    return { draw(g) { const cx = g.cx; cx.fillStyle = C.pn; cx.fillRect(0, 0, g.pw, bot); g.hgrid(top, bot, 0, mx, v => fusd(v), Y);
+      for (const [arr, col] of [[B, C.up], [A, C.dn]]) { if (!arr.length) continue; cx.beginPath(); cx.moveTo(X(arr[0][0]), Y(0)); let pv = 0; for (const [p, v] of arr) { cx.lineTo(X(p), Y(pv)); cx.lineTo(X(p), Y(v)); pv = v; } cx.lineTo(X(arr[arr.length - 1][0] + (col === C.up ? -1 : 1) * lim * 0.0), Y(pv)); const edge = col === C.up ? X(mid - lim) : X(mid + lim); cx.lineTo(edge, Y(pv)); cx.strokeStyle = col; cx.lineWidth = 1.5; cx.stroke(); cx.lineWidth = 1; cx.lineTo(edge, Y(0)); cx.closePath(); cx.fillStyle = col + '22'; cx.fill(); }
+      g.hline(bot, C.line); cx.strokeStyle = C.mute; cx.setLineDash([3, 3]); cx.beginPath(); cx.moveTo(Math.round(X(mid)) + .5, top); cx.lineTo(Math.round(X(mid)) + .5, bot); cx.stroke(); cx.setLineDash([]);
+      cx.font = MONO; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillStyle = C.mute; for (const f of [-1, -.5, 0, .5, 1]) { const p = mid + f * lim, x = X(p); cx.fillText((f > 0 ? '+' : f < 0 ? '−' : '') + (Math.abs(f) * range * 100).toFixed(2).replace('.', ',') + '%', clamp(x, 22, g.pw - 22), bot + NTH / 2); }
+      cx.fillStyle = C.up; cx.textAlign = 'left'; cx.fillText('Bids ' + fusd(cb) + ' $', 8, 12); cx.fillStyle = C.dn; cx.textAlign = 'right'; cx.fillText('Asks ' + fusd(ca) + ' $', g.pw - 8, 12); },
+      hover(g, mx, my) { const p = mid - lim + (mx - 4) / (pw - 8) * 2 * lim, arr = p < mid ? B : A; let v = 0; for (const [pp, vv] of arr) { if (p < mid ? pp >= p : pp <= p) v = vv; } ncCross(g, mx, null, top, bot); ncReadout(g, [['Preis', pFmt(p)], ['kumuliert', fusd(v) + ' $', p < mid ? C.up : C.dn]], 24); } };
+  };
+}
 
 'use strict';
 /* ===== NEXUS: Oberfläche – Navigation, Router, Hilfen, Modulübersicht ===== */
@@ -1168,7 +1376,7 @@ const lblS = s => ({ created: 'erstellt', risk_checked: 'Risiko geprüft', submi
 const PAPER = '<div class="ban">PAPIER-HANDEL · simuliert gegen echte Live-Kurse · Live-Orders sind gesperrt</div>';
 
 /* ----- Router ----- */
-const NAVS = [['tape', 'Tape', '<path d="M3 17l5-6 4 3 6-9"/>'], ['00', 'Command', '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>'], ['02', 'Lab', '<path d="M9 3h6M10 3v6l-5 9a2 2 0 002 3h10a2 2 0 002-3l-5-9V3"/>'], ['03', 'Trader', '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'], ['05', 'Journal', '<path d="M5 4h11a3 3 0 013 3v13H8a3 3 0 01-3-3z"/><path d="M9 9h6M9 13h6"/>'], ['more', 'Mehr', '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>']];
+const NAVS = [['tape', 'Tape', '<path d="M3 17l5-6 4 3 6-9"/>'], ['00', 'Command', '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>'], ['01', 'Markt', '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/>'], ['02', 'Lab', '<path d="M9 3h6M10 3v6l-5 9a2 2 0 002 3h10a2 2 0 002-3l-5-9V3"/>'], ['03', 'Trader', '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'], ['05', 'Journal', '<path d="M5 4h11a3 3 0 013 3v13H8a3 3 0 01-3-3z"/><path d="M9 9h6M9 13h6"/>'], ['more', 'Mehr', '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>']];
 function buildNav() {
   $('#nav').innerHTML = NAVS.map(([id, l, svg]) => '<button data-go="' + id + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + svg + '</svg><span>' + l + '</span><i></i></button>').join('');
   $('#nav').onclick = e => { const b = e.target.closest('button[data-go]'); if (b) go(b.dataset.go); };
@@ -1184,7 +1392,7 @@ addEventListener('popstate', () => { const h = location.hash.slice(1); go(h && (
 /* ----- Rendering ----- */
 const PANELS = {};                      // Modul-ID → { tabs:[[Abschnittsname, renderFn]] }
 function renderNx(force) {
-  if (NXV.cur === 'tape') return; const v = $('#nxView'); if (!v || v.hidden) return; const a = document.activeElement;
+  if (NXV.cur === 'tape') return; const v = $('#nxView'); if (!v || v.hidden) return; const a = document.activeElement; if (!force && ncBusy()) return;
   if (!force && a && v.contains(a) && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)) return;
   const body = $('#nxBody'), st = body ? body.scrollTop : 0, tabs = $('#nxTabs'), ts = tabs ? tabs.scrollLeft : 0;
   if (NXV.cur === 'more') { $('#nxHead').innerHTML = '<div class="mh"><h2>Alle Module</h2></div>'; $('#nxTabs').innerHTML = ''; body.innerHTML = vMore(); }
@@ -1195,7 +1403,7 @@ function renderNx(force) {
     let html; try { html = fn ? fn() : vSpec(m, sec); } catch (e) { console.error(e); html = card('Fehler in dieser Ansicht', '<p class="mut">' + E(e.message) + '</p>'); }
     body.innerHTML = html;
   }
-  body.scrollTop = st; tabs.scrollLeft = ts; nxBadge();
+  body.scrollTop = st; tabs.scrollLeft = ts; nxBadge(); ncMount();
 }
 function nxBadge() { const n = NX.decisions.filter(d => d.state === 'wartet').length, b = $('#nav button[data-go="03"] i'); if (b) { b.textContent = n || ''; b.style.display = n ? 'flex' : 'none'; } const k = $('#nav button[data-go="00"]'); if (k) k.classList.toggle('alarm', NX.kill); }
 
@@ -1218,6 +1426,7 @@ function arm(key) { NXV.arm = { key, t: Date.now() }; renderNx(true); setTimeout
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-a]'); if (!t || !$('#nxView').contains(t)) return; const [a, ...r] = t.dataset.a.split(':'), arg = r.join(':');
   const A = {
+    wlsel: () => { if (ST.sym !== arg) { ST.sym = arg; saveST(); connect(); syncUI(); } go('tape'); },
     go: () => { go(arg); }, tab: () => { NXV.tab[NXV.cur] = +arg; renderNx(true); },
     mode: () => { nxSetMode(arg); renderNx(true); },
     kill: () => { if (arg === 'on') { if (!armed('kill')) return arm('kill'); nxKill(true, 'manuell', false); } else nxKill(false); renderNx(true); },
@@ -1267,20 +1476,6 @@ const RISK_FIELDS = [
 ];
 const RISK_DEF = Object.assign({}, NX.risk);
 const numIn = (path, val, f) => '<input type="number" inputmode="decimal" data-cfg="' + path + '" value="' + val + '"' + (f ? ' min="' + f.min + '" max="' + f.max + '" step="' + f.step + '"' : '') + '>';
-
-/* ----- kleine Grafiken ----- */
-function svgLine(vals, o) {
-  o = o || {}; const w = o.w || 320, h = o.h || 110, pad = 6; if (vals.length < 2) return '<div class="empty">Noch zu wenig Daten</div>';
-  const lo = Math.min(...vals), hi = Math.max(...vals), sp = hi - lo || 1, X = i => pad + i / (vals.length - 1) * (w - 2 * pad), Y = v => h - pad - (v - lo) / sp * (h - 2 * pad);
-  const d = vals.map((v, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1)).join(''), up = vals[vals.length - 1] >= vals[0], c = up ? 'var(--up)' : 'var(--dn)';
-  return '<svg viewBox="0 0 ' + w + ' ' + h + '" class="sv"><path d="' + d + 'L' + X(vals.length - 1).toFixed(1) + ' ' + h + 'L' + X(0).toFixed(1) + ' ' + h + 'Z" fill="' + c + '" opacity=".1"/><path d="' + d + '" fill="none" stroke="' + c + '" stroke-width="1.6"/>' + (o.base != null && o.base > lo && o.base < hi ? '<line x1="0" x2="' + w + '" y1="' + Y(o.base).toFixed(1) + '" y2="' + Y(o.base).toFixed(1) + '" stroke="var(--faint)" stroke-dasharray="3 3"/>' : '') + '</svg>';
-}
-function svgReplay(c) {
-  const P = c.path || []; if (P.length < 2) return '<div class="empty">Kein Kursverlauf gespeichert</div>'; const w = 340, h = 170, pad = 8, ps = P.map(x => x[1]).concat([c.stop, c.target, c.entry]), lo = Math.min(...ps), hi = Math.max(...ps), sp = hi - lo || 1, t0 = P[0][0], t1 = P[P.length - 1][0] || t0 + 1;
-  const X = t => pad + (t - t0) / ((t1 - t0) || 1) * (w - 2 * pad - 30), Y = v => h - pad - (v - lo) / sp * (h - 2 * pad), ln = (v, col, lab) => '<line x1="0" x2="' + (w - 30) + '" y1="' + Y(v).toFixed(1) + '" y2="' + Y(v).toFixed(1) + '" stroke="' + col + '" stroke-dasharray="4 3" opacity=".8"/><text x="' + (w - 28) + '" y="' + (Y(v) + 3).toFixed(1) + '" fill="' + col + '" font-size="9" font-family="var(--mono)">' + lab + '</text>';
-  const d = P.map((p, i) => (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ' ' + Y(p[1]).toFixed(1)).join(''), ex = c.pnl >= 0 ? 'var(--up)' : 'var(--dn)';
-  return '<svg viewBox="0 0 ' + w + ' ' + h + '" class="sv big">' + ln(c.target, 'var(--up)', 'Ziel') + ln(c.stop, 'var(--dn)', 'Stop') + ln(c.entry, 'var(--acc)', 'Einst.') + '<path d="' + d + '" fill="none" stroke="var(--fg)" stroke-width="1.4"/><circle cx="' + X(P[0][0]).toFixed(1) + '" cy="' + Y(c.entry).toFixed(1) + '" r="4" fill="var(--acc)"/><circle cx="' + X(t1).toFixed(1) + '" cy="' + Y(c.exit).toFixed(1) + '" r="4" fill="' + ex + '"/></svg>';
-}
 
 /* ----- Statistik ----- */
 function perf(list) {
@@ -1339,7 +1534,7 @@ function bestNow() {
 const pStatus = () => card('System', '<div class="two">' + kv('Modus', { off: 'Aus (nur Signale)', ask: 'Vorschlag + Freigabe', auto: 'Auto (Papier)' }[NX.mode]) + kv('Live-Handel', 'GESPERRT', 'dn') + kv('Kill-Switch', NX.kill ? 'AKTIV' : 'aus', NX.kill ? 'dn' : 'up') + kv('Datenstrom', '<span class="' + healthC() + '">●</span> ' + (D.lastMsg ? ago(D.lastMsg) : '–')) + kv('Markt', ST.sym + ' · ' + E(SRC[ST.src]) + ' · ' + ST.tf) + kv('Pause', Date.now() < NX.pause.until ? E(NX.pause.why) : 'nein') + '</div>' + modeSwitch() + killBox());
 const pMarket = () => {
   const c = marketCtx(), pe = perf(NX.closed); if (c.atr == null) return card('Markt & Portfolio', empty('Warte auf genug Kerzen …'));
-  return card('Markt & Portfolio', '<div class="two">' + kv('Preis', px(c.px)) + kv('Regime', E(c.regime)) + kv('Vola (Perzentil)', c.volPct + ' %') + kv('ATR', nf(c.atrPct, 2) + ' %') + kv('Funding/8h', c.fund != null ? nf(c.fund, 4) + ' %' : '–', cl(c.fund)) + kv('Basis', c.basis != null ? nf(c.basis, 3) + ' %' : '–') + kv('OI 1 h', c.oi1h != null ? pn(c.oi1h, 2) + ' %' : '–', cl(c.oi1h)) + kv('CVD 12 Kerzen', c.cvd12 != null ? pn(c.cvd12, 0) : '–', cl(c.cvd12)) + kv('Bid/Ask ±0,25 %', c.imb != null ? nf(c.imb, 2) : '–') + kv('Spread', c.spreadBp != null ? nf(c.spreadBp, 2) + ' bp' : '–') + '</div><div class="h4">Papier-Konto</div><div class="two">' + kv('Equity', nf(equity(), 2) + ' $') + kv('Tag', pn(dayPnl(), 2) + ' $', cl(dayPnl())) + kv('Offen', NX.pos.length + ' Pos.') + kv('Trades', pe.n) + '</div>');
+  return card('Markt & Portfolio', ncHTML('mini', 250, specMini(70)) + '<div class="two">' + kv('Preis', px(c.px)) + kv('Regime', E(c.regime)) + kv('Vola (Perzentil)', c.volPct + ' %') + kv('ATR', nf(c.atrPct, 2) + ' %') + kv('Funding/8h', c.fund != null ? nf(c.fund, 4) + ' %' : '–', cl(c.fund)) + kv('Basis', c.basis != null ? nf(c.basis, 3) + ' %' : '–') + kv('OI 1 h', c.oi1h != null ? pn(c.oi1h, 2) + ' %' : '–', cl(c.oi1h)) + kv('CVD 12 Kerzen', c.cvd12 != null ? pn(c.cvd12, 0) : '–', cl(c.cvd12)) + kv('Bid/Ask ±0,25 %', c.imb != null ? nf(c.imb, 2) : '–') + kv('Spread', c.spreadBp != null ? nf(c.spreadBp, 2) + ' bp' : '–') + '</div><div class="h4">Papier-Konto</div><div class="two">' + kv('Equity', nf(equity(), 2) + ' $') + kv('Tag', pn(dayPnl(), 2) + ' $', cl(dayPnl())) + kv('Offen', NX.pos.length + ' Pos.') + kv('Trades', pe.n) + '</div>');
 };
 const pApprovals = () => { const w = NX.decisions.filter(d => d.state === 'wartet'); return card('Freigaben (' + w.length + ')', w.length ? w.map(decRow).join('') : empty('Nichts wartet auf dich.')); };
 const pSignals = () => card('Letzte Signale', NX.signals.length ? NX.signals.slice(0, 6).map(sigRow).join('') : empty('Noch keine Signale. Die Algorithmen prüfen jede geschlossene Kerze (' + ST.tf + ') bzw. alle 5 s / 60 s.'));
@@ -1350,16 +1545,16 @@ function evText(e) { const d = e.d || {}, k = Object.keys(d).filter(x => typeof 
 const evLine = e => '<div class="tl ' + (/veto|killswitch.on|incident.opened|mismatch|illegal|error|pause/.test(e.type) ? 'bad' : /incident.resolved|position.closed|filled/.test(e.type) ? 'ok' : '') + '"><time>' + tm(e.t) + '</time><b>' + E(e.type) + '</b><span>' + E(evText(e)) + '</span></div>';
 const pRecent = () => card('Entscheidungen & Vorfälle', (NX.decisions.slice(0, 3).map(decRow).join('') || '') + '<div class="h4">Ereignisse</div>' + (NX.events.filter(e => /^(decision|risk|killswitch|incident|position|order\.(filled|rejected)|mode|reconcile)/.test(e.type)).slice(0, 8).map(evLine).join('') || empty('Noch nichts passiert.')));
 const pModules = () => { const total = MODS.reduce((x, m) => x + m.s.length, 0), done = MODS.reduce((x, m) => x + (IMPL[m.id] || []).length, 0); return card('Module', '<div class="bar"><i style="width:' + (done / total * 100).toFixed(1) + '%"></i></div>' + kv('Abschnitte gebaut', done + ' / ' + total) + '<div class="row">' + btnA('go:more', 'Alle 24 Module ›') + '</div>'); };
-const pPerf = () => { const p = perf(NX.closed); return card('Leistung & Lernen (Papier)', '<div class="two">' + kv('Trades', p.n) + kv('Trefferquote', p.n ? nf(p.win * 100, 0) + ' %' : '–') + kv('Ø R', p.n ? pn(p.avgR, 2) : '–', cl(p.avgR)) + kv('P&L', pn(p.pnl, 2) + ' $', cl(p.pnl)) + kv('Max. Drawdown', p.n ? nf(p.dd * 100, 1) + ' %' : '–') + kv('Gebühren', nf(p.fees, 2) + ' $') + '</div>' + svgLine(p.curve, { base: NX.acct.eq0 }) + '<p class="mut sm">Ehrlicher Hinweis: Wenige Trades sind Zufall. Aussagekraft erst ab Dutzenden Trades – siehe Lab → Validation.</p>'); };
+const pPerf = () => { const p = perf(NX.closed); return card('Leistung & Lernen (Papier)', '<div class="two">' + kv('Trades', p.n) + kv('Trefferquote', p.n ? nf(p.win * 100, 0) + ' %' : '–') + kv('Ø R', p.n ? pn(p.avgR, 2) : '–', cl(p.avgR)) + kv('P&L', pn(p.pnl, 2) + ' $', cl(p.pnl)) + kv('Max. Drawdown', p.n ? nf(p.dd * 100, 1) + ' %' : '–') + kv('Gebühren', nf(p.fees, 2) + ' $') + '</div>' + ncHTML('eqC', 210, specEquity(NX.closed)) + '<p class="mut sm">Ehrlicher Hinweis: Wenige Trades sind Zufall. Aussagekraft erst ab Dutzenden Trades – siehe Lab → Validation.</p>'); };
 const pLifecycle = () => {
   const rows = []; let c = { idee: 0, test: 0, kand: 0, verw: 0 }; for (const a of ALGOS) for (const v of VARS) { const st = algoStats(a.id, v), vd = algoVerdict(st); if (st.n === 0 && st.tot === 0) c.idee++; else if (vd.k === 'kand') c.kand++; else if (vd.k === 'verw') c.verw++; else c.test++; }
   return card('Strategie-Lebenszyklus (Vorwärts-Test)', '<div class="two">' + kv('Idee / ohne Signal', c.idee) + kv('im Vorwärts-Test', c.test) + kv('Kandidat (belegt)', c.kand, 'up') + kv('Verworfen', c.verw, 'dn') + '</div><p class="mut sm">Reihenfolge laut Plan: Idee → Hypothese → Vorwärts-Test → Kandidat → Freigabe. „Kein Vorteil“ ist ein gültiges Ergebnis.</p>' + btnA('go:02', 'Zum Lab ›'));
 };
 const pBest = () => { const b = bestNow(); return card('Gibt es jetzt einen guten Trade?', '<div class="best"><b>' + b.t + '</b><div>' + b.s + '</div>' + (b.a ? btnA(b.a, 'Ansehen ›') : '') + '</div>'); };
 PANELS['00'] = {
+  'Market and portfolio context': () => pMarket() + vWatch() + pPositions(),
   'NEXUS Intelligence Overview / Command Center': () => pBest() + pApprovals() + pStatus() + pMarket() + pPositions() + pSignals() + pPerf() + pRecent() + pModules(),
   'System status and module navigation': () => pStatus() + vFeeds() + pModules(),
-  'Market and portfolio context': () => pMarket() + pPositions(),
   'Risk and execution status': () => card('Risiko-Auslastung', usageMeters() + '<div class="row">' + btnA('go:03', 'Trader ›') + '</div>') + pPositions() + killBox(),
   'Strategy lifecycle status': () => pLifecycle(),
   'Recent decisions and incidents': () => pRecent() + card('Ereignisse (alle)', NX.events.slice(0, 30).map(evLine).join('')),
@@ -1392,7 +1587,7 @@ PANELS['02'] = {
 
 /* ===================== 03 · Autonomous Trader ===================== */
 PANELS['03'] = {
-  'Cockpit': () => PAPER + pBest() + pApprovals() + card('Steuerung', modeSwitch() + killBox()) + card('Eigener Setup (läuft durch dieselbe Prüfung)', '<p class="mut sm">' + ST.sym + ' @ ' + px(D.last ? D.last.p : null) + ' · leer lassen = Stop 1 ATR, Ziel 1,5 R.</p><div class="row"><label class="fl"><span>Stop</span><input type="text" inputmode="decimal" data-form="stop" value="' + E(NXV.form.stop) + '"></label><label class="fl"><span>Ziel</span><input type="text" inputmode="decimal" data-form="target" value="' + E(NXV.form.target) + '"></label></div><div class="row">' + btnA('manual:long', 'Long prüfen', 'upb') + btnA('manual:short', 'Short prüfen', 'dnb') + '</div>') + card('Auslastung', usageMeters()) + pPositions() + card('Konto', '<div class="two">' + kv('Equity', nf(equity(), 2) + ' $') + kv('Realisiert', pn(NX.acct.realized, 2) + ' $', cl(NX.acct.realized)) + kv('Gebühren', nf(NX.acct.fees, 2) + ' $') + kv('Tag', pn(dayPnl(), 2) + ' $', cl(dayPnl())) + '</div>'),
+  'Cockpit': () => PAPER + pBest() + pApprovals() + card('Live-Chart · Setups, Positionen, Signale', ncHTML('mini', 260, specMini(70))) + card('Steuerung', modeSwitch() + killBox()) + card('Eigener Setup (läuft durch dieselbe Prüfung)', '<p class="mut sm">' + ST.sym + ' @ ' + px(D.last ? D.last.p : null) + ' · leer lassen = Stop 1 ATR, Ziel 1,5 R.</p><div class="row"><label class="fl"><span>Stop</span><input type="text" inputmode="decimal" data-form="stop" value="' + E(NXV.form.stop) + '"></label><label class="fl"><span>Ziel</span><input type="text" inputmode="decimal" data-form="target" value="' + E(NXV.form.target) + '"></label></div><div class="row">' + btnA('manual:long', 'Long prüfen', 'upb') + btnA('manual:short', 'Short prüfen', 'dnb') + '</div>') + card('Auslastung', usageMeters()) + pPositions() + card('Konto', '<div class="two">' + kv('Equity', nf(equity(), 2) + ' $') + kv('Realisiert', pn(NX.acct.realized, 2) + ' $', cl(NX.acct.realized)) + kv('Gebühren', nf(NX.acct.fees, 2) + ' $') + kv('Tag', pn(dayPnl(), 2) + ' $', cl(dayPnl())) + '</div>'),
   'Setups': () => card('Entscheidungen (' + NX.decisions.length + ')', NX.decisions.length ? NX.decisions.slice(0, 25).map(decRow).join('') : empty(NX.mode === 'off' ? 'Modus ist „Aus“. Wähle Vorschlag oder Auto im Cockpit.' : 'Noch keine Entscheidung.')) + card('Signale', NX.signals.slice(0, 10).map(sigRow).join('') || empty('Noch keine Signale.')),
   'Positions': () => PAPER + pPositions() + card('Abgeschlossen (' + NX.closed.length + ')', NX.closed.length ? NX.closed.slice(0, 20).map(c => '<div class="li" data-a="replay:' + c.id + '"><div class="l1">' + sideC(c.side) + ' <b>' + c.sym + '</b> <span class="mut">' + E(algoName(c.algo)) + ' · ' + E(c.reason) + '</span><span class="rt ' + cl(c.pnl) + '"><b>' + pn(c.pnl, 2) + ' $</b> · ' + pn(c.R, 2) + ' R</span></div><div class="l2 mut sm">' + px(c.entry) + ' → ' + px(c.exit) + ' · ' + dur(c.t1 - c.t0) + ' · ' + ago(c.t1) + ' · Replay im Journal</div></div>').join('') : empty('Noch kein Trade abgeschlossen.')),
   'Order Management': () => { const r = NX.recon || nxReconcile(); return PAPER + card('Abgleich', kv('Konto ↔ gebuchte Trades', r.ok ? 'stimmt ✓' : 'ABWEICHUNG', r.ok ? 'up' : 'dn') + kv('Realisiert', nf(r.realized, 2) + ' $') + kv('Aus Trades', nf(r.fromTrades, 2) + ' $') + '<p class="mut sm">Jede Order durchläuft: erstellt → Risiko geprüft → gesendet → (teil)gefüllt/storniert/abgelehnt. Ungültige Übergänge werden abgewiesen und protokolliert. Doppel-Orders verhindert die Client-ID. Die Simulation füllt gegen das echte Orderbuch (Ø-Preis über die Tiefe, Gebühren, Slippage).</p>') + card('Orders (' + NX.orders.length + ')', NX.orders.length ? NX.orders.slice(0, 30).map(ordRow).join('') : empty('Noch keine Orders.')); },
@@ -1411,13 +1606,13 @@ function suggestions() {
 }
 PANELS['04'] = {
   'Performance': () => { const p = perf(NX.closed), by = groupBy(NX.closed, c => c.algo + ' · ' + c.variant); let rows = ''; for (const [k, l] of by) { const q = perf(l); rows += '<tr><td>' + E(k.replace(/^(\w+)/, (m) => algoName(m))) + '</td><td>' + q.n + '</td><td>' + nf(q.win * 100, 0) + ' %</td><td class="' + cl(q.avgR) + '">' + pn(q.avgR, 2) + '</td><td class="' + cl(q.pnl) + '">' + pn(q.pnl, 2) + '</td></tr>'; }
-    return PAPER + card('Equity (Papier)', svgLine(p.curve, { base: NX.acct.eq0 }) + '<div class="two">' + kv('Trades', p.n) + kv('Trefferquote', p.n ? nf(p.win * 100, 0) + ' %' : '–') + kv('Ø R', p.n ? pn(p.avgR, 2) : '–', cl(p.avgR)) + kv('Profit-Faktor', p.n ? (isFinite(p.pf) ? nf(p.pf, 2) : '∞') : '–') + kv('Max. Drawdown', p.n ? nf(p.dd * 100, 1) + ' %' : '–') + kv('P&L netto', pn(p.pnl, 2) + ' $', cl(p.pnl)) + '</div>') + card('Nach Algorithmus', rows ? '<div class="tw"><table class="tbl"><tr><th>Algo</th><th>n</th><th>Treffer</th><th>Ø R</th><th>P&L $</th></tr>' + rows + '</table></div>' : empty('Noch keine Trades.')); },
+    return PAPER + card('Equity (Papier)', ncHTML('eqP', 240, specEquity(NX.closed)) + '<div class="two">' + kv('Trades', p.n) + kv('Trefferquote', p.n ? nf(p.win * 100, 0) + ' %' : '–') + kv('Ø R', p.n ? pn(p.avgR, 2) : '–', cl(p.avgR)) + kv('Profit-Faktor', p.n ? (isFinite(p.pf) ? nf(p.pf, 2) : '∞') : '–') + kv('Max. Drawdown', p.n ? nf(p.dd * 100, 1) + ' %' : '–') + kv('P&L netto', pn(p.pnl, 2) + ' $', cl(p.pnl)) + '</div>') + card('Nach Algorithmus', rows ? '<div class="tw"><table class="tbl"><tr><th>Algo</th><th>n</th><th>Treffer</th><th>Ø R</th><th>P&L $</th></tr>' + rows + '</table></div>' : empty('Noch keine Trades.')); },
   'Regime Analysis': () => { const sg = groupBy(NX.signals.filter(s => s.st === 'done' && !s.manual && s.reg), s => s.reg), tr = groupBy(NX.closed.filter(c => c.ctx && c.ctx.regime), c => c.ctx.regime);
     const rows = m => [...m].map(([k, l]) => '<tr><td>' + E(k) + '</td><td>' + l.length + '</td><td class="' + cl(mean(l.map(x => x.R))) + '">' + pn(mean(l.map(x => x.R)), 2) + '</td></tr>').join('');
     return card('Signale nach Marktregime (Vorwärts)', sg.size ? '<div class="tw"><table class="tbl"><tr><th>Trend / Vola</th><th>n</th><th>Ø R</th></tr>' + rows(sg) + '</table></div><p class="mut sm">Regime = Trend (EMA20 vs EMA50) / Volatilität (ATR-Perzentil der letzten Kerzen). Ein Vorteil, der nur in einem Regime besteht, ist kein Vorteil.</p>' : empty('Noch keine ausgewerteten Signale.')) + card('Trades nach Marktregime (Papier)', tr.size ? '<div class="tw"><table class="tbl"><tr><th>Trend / Vola</th><th>n</th><th>Ø R</th></tr>' + rows(tr) + '</table></div>' : empty('Noch keine Trades.')); },
   'Error Journal': () => { const L = NX.closed.filter(c => c.pnl <= 0), auto = c => c.gross > 0 ? 'Kosten' : c.mfe >= 1 ? 'Gewinn nicht mitgenommen' : (c.t1 - c.t0 < 2 * D.tfMs && c.mfe < 0.3) ? 'Sofort gestoppt' : 'Reguläre Verlust', ac = groupBy(L, auto), tg = groupBy(NX.closed.filter(c => c.tag), c => c.tag);
     return card('Automatische Fehlerklassen (' + L.length + ' Verlusttrades)', ac.size ? [...ac].map(([k, l]) => kv(k, l.length + ' · ' + pn(l.reduce((x, c) => x + c.pnl, 0), 2) + ' $')).join('') + '<p class="mut sm">Kosten = Brutto-Gewinn, Netto-Verlust · Gewinn nicht mitgenommen = lief ≥ 1 R ins Plus · Sofort gestoppt = Stop innerhalb von 2 Kerzen ohne echten Lauf.</p>' : empty('Noch keine Verlusttrades.')) + card('Deine Tags', tg.size ? [...tg].map(([k, l]) => kv(k, l.length)).join('') : '<p class="mut sm">Tags vergibst du im Journal → Error Analysis.</p>'); },
-  'Model Comparison': () => { let rows = ''; for (const a of ALGOS) for (const v of VARS) { const st = algoStats(a.id, v), w = st.n ? clamp((st.avg + 1) / 2, 0, 1) : 0; rows += '<div class="li"><div class="l1"><b>' + E(a.name) + '</b> <span class="mut">' + v + '</span><span class="rt ' + cl(st.avg) + '">' + (st.n ? pn(st.avg, 2) + ' R' : '–') + '</span></div><div class="bar sm"><i style="width:' + (w * 100).toFixed(0) + '%"></i></div><div class="mut sm">n=' + st.n + (st.lo != null ? ' · konservativ ' + pn(st.lo, 2) : '') + '</div></div>'; } return card('Varianten im Vergleich (Vorwärts)', rows); },
+  'Model Comparison': () => { const items = []; for (const a of ALGOS) for (const v of VARS) { const st = algoStats(a.id, v); items.push({ l: a.name.split(' ')[0] + ' · ' + v, n: st.n, avg: st.avg, lo0: st.lo0, hi0: st.hi0 }); } return card('Ø R je Variante mit 80 %-Konfidenzband (Vorwärts)', ncHTML('forest', 36 + items.length * 28, specForest(items)) + '<p class=\"mut sm\">Punkt = Durchschnitt, Balken = Unsicherheit. Liegt der ganze Balken rechts von 0, ist ein Vorteil vorläufig belegt. Liegt er über 0 hinweg, ist es Zufall bis zum Beweis des Gegenteils.</p>'); },
   'Autonomous Learning': () => { const s = suggestions(); NXV.sugg = s; return card('Vorschläge des Systems', s.length ? s.map((x, i) => '<div class="li"><div class="l2">' + x.t + '</div>' + (x.apply ? '<div class="row">' + btnA('learn:' + i, 'Übernehmen') + '</div>' : '') + '</div>').join('') + '<p class="mut sm">Das System schlägt nur vor. Übernommen wird nichts ohne dein Tippen; jede Änderung steht im Änderungsprotokoll.</p>' : '<p class="mut">Keine Vorschläge. Sie entstehen, sobald genug Vorwärts-Daten da sind (n ≥ 20 pro Variante).</p>'); },
 };
 
@@ -1427,7 +1622,7 @@ PANELS['05'] = {
   'Timeline': () => { const g = ['alle', 'Signale', 'Entscheidungen', 'Orders', 'Positionen', 'System'], ev = NX.events.filter(e => NXV.tlf === 'alle' || evGroup(e.type) === NXV.tlf).slice(0, 80); return card('Zeitleiste', '<div class="chips">' + g.map(x => '<button class="tb' + (NXV.tlf === x ? ' on' : '') + '" data-a="tlf:' + x + '">' + x + '</button>').join('') + '</div>' + (ev.length ? ev.map(evLine).join('') : empty('Keine Einträge.'))); },
   'Trade Replay': () => { const L = NX.closed.slice(0, 25); if (!L.length) return card('Trade Replay', empty('Noch kein abgeschlossener Trade.')); const c = L.find(x => x.id === NXV.replay) || L[0], d = NX.decisions.find(x => x.id === c.dec), s = NX.signals.find(x => x.id === c.sig);
     return card('Trade wählen', '<div class="chips">' + L.map(x => '<button class="tb' + (x.id === c.id ? ' on' : '') + '" data-a="replay:' + x.id + '">' + dtm(x.t1) + ' ' + (x.pnl >= 0 ? '+' : '−') + '</button>').join('') + '</div>') +
-      card(sideC(c.side) + ' ' + c.sym + ' · ' + E(algoName(c.algo)) + ' <span class="mut">' + E(c.variant) + '</span>', svgReplay(c) + '<div class="two">' + kv('Einstieg', px(c.entry)) + kv('Ausstieg', px(c.exit)) + kv('Grund', E(c.reason)) + kv('Dauer', dur(c.t1 - c.t0)) + kv('Ergebnis', pn(c.pnl, 2) + ' $ · ' + pn(c.R, 2) + ' R', cl(c.pnl)) + kv('Gebühren', nf(c.fees, 2) + ' $') + kv('Max. Plus', nf(c.mfe, 2) + ' R') + kv('Max. Minus', nf(c.mae, 2) + ' R') + '</div>') +
+      card(sideC(c.side) + ' ' + c.sym + ' · ' + E(algoName(c.algo)) + ' <span class="mut">' + E(c.variant) + '</span>', ncHTML('rp' + c.id, 290, specReplay(c)) + '<div class="two">' + kv('Einstieg', px(c.entry)) + kv('Ausstieg', px(c.exit)) + kv('Grund', E(c.reason)) + kv('Dauer', dur(c.t1 - c.t0)) + kv('Ergebnis', pn(c.pnl, 2) + ' $ · ' + pn(c.R, 2) + ' R', cl(c.pnl)) + kv('Gebühren', nf(c.fees, 2) + ' $') + kv('Max. Plus', nf(c.mfe, 2) + ' R') + kv('Max. Minus', nf(c.mae, 2) + ' R') + '</div>') +
       card('Warum? (Entscheidungskette)', (s ? '<div class="h4">Signal</div>' + s.why.map(w => '<div>• ' + E(w) + '</div>').join('') + '<div class="mut sm">Regime ' + E(s.reg) + '</div>' : '<div class="mut">Signal nicht mehr gespeichert</div>') + (d ? '<div class="h4">Prüfungen</div>' + d.checks.map(k => '<div>' + (k.ok ? '<span class="up">✓</span>' : '<span class="dn">✗</span>') + ' ' + E(k.n) + (k.d ? ' <span class="mut">– ' + E(k.d) + '</span>' : '') + '</div>').join('') + '<div class="h4">Gegenargumente</div>' + (d.challenge.map(k => '<div>• ' + E(k) + '</div>').join('') || '<div class="mut">keine</div>') : '')); },
   'Hypotheses': () => card('Neue Hypothese', '<label class="fl wide"><span>Behauptung</span><input type="text" data-form="hyp" value="' + E(NXV.form.hyp || '') + '" placeholder="z. B. Nach Sweep über das Tageshoch fällt BTC innerhalb 1 h"></label><label class="fl wide"><span>Wann ist sie widerlegt?</span><input type="text" data-form="fal" value="' + E(NXV.form.fal || '') + '" placeholder="z. B. Ø Ergebnis ≤ 0 R nach 30 Fällen"></label><div class="row">' + btnA('hypadd', 'Registrieren') + '</div>') +
     card('Deine Hypothesen', NX.hyp.length ? NX.hyp.map(h => '<div class="li"><div class="l1"><b>' + E(h.text) + '</b><span class="rt">' + chip2(h.st, h.st === 'bestätigt' ? 'up' : h.st === 'verworfen' ? 'dn' : 'warn') + '</span></div><div class="l2 mut sm">Widerlegt, wenn: ' + E(h.falsif || '–') + ' · ' + ago(h.t) + '</div><div class="row">' + ['offen', 'bestätigt', 'verworfen'].map(s => btnA('hypst:' + h.id + ':' + s, s)).join('') + '</div></div>').join('') : empty('Noch keine eigenen Hypothesen.')) +
@@ -1455,6 +1650,134 @@ PANELS['08'] = {
     return card('Preisschock auf alle offenen Positionen', '<div class="tw"><table class="tbl"><tr><th>Schock</th><th>P&L</th><th>Equity</th></tr>' + rows + '</table></div>') + card('Stop-Szenarien', kv('Alle Stops treffen', '−' + nf(stops, 2) + ' $ (' + nf(stops / eq * 100, 2) + ' %)') + kv('Mit 3× Slippage', '−' + nf(stops + NX.pos.reduce((x, p) => x + p.qty * p.entry * NX.cost.slipBp * 3 / 1e4, 0), 2) + ' $')); },
   'Kill-Switch': () => PAPER + card('Kill-Switch', '<p class="mut sm">Sperrt sofort jede neue Order und bricht wartende Freigaben ab. Optional schließt er alle offenen Papier-Positionen. Er wirkt unabhängig von Strategien und Modus. Automatisch ausgelöst wird er beim Tagesverlust-Limit.</p>' + killBox()) + card('Verlauf', NX.events.filter(e => e.type.startsWith('killswitch')).slice(0, 10).map(evLine).join('') || empty('Noch nie ausgelöst.')),
 };
+
+'use strict';
+/* ===== 01 · Market Intelligence – Datenlage (REST, nur wenn die Ansicht offen ist) + Ansichten ===== */
+const MI = { wl: {}, wlT: 0, mtf: {}, mtfT: {}, fund: null, fundT: 0, beta: null, betaT: 0, busy: {}, err: {} };
+const WL_SYMS = ['BTC', 'ETH', 'SOL', 'HYPE', 'XRP', 'DOGE', 'BNB', 'SUI', 'AVAX', 'LINK'];
+const MTF = ['15m', '1h', '4h', '1d'];
+const hlInfo = body => jget('https://api.hyperliquid.xyz/info', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+const bnBase = () => ST.src === 'bns' ? 'https://api.binance.com/api/v3' : 'https://fapi.binance.com/fapi/v1';
+async function miGuard(key, ms, fn) { const now = Date.now(); if (MI.busy[key] || now - (MI[key + 'T'] || 0) < ms) return; MI.busy[key] = true; try { await fn(); MI[key + 'T'] = Date.now(); MI.err[key] = ''; } catch (e) { MI.err[key] = String(e && e.message || e); MI[key + 'T'] = Date.now() - ms + 15000; } MI.busy[key] = false; }
+
+/* Watchlist: 24h-Kennzahlen + Mini-Verlauf (1h-Kerzen, 48 Stück) */
+async function miWatch() {
+  await miGuard('wl', 20000, async () => {
+    if (ST.src === 'hl') {
+      const r = await hlInfo({ type: 'metaAndAssetCtxs' }); const U = r[0].universe, X = r[1];
+      for (const s of WL_SYMS) { const i = U.findIndex(u => u.name === s); if (i < 0) continue; const c = X[i], m = +c.markPx; MI.wl[s] = Object.assign(MI.wl[s] || {}, { px: m, chg: (m / +c.prevDayPx - 1) * 100, vol: +c.dayNtlVlm, fund: +c.funding * 800, oi: +c.openInterest * m, t: Date.now() }); }
+      for (const s of WL_SYMS.slice(0, 6)) { if (MI.wl[s] && MI.wl[s].sp && Date.now() - MI.wl[s].spT < 300e3) continue; try { const k = await hlInfo({ type: 'candleSnapshot', req: { coin: s, interval: '1h', startTime: Date.now() - 48 * 3600e3, endTime: Date.now() } }); if (MI.wl[s]) { MI.wl[s].sp = k.map(x => +x.c); MI.wl[s].spT = Date.now(); } } catch (e) { /* */ } }
+    } else {
+      const base = bnBase(), all = await jget(base + '/ticker/24hr'); const by = {}; for (const t of all) by[t.symbol] = t;
+      for (const s of WL_SYMS) { const t = by[s + 'USDT']; if (!t) continue; MI.wl[s] = Object.assign(MI.wl[s] || {}, { px: +t.lastPrice, chg: +t.priceChangePercent, vol: +t.quoteVolume, hi: +t.highPrice, lo: +t.lowPrice, t: Date.now() }); }
+      if (ST.src === 'bnf') { try { const pi = await jget(base + '/premiumIndex'); for (const p of pi) { const s = p.symbol.replace('USDT', ''); if (MI.wl[s] && p.symbol.endsWith('USDT')) { MI.wl[s].fund = +p.lastFundingRate * 100; MI.wl[s].mark = +p.markPrice; MI.wl[s].idx = +p.indexPrice; } } } catch (e) { /* */ } }
+      for (const s of WL_SYMS) { if (!MI.wl[s] || (MI.wl[s].sp && Date.now() - MI.wl[s].spT < 300e3)) continue; try { const k = await jget(base + '/klines?symbol=' + s + 'USDT&interval=1h&limit=48'); MI.wl[s].sp = k.map(r => +r[4]); MI.wl[s].spT = Date.now(); } catch (e) { /* */ } }
+    }
+  });
+}
+/* Multi-Timeframe: 200 Kerzen je Zeitrahmen für den offenen Markt */
+async function miMTF() {
+  const key = ST.sym + '|' + ST.src; if (MI.mtfKey !== key) { MI.mtf = {}; MI.mtfT = {}; MI.mtfKey = key; }
+  for (const tf of MTF) { const k = 'mtf' + tf; await miGuard(k, 120000, async () => { let rows; if (ST.src === 'hl') { const ms = { '15m': 900e3, '1h': 3600e3, '4h': 14400e3, '1d': 86400e3 }[tf]; rows = (await hlInfo({ type: 'candleSnapshot', req: { coin: ST.sym, interval: tf, startTime: Date.now() - 200 * ms, endTime: Date.now() } })).map(x => ({ t: x.t, o: +x.o, h: +x.h, l: +x.l, c: +x.c, v: +x.v })); } else rows = (await jget(bnBase() + '/klines?symbol=' + ST.sym + 'USDT&interval=' + tf + '&limit=200')).map(r => ({ t: r[0], o: +r[1], h: +r[2], l: +r[3], c: +r[4], v: +r[5] })); MI.mtf[tf] = rows.filter(r => isFinite(r.o) && isFinite(r.h) && isFinite(r.l) && isFinite(r.c)); }); }
+}
+/* Funding-Historie (nur Binance Perp / HL) */
+async function miFunding() {
+  await miGuard('fund', 300000, async () => {
+    if (ST.src === 'hl') { const r = await hlInfo({ type: 'fundingHistory', coin: ST.sym, startTime: Date.now() - 7 * 864e5 }); MI.fund = r.map(x => [x.time, +x.fundingRate * 100 * 8]); }
+    else if (ST.src === 'bnf') { const r = await jget('https://fapi.binance.com/fapi/v1/fundingRate?symbol=' + ST.sym + 'USDT&limit=200'); MI.fund = r.map(x => [x.fundingTime, +x.fundingRate * 100]); }
+    else MI.fund = [];
+  });
+}
+/* Beta/Korrelation: 1h-Renditen der letzten 48 h gegen BTC */
+function miBeta() {
+  const b = MI.wl.BTC && MI.wl.BTC.sp; if (!b || b.length < 20) return null; const rb = b.slice(1).map((v, i) => Math.log(v / b[i])), out = [];
+  for (const s of WL_SYMS) { const a = MI.wl[s] && MI.wl[s].sp; if (!a || a.length !== b.length) continue; const ra = a.slice(1).map((v, i) => Math.log(v / a[i])), n = ra.length, ma = mean(ra), mb = mean(rb); let cov = 0, vb = 0, va = 0; for (let i = 0; i < n; i++) { cov += (ra[i] - ma) * (rb[i] - mb); vb += (rb[i] - mb) ** 2; va += (ra[i] - ma) ** 2; } out.push({ s, beta: vb ? cov / vb : 0, corr: vb && va ? cov / Math.sqrt(vb * va) : 0, r48: (a[a.length - 1] / a[0] - 1) * 100, rel: (a[a.length - 1] / a[0]) / (b[b.length - 1] / b[0]) - 1 }); }
+  return out;
+}
+function miTick() { if (NXV.cur !== '01' && NXV.cur !== '00') return; miWatch(); if (NXV.cur === '01') { miMTF(); miFunding(); } }
+
+/* ----- Struktur-Analyse je Zeitrahmen (Swing-Hochs/-Tiefs, Trend, Lage in der Spanne) ----- */
+function structure(C) {
+  if (!C || C.length < 30) return null; const n = C.length, k = 3, sw = []; for (let i = k; i < n - k; i++) { let hi = true, lo = true; for (let j = 1; j <= k; j++) { if (C[i].h <= C[i - j].h || C[i].h <= C[i + j].h) hi = false; if (C[i].l >= C[i - j].l || C[i].l >= C[i + j].l) lo = false; } if (hi) sw.push({ t: C[i].t, p: C[i].h, k: 'H' }); if (lo) sw.push({ t: C[i].t, p: C[i].l, k: 'L' }); }
+  const H = sw.filter(x => x.k === 'H').slice(-3), L = sw.filter(x => x.k === 'L').slice(-3), hh = H.length >= 2 && H[H.length - 1].p > H[H.length - 2].p, hl = L.length >= 2 && L[L.length - 1].p > L[L.length - 2].p, lh = H.length >= 2 && H[H.length - 1].p < H[H.length - 2].p, ll = L.length >= 2 && L[L.length - 1].p < L[L.length - 2].p;
+  const trend = hh && hl ? 'auf' : lh && ll ? 'ab' : 'seitwärts', last = C[n - 1], base = C[Math.max(0, n - 25)], W = C.slice(-60), rh = Math.max(...W.map(c => c.h)), rl = Math.min(...W.map(c => c.l)), pos = (last.c - rl) / ((rh - rl) || 1), e20 = emaOf(C.slice(-80), 20), e50 = emaOf(C.slice(-150), 50), atr = atrOf(C), tr = C.slice(1).map((c, i) => Math.max(c.h - c.l, Math.abs(c.h - C[i].c), Math.abs(c.l - C[i].c)) / c.c), cur = mean(tr.slice(-14)), so = tr.slice().sort((a, b) => a - b);
+  return { trend, hh, hl, lh, ll, lastH: H[H.length - 1], lastL: L[L.length - 1], prevH: H[H.length - 2], prevL: L[L.length - 2], rh, rl, pos, e20, e50, atr, atrPct: atr / last.c * 100, volPct: Math.round(so.filter(x => x <= cur).length / so.length * 100), c: last.c, chg: (last.c / base.c - 1) * 100 };
+}
+function specStruct(C, st, tfLabel) {
+  return ch => {
+    const cs = C.slice(-90), tf = cs.length > 1 ? cs[1].t - cs[0].t : 60e3, lo0 = Math.min(...cs.map(c => c.l)), hi0 = Math.max(...cs.map(c => c.h)), pd = (hi0 - lo0) * 0.08 || 1, lo = lo0 - pd, hi = hi0 + pd, top = 6, bot = ch.h - NTH, pw = ch.w - NAX, t0 = cs[0].t - tf * 0.5, t1 = cs[cs.length - 1].t + tf * 4, X = t => 6 + (t - t0) / (t1 - t0) * (pw - 10), Y = v => top + (hi - v) / (hi - lo) * (bot - top), cw = Math.max(1.5, (pw - 10) / ((t1 - t0) / tf) * 0.68);
+    return { draw(g) { const cx = g.cx; cx.fillStyle = C_.pn; cx.fillRect(0, 0, g.pw, bot); g.hgrid(top, bot, lo, hi, pFmtAx(lo, hi), Y); g.tgrid(t0, t1, X, 0, bot); cx.strokeStyle = C_.line; cx.beginPath(); cx.moveTo(g.pw + .5, 0); cx.lineTo(g.pw + .5, bot); cx.moveTo(0, bot + .5); cx.lineTo(g.w, bot + .5); cx.stroke();
+      cx.save(); cx.beginPath(); cx.rect(0, top - 6, g.pw, bot - top + 6); cx.clip();
+      /* Spanne der letzten 60 Kerzen als Zone, Mittellinie */
+      cx.fillStyle = C_.acc; cx.globalAlpha = .05; cx.fillRect(0, Y(st.rh), g.pw, Y(st.rl) - Y(st.rh)); cx.globalAlpha = 1; g.hline(Y(st.rh), C_.mute, [2, 4]); g.hline(Y(st.rl), C_.mute, [2, 4]); g.hline(Y((st.rh + st.rl) / 2), C_.faint, [1, 5]);
+      g.pill(pFmt(st.rh), clamp(Y(st.rh), 9, bot - 9), C_.line, C_.fg); g.pill(pFmt(st.rl), clamp(Y(st.rl), 9, bot - 9), C_.line, C_.fg);
+      for (const c of cs) ncCandle(cx, X(c.t + tf / 2), cw, c.o, c.h, c.l, c.c, Y);
+      /* Swing-Marker */
+      const mk = (s, up) => { if (!s || s.t < cs[0].t) return; const x = X(s.t + tf / 2), y = Y(s.p); cx.fillStyle = up ? C_.dn : C_.up; cx.globalAlpha = .9; cx.beginPath(); cx.arc(x, y + (up ? -7 : 7), 3, 0, 6.2832); cx.fill(); cx.globalAlpha = 1; cx.font = '9px "JetBrains Mono",monospace'; cx.textAlign = 'center'; cx.fillStyle = C_.mute; cx.fillText(up ? (st.hh ? 'HH' : st.lh ? 'LH' : 'H') : (st.hl ? 'HL' : st.ll ? 'LL' : 'L'), x, y + (up ? -16 : 17)); };
+      mk(st.lastH, true); mk(st.lastL, false); mk(st.prevH, true); mk(st.prevL, false);
+      cx.restore(); const lc = cs[cs.length - 1]; g.pill(pFmt(lc.c), clamp(Y(lc.c), top + 9, bot - 9), lc.c >= lc.o ? C_.up : C_.dn); g.label(tfLabel + ' · Trend ' + st.trend + ' · Lage ' + Math.round(st.pos * 100) + ' % der Spanne', 8, 10);
+    }, hover(g, mx, my) { const t = t0 + (mx - 6) / (pw - 10) * (t1 - t0), c = cs.find(q => t >= q.t && t < q.t + tf); ncCross(g, mx, my, top, bot, my < bot ? pFmt(hi - (my - top) / (bot - top) * (hi - lo)) : null); ncTimePill(g, mx, new Date(c ? c.t : t).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }), bot); if (c) ncReadout(g, [['O', pFmt(c.o)], ['H', pFmt(c.h)], ['T', pFmt(c.l)], ['S', pFmt(c.c)], ['Vol', fq(c.v)]], 22); } };
+  };
+}
+const C_ = new Proxy({}, { get: (_, k) => C[k] });   // Farben zur Laufzeit
+
+/* ----- Ansichten ----- */
+const miErr = k => MI.err[k] ? '<p class="mut sm dn">Abruf fehlgeschlagen: ' + E(MI.err[k]) + '</p>' : '';
+function vWatch() {
+  const rows = WL_SYMS.filter(s => MI.wl[s]).map(s => { const w = MI.wl[s]; return '<div class="wl' + (s === ST.sym ? ' on' : '') + '" data-a="wlsel:' + s + '"><div class="wn"><b>' + s + '</b><small>' + (w.fund != null ? 'F ' + nf(w.fund, 4) + ' %' : '') + '</small></div>' + ncHTML('sp' + s, 34, specSpark(w.sp)) + '<div class="wp"><b>' + pFmt(w.px) + '</b><small class="' + cl(w.chg) + '">' + pn(w.chg, 2) + ' %</small></div><div class="wv"><small>Vol 24h</small><b>' + fusd(w.vol) + '</b></div></div>'; });
+  return card('Watchlist · ' + E(SRC[ST.src]) + ' <span class="mut">(tippen = Markt wechseln)</span>', (rows.length ? rows.join('') : empty(MI.busy.wl ? 'Lade …' : 'Noch keine Daten')) + miErr('wl'));
+}
+function vStructure() {
+  const C = MI.mtf[ST.tf] || D.candles, st = structure(C); if (!st) return card('Marktstruktur', empty('Warte auf Kerzen …'));
+  return card('Marktstruktur · ' + ST.sym + ' ' + ST.tf, ncHTML('struct', 280, specStruct(C, st, ST.tf)) + '<div class="two">' + kv('Trend (Swings)', st.trend + (st.hh ? ' · HH' : st.lh ? ' · LH' : '') + (st.hl ? ' HL' : st.ll ? ' LL' : '')) + kv('Lage in 60er-Spanne', Math.round(st.pos * 100) + ' %' + (st.pos > 0.7 ? ' (oben)' : st.pos < 0.3 ? ' (unten)' : ' (Mitte)')) + kv('Letztes Swing-Hoch', st.lastH ? pFmt(st.lastH.p) : '–') + kv('Letztes Swing-Tief', st.lastL ? pFmt(st.lastL.p) : '–') + kv('EMA 20 / 50', (st.c > st.e20 ? 'über' : 'unter') + ' / ' + (st.c > st.e50 ? 'über' : 'unter')) + kv('ATR', nf(st.atrPct, 2) + ' % · Vola-Perzentil ' + st.volPct) + '</div>');
+}
+function vMTF() {
+  const rows = MTF.map(tf => { const C = MI.mtf[tf], st = structure(C); if (!st) return '<tr><td>' + tf + '</td><td colspan="5" class="mut">' + (MI.err['mtf' + tf] ? 'Fehler' : 'lädt …') + '</td></tr>'; return '<tr><td><b>' + tf + '</b></td><td>' + chip2(st.trend, st.trend === 'auf' ? 'up' : st.trend === 'ab' ? 'dn' : '') + '</td><td>' + Math.round(st.pos * 100) + ' %</td><td class="' + cl(st.chg) + '">' + pn(st.chg, 2) + ' %</td><td>' + nf(st.atrPct, 2) + ' %</td><td>' + st.volPct + '</td></tr>'; }).join('');
+  const sts = MTF.map(tf => structure(MI.mtf[tf])).filter(Boolean), up = sts.filter(s => s.trend === 'auf').length, dn = sts.filter(s => s.trend === 'ab').length, align = sts.length >= 3 ? (up === sts.length ? 'Alle Zeitrahmen aufwärts' : dn === sts.length ? 'Alle Zeitrahmen abwärts' : up > dn ? 'Überwiegend aufwärts, nicht einig' : dn > up ? 'Überwiegend abwärts, nicht einig' : 'Zeitrahmen uneinig / seitwärts') : 'lädt …';
+  return card('Multi-Timeframe · ' + ST.sym, '<div class="best"><b>' + align + '</b></div><div class="tw"><table class="tbl"><tr><th>TF</th><th>Trend</th><th>Lage</th><th>24 Kerzen</th><th>ATR</th><th>Vola-%</th></tr>' + rows + '</table></div>' + MTF.map(tf => MI.mtf[tf] && structure(MI.mtf[tf]) ? ncHTML('mtf' + tf, 200, specStruct(MI.mtf[tf], structure(MI.mtf[tf]), tf)) : '').join(''));
+}
+function vOrderflow() {
+  const A = D.candles, C = A.slice(-120), pts = []; let s = 0; for (const c of A) { const d = deltaOf(c); if (d == null) continue; s += d; pts.push([c.t + D.tfMs / 2, s]); } const dl = C.map(c => [c.t + D.tfMs / 2, deltaOf(c)]).filter(x => x[1] != null), ctx = marketCtx();
+  const last5 = D.candles.slice(-5), big = NX.signals.filter(x => x.algo === 'cvd' && x.k === nxKey()).slice(0, 5);
+  return card('CVD (kumuliertes Delta) · ' + ST.sym + ' ' + ST.tf, ncHTML('cvdL', 200, specSeries({ pts: pts.slice(-240), name: 'CVD', fmt: v => fq(v), color: C_.acc })) + ncHTML('dlt', 120, specSeries({ pts: dl, name: 'Delta je Kerze', fmt: v => fq(v), bars: true, base: 0 })) + '<div class="two">' + kv('Delta letzte 5', pn(last5.map(deltaOf).filter(x => x != null).reduce((x, y) => x + y, 0), 0), cl(last5.map(deltaOf).filter(x => x != null).reduce((x, y) => x + y, 0))) + kv('Delta 12 Kerzen', ctx.cvd12 != null ? pn(ctx.cvd12, 0) : '–', cl(ctx.cvd12)) + kv('Trades im Speicher', fq(D.ring.len)) + kv('Blasen (≥ Schwelle)', D.bubbles.length) + '</div>' + (ST.src === 'hl' ? '<p class="mut sm">Hyperliquid liefert kein Kerzen-Delta; das Delta kommt aus den seit dem Öffnen mitgeschriebenen Trades.</p>' : '') + (big.length ? '<div class="h4">CVD-Divergenz-Signale</div>' + big.map(sigRow).join('') : ''));
+}
+function vFunding() {
+  const ctx = marketCtx(), oi = D.oi.map(x => [x.t, x.v]), f = MI.fund || [];
+  return card('Funding · Open Interest · Basis', '<div class="two">' + kv('Funding/8h', D.stats.fund8 != null ? nf(D.stats.fund8, 4) + ' %' : '–', cl(D.stats.fund8)) + kv('annualisiert', D.stats.fund8 != null ? nf(D.stats.fund8 * 3 * 365, 1) + ' %' : '–') + kv('Basis (Mark/Index)', ctx.basis != null ? nf(ctx.basis, 3) + ' %' : '–', cl(ctx.basis)) + kv('OI', D.stats.oiUsd ? '$' + fusd(D.stats.oiUsd) : '–') + kv('OI 1 h', ctx.oi1h != null ? pn(ctx.oi1h, 2) + ' %' : '–', cl(ctx.oi1h)) + kv('Regime', E(ctx.regime || '–')) + '</div>' + (ST.src === 'bns' ? '<p class="mut sm">Spot hat kein Funding und kein Open Interest.</p>' : ncHTML('fund', 160, specSeries({ pts: f, name: 'Funding %/8h (Historie)', fmt: v => nf(v, 4), base: 0, bars: true })) + ncHTML('oiS', 160, specSeries({ pts: oi, name: 'Open Interest $', fmt: v => fusd(v), color: C_.warn })) + miErr('fund')) + '<p class="mut sm">Lesart: hohes positives Funding + steigendes OI im Aufwärtstrend = Longs überfüllt (Algorithmus „Funding & Basis Regime“).</p>');
+}
+function vLiq() {
+  const L = D.liqs, now = Date.now(), h1 = L.filter(l => l.t > now - 3600e3), lg = h1.filter(l => l.long).reduce((x, l) => x + l.usd, 0), sh = h1.filter(l => !l.long).reduce((x, l) => x + l.usd, 0), m = new Map(); for (const l of L) { const k = Math.floor(l.t / 300e3) * 300e3; m.set(k, (m.get(k) || 0) + (l.long ? -l.usd : l.usd)); } const pts = [...m].sort((a, b) => a[0] - b[0]);
+  const bigs = L.slice().sort((a, b) => b.usd - a.usd).slice(0, 8);
+  return card('Liquidationen · ' + ST.sym, ST.src !== 'bnf' ? '<p class="mut">Liquidationsdaten gibt es nur über den Binance-Perp-Strom.</p>' : '<div class="two">' + kv('Longs liquidiert (1 h)', '$' + fusd(lg), 'dn') + kv('Shorts liquidiert (1 h)', '$' + fusd(sh), 'up') + kv('Ereignisse gesamt', L.length) + kv('seit', L.length ? ago(L[0].t) : '–') + '</div>' + ncHTML('liq', 150, specSeries({ pts, name: 'je 5 min: Shorts + / Longs −', fmt: v => fusd(v), bars: true, base: 0 })) + (bigs.length ? '<div class="h4">Größte</div>' + bigs.map(l => '<div class="kv"><span>' + tm(l.t) + ' · ' + (l.long ? 'Long' : 'Short') + ' @ ' + pFmt(l.p) + '</span><b class="' + (l.long ? 'dn' : 'up') + '">$' + fusd(l.usd) + '</b></div>').join('') : '') + '<p class="mut sm">Heatmap der Liquidationscluster: siehe Tape (Dreiecke) – eine Zonen-Schätzung aus OI/Hebel folgt mit Modul 06.</p>');
+}
+function vBook() {
+  const bs = bookStats(0.005), bk = bs && bs.bk; if (!bk) return card('Orderbuch', empty('Orderbuch lädt …'));
+  const walls = side => { const arr = side === 'b' ? bk.bids : bk.asks, lim = bs.mid * 0.01, lv = arr.filter(([p]) => Math.abs(p - bs.mid) < lim), med = lv.map(x => x[1]).sort((a, b) => a - b)[lv.length >> 1] || 1; return lv.filter(x => x[1] >= med * 6).slice(0, 4).map(([p, q]) => '<div class="kv"><span>' + pFmt(p) + ' <small class="mut">' + nf((p / bs.mid - 1) * 100, 2) + ' %</small></span><b class="' + (side === 'b' ? 'up' : 'dn') + '">' + fq(q) + ' · $' + fusd(p * q) + '</b></div>').join(''); };
+  return card('Orderbuch · Spread · Tiefe', '<div class="two">' + kv('Spread', nf(bs.spreadBp, 2) + ' bp') + kv('Mitte', pFmt(bs.mid)) + kv('Bids ±0,5 %', '$' + fusd(bs.b), 'up') + kv('Asks ±0,5 %', '$' + fusd(bs.a), 'dn') + kv('Bid/Ask', nf(bs.a ? bs.b / bs.a : 0, 2)) + kv('Level', bs.nb + ' / ' + bs.na) + '</div>' + ncHTML('depth', 170, specDepth(0.005)) + '<div class="h4">Ask-Wände (≥ 6× Median, ±1 %)</div>' + (walls('a') || '<span class="mut sm">keine</span>') + '<div class="h4">Bid-Wände</div>' + (walls('b') || '<span class="mut sm">keine</span>') + (ST.src !== 'hl' ? '<p class="mut sm">Binance: Snapshot 1000 Level + Diff-Strom; die Tiefe wächst mit der Zeit.</p>' : '<p class="mut sm">Hyperliquid: ~20 aggregierte Level je Seite.</p>'));
+}
+function vVola() {
+  const A = D.candles; if (A.length < 40) return card('Volatilität & Regime', empty('Warte auf Kerzen …')); const tr = [], pts = []; for (let i = 1; i < A.length; i++) { const c = A[i], p = A[i - 1]; tr.push(Math.max(c.h - c.l, Math.abs(c.h - p.c), Math.abs(c.l - p.c)) / c.c * 100); if (tr.length >= 14) pts.push([c.t, mean(tr.slice(-14))]); } const ctx = marketCtx(), ret = A.slice(-100).map((c, i, a) => i ? Math.log(c.c / a[i - 1].c) : 0).slice(1), rv = sd(ret) * Math.sqrt(365 * 86400e3 / D.tfMs) * 100;
+  return card('Volatilität & Regime', '<div class="two">' + kv('Regime', E(ctx.regime || '–')) + kv('Vola-Perzentil', ctx.volPct != null ? ctx.volPct + ' %' : '–') + kv('ATR(14)', ctx.atrPct != null ? nf(ctx.atrPct, 2) + ' %' : '–') + kv('Realisierte Vola (ann.)', nf(rv, 0) + ' %') + '</div>' + ncHTML('atr', 170, specSeries({ pts: pts.slice(-300), name: 'ATR(14) in % des Preises', fmt: v => nf(v, 3), color: C_.warn })) + '<p class="mut sm">Regime-Wechsel (ruhig ↔ wild) ändern die Trefferquote der Algorithmen – siehe Learning Lab → Regime-Analyse.</p>');
+}
+function vBeta() {
+  const b = miBeta(); if (!b) return card('Cross-Asset / Beta', empty(MI.busy.wl ? 'Lade …' : 'Watchlist zuerst laden (Tab „Multi-Asset“)'));
+  return card('Beta & Korrelation zu BTC (1h-Renditen, 48 h)', '<div class="tw"><table class="tbl"><tr><th>Markt</th><th>Beta</th><th>Korr.</th><th>48 h</th><th>vs BTC</th></tr>' + b.map(x => '<tr><td><b>' + x.s + '</b></td><td>' + nf(x.beta, 2) + '</td><td>' + nf(x.corr, 2) + '</td><td class="' + cl(x.r48) + '">' + pn(x.r48, 2) + ' %</td><td class="' + cl(x.rel) + '">' + pn(x.rel * 100, 2) + ' %</td></tr>').join('') + '</table></div><p class="mut sm">„vs BTC“ = relative Stärke. Ein Alt, der bei fallendem BTC steigt, hat eigene Nachfrage.</p>');
+}
+function vQuality() {
+  const f = D.feed, s = (f && f.status) || {}, lat = D.lat || [], A = D.candles; let gaps = 0; for (let i = 1; i < A.length; i++) if (A[i].t - A[i - 1].t > D.tfMs * 1.5) gaps++; const ls = lat.slice().sort((a, b) => a - b), p50 = ls.length ? ls[ls.length >> 1] : null, p95 = ls.length ? ls[Math.floor(ls.length * 0.95)] : null;
+  const row = (n, k) => kv(n, s[k] ? ago(s[k]) : '–', s[k] && Date.now() - s[k] < 20000 ? 'up' : 'dn');
+  return card('Datenqualität & Herkunft', '<div class="two">' + row('Trades-Strom', 'trades') + row('Orderbuch-Strom', 'depth') + row('Kerzen-Strom', 'kline') + row('Kennzahlen (REST)', 'rest') + kv('Latenz Trade→App p50 / p95', p50 != null ? p50 + ' / ' + p95 + ' ms' : '–', p95 > 3000 ? 'warn' : '') + kv('Kerzenlücken', gaps, gaps ? 'warn' : 'up') + kv('Kerzen / Trades', A.length + ' / ' + fq(D.ring.len)) + kv('Heatmap-Spalten', D.heat.length) + kv('Quelle', E(SRC[ST.src]) + ' · ' + (ST.src === 'hl' ? 'api.hyperliquid.xyz' : ST.src === 'bns' ? 'api/stream.binance.com' : 'fapi/fstream.binance.com')) + kv('Zeitstempel', 'Börse (Event-Zeit) · lokal nur Empfang') + '</div><p class="mut sm">Alle Werte stammen direkt aus öffentlichen Börsen-Schnittstellen, ohne Zwischenserver. Latenz misst Börsen-Zeitstempel bis Ankunft im Browser (inkl. Uhr-Abweichung deines Geräts).</p>');
+}
+function vMIOverview() {
+  const ctx = marketCtx(), st = structure(D.candles), b = bestNow();
+  return card('Lage · ' + ST.sym + ' · ' + E(SRC[ST.src]), ncHTML('mini', 240, specMini(70, { levels: st ? [{ p: st.rh, label: 'Spannen-Hoch (60)', col: C_.mute }, { p: st.rl, label: 'Spannen-Tief (60)', col: C_.mute }] : [] })) + '<div class="two">' + kv('Regime', E(ctx.regime || '–')) + kv('Struktur', st ? st.trend + ' · ' + Math.round(st.pos * 100) + ' %' : '–') + kv('Funding/8h', D.stats.fund8 != null ? nf(D.stats.fund8, 4) + ' %' : '–', cl(D.stats.fund8)) + kv('OI 1 h', ctx.oi1h != null ? pn(ctx.oi1h, 2) + ' %' : '–', cl(ctx.oi1h)) + kv('CVD 12', ctx.cvd12 != null ? pn(ctx.cvd12, 0) : '–', cl(ctx.cvd12)) + kv('Bid/Ask', ctx.imb != null ? nf(ctx.imb, 2) : '–') + '</div>') + card('Setup?', '<div class="best"><b>' + b.t + '</b><div>' + b.s + '</div></div>') + vWatch();
+}
+PANELS['01'] = {
+  'Market Intelligence Overview': vMIOverview, 'Multi-Asset / Watchlist Overview': () => vWatch() + vBeta(), 'Market Structure & Price Action': vStructure, 'Multi-Timeframe Context': vMTF, 'Orderflow & CVD': vOrderflow, 'Funding, Open Interest & Basis': vFunding, 'Liquidations & Liquidity Maps': vLiq, 'Orderbook / Spread / Depth': vBook, 'Volatility & Regime Detection': vVola,
+  'News & Macro Context': () => card('News & Makro', '<p class="mut">Nicht gebaut: Eine News-Quelle braucht einen Schlüssel oder Server, den diese reine Browser-App nicht hat. Es wird nichts vorgetäuscht. Was es gibt: Funding-, OI- und Basis-Ereignisse als Marktsignale (Tab „Funding“).</p>'),
+  'Cross-Asset / Beta Context': vBeta, 'Market Data Quality & Provenance': vQuality,
+};
+IMPL['01'] = ['Market Intelligence Overview', 'Multi-Asset / Watchlist Overview', 'Market Structure & Price Action', 'Multi-Timeframe Context', 'Orderflow & CVD', 'Funding, Open Interest & Basis', 'Liquidations & Liquidity Maps', 'Orderbook / Spread / Depth', 'Volatility & Regime Detection', 'Cross-Asset / Beta Context', 'Market Data Quality & Provenance'];
 
 'use strict';
 /* ===== Start ===== */
