@@ -105,6 +105,11 @@ body:not(.onTape) #tfSeg,body:not(.onTape) #modeSeg,body:not(.onTape) .pw,body:n
 .wl{display:grid;grid-template-columns:64px 1fr 86px 70px;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #0f141a;cursor:pointer}.wl.on{background:rgba(77,163,255,.06);margin:0 -10px;padding:6px 10px}.wl .wn b{font-size:12.5px}.wl .wn small,.wl .wv small{display:block;color:var(--faint);font-size:9.5px}.wl .wp{text-align:right}.wl .wp b{font:500 12px var(--mono)}.wl .wp small{display:block;font:11px var(--mono)}.wl .wv{text-align:right}.wl .wv b{font:500 11px var(--mono)}.wl .nc{margin:0;border:0;background:transparent}
 @media (max-width:420px){.wl{grid-template-columns:56px 1fr 80px}.wl .wv{display:none}}
 #nav button span{font-size:9.5px}
+/* Block 2: Ops */
+.r1{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.r1 .sp{flex:1}
+.dt{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--faint);flex:none}.dt.ok{background:var(--up);box-shadow:0 0 6px rgba(47,212,138,.5)}.dt.warn{background:var(--warn)}.dt.bad{background:var(--dn);box-shadow:0 0 6px rgba(255,90,107,.5)}.dt.mute{background:var(--faint)}
+.sw{width:40px;height:22px;border-radius:11px;border:1px solid var(--line);background:var(--pn);position:relative;cursor:pointer;padding:0;flex:none}.sw i{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--mute);transition:all .15s}.sw.on{background:rgba(47,212,138,.18);border-color:rgba(47,212,138,.5)}.sw.on i{left:20px;background:var(--up)}
+.arr{text-align:center;color:var(--faint);font-size:11px;line-height:8px;margin:2px 0}
 
 </style></head><body>
 <div id="app">
@@ -151,6 +156,12 @@ const TFS = { '1m': 60e3, '5m': 300e3, '15m': 900e3, '1h': 3600e3, '4h': 14400e3
 const ST = Object.assign({ sym: 'BTC', src: 'bnf', tf: '5m', mode: 'chart', heat: true, bubbles: true, liq: true, delta: true, cvd: true, oi: true, tickMul: 0, domGroup: 1, gain: 1, bubMul: 1, side: true }, lsGet('tp:st', {}));
 if (!lsGet('tp:st', null) && innerWidth < 900) { ST.side = false; ST.oi = false; }
 const saveST = () => lsSet('tp:st', ST);
+/* Messpunkte für Observability (Modul 13) / API-Verwaltung (Modul 16) */
+const OBS = { rest: {}, ws: {}, nT: 0, nM: 0, resync: 0, reconn: 0, errs: [], draw: [], ts: [], alerts: [], tick: 0, saveOk: 0, saveErr: 0, t0: Date.now() };
+function obsRest(h, ms, ok, st) { const r = OBS.rest[h] || (OBS.rest[h] = { n: 0, err: 0, ms: [], at: [], last: 0, lastErr: '' }); r.n++; if (!ok) { r.err++; r.lastErr = 'HTTP ' + st; } r.ms.push(ms); if (r.ms.length > 100) r.ms.shift(); const now = Date.now(); r.at.push([now, ok ? 1 : 0]); while (r.at.length && now - r.at[0][0] > 60000) r.at.shift(); r.last = now; }
+addEventListener('error', e => { OBS.errs.unshift({ t: Date.now(), m: String(e.message || e) }); if (OBS.errs.length > 50) OBS.errs.length = 50; });
+addEventListener('unhandledrejection', e => { OBS.errs.unshift({ t: Date.now(), m: 'Promise: ' + String(e.reason && e.reason.message || e.reason) }); if (OBS.errs.length > 50) OBS.errs.length = 50; });
+OBS.brk = {};
 let toastT = null;
 function toast(m, ms = 4000) { const t = $('#toast'); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, ms); }
 
@@ -203,7 +214,7 @@ function onTrade(t, p, q, s, backfill) {
   pd.usd += p * q; pd.pq += p * q; pd.q += q;
   if (D.bubbles.length > 6000) D.bubbles.splice(0, 1000);
   if (!backfill) {
-    D.last = { t, p, s }; D.lastMsg = Date.now(); const lt = D.lastMsg - t; if (lt > -5000 && lt < 60000) { (D.lat = D.lat || []).push(lt); if (D.lat.length > 300) D.lat.shift(); }
+    D.last = { t, p, s }; D.lastMsg = Date.now(); OBS.nT++; const lt = D.lastMsg - t; if (lt > -5000 && lt < 60000) { (D.lat = D.lat || []).push(lt); if (D.lat.length > 300) D.lat.shift(); }
     D.tape.push({ t, p, q, s }); if (D.tape.length > 80) D.tape.shift();
   }
 }
@@ -219,7 +230,7 @@ function onOIHist(rows) { const keep = D.oi.filter(x => !rows.length || x.t > ro
 
 /* Heatmap-Spalte aus dem aktuellen Orderbuch (1 Hz) */
 function sampleHeat() {
-  const f = D.feed; if (!f || !f.getBook) return;
+  if (NX.flags && NX.flags.heat === false) return; const f = D.feed; if (!f || !f.getBook) return;
   const bk = f.getBook(); if (!bk || !bk.bids.length || !bk.asks.length) return;
   D.book = bk; const mid = (bk.bids[0][0] + bk.asks[0][0]) / 2, hb = D.hb, m = new Map(), rng = mid * 0.012;
   const add = (arr) => { for (let i = 0; i < arr.length; i++) { const [p, q] = arr[i]; if (Math.abs(p - mid) > rng) continue; const step = bk.step;
@@ -240,7 +251,7 @@ function bubThr() {
 
 'use strict';
 /* ===== Börsen-Anbindung: direkt aus dem Browser (öffentliche Daten, keine Schlüssel) ===== */
-const jget = async (u, o) => { const r = await fetch(u, o); if (!r.ok) throw new Error(u.split('?')[0] + ' → HTTP ' + r.status); return r.json(); };
+const jget = async (u, o) => { const t0 = performance.now(), h = u.split('/')[2]; let r; if (OBS.brk && OBS.brk[h] > Date.now()) throw new Error(h + ' → Leistungsschalter offen'); try { r = await fetch(u, o); } catch (e) { obsRest(h, performance.now() - t0, false, 0); throw e; } obsRest(h, performance.now() - t0, r.ok, r.status); if (!r.ok) throw new Error(u.split('?')[0] + ' → HTTP ' + r.status); return r.json(); };
 
 /* WebSocket mit Wiederverbindung und Ausweich-Adressen */
 class WS {
@@ -251,8 +262,8 @@ class WS {
     try { ws = new WebSocket(url); } catch (e) { this.retry(); return; }
     this.ws = ws; this.onstate('verbinde');
     ws.onopen = () => { opened = true; this.n = 0; this.onstate('ok'); this.onopen && this.onopen(ws); };
-    ws.onmessage = e => { try { this.onmsg(JSON.parse(e.data)); } catch (err) { /* unbekannte Nachricht ignorieren */ } };
-    ws.onclose = () => { if (this.dead) return; this.onstate('getrennt'); if (!opened) this.ui++; this.retry(); };
+    ws.onmessage = e => { OBS.nM++; const wh = url.split('/')[2], w = OBS.ws[wh] || (OBS.ws[wh] = { n: 0, conn: 0, last: 0 }); w.n++; w.last = Date.now(); try { this.onmsg(JSON.parse(e.data)); } catch (err) { /* unbekannte Nachricht ignorieren */ } };
+    ws.onclose = () => { if (this.dead) return; OBS.reconn++; (OBS.ws[url.split('/')[2]] || (OBS.ws[url.split('/')[2]] = { n: 0, conn: 0, last: 0 })).conn++; this.onstate('getrennt'); if (!opened) this.ui++; this.retry(); };
     ws.onerror = () => { try { ws.close(); } catch (e) { /* */ } };
   }
   retry() { if (this.dead) return; this.n++; setTimeout(() => this.connect(), Math.min(10000, 500 * Math.pow(1.7, this.n))); }
@@ -328,7 +339,7 @@ class BinanceFeed {
     for (const [p, q] of ev.b) { const k = +p, v = +q; if (v === 0) this.bk.b.delete(k); else this.bk.b.set(k, v); }
     for (const [p, q] of ev.a) { const k = +p, v = +q; if (v === 0) this.bk.a.delete(k); else this.bk.a.set(k, v); }
   }
-  resync() { if (this.rs) return; this.rs = true; this.snapDone = false; setTimeout(() => { this.rs = false; this.syncBook(); }, 500); }
+  resync() { OBS.resync++; if (this.rs) return; this.rs = true; this.snapDone = false; setTimeout(() => { this.rs = false; this.syncBook(); }, 500); }
   getBook() {
     const b = [...this.bk.b], a = [...this.bk.a]; if (!b.length || !a.length) return null;
     b.sort((x, y) => y[0] - x[0]); a.sort((x, y) => x[0] - y[0]);
@@ -436,6 +447,7 @@ async function saveSnap() {
     const r = D.ring, n = Math.min(r.len, KEEP_TRADES), t = new Float64Array(n), p = new Float64Array(n), q = new Float32Array(n), s = new Int8Array(n);
     for (let i = 0; i < n; i++) { const j = rIdx(r.len - n + i); t[i] = r.t[j]; p[i] = r.p[j]; q[i] = r.q[j]; s[i] = r.s[j]; }
     const hs = D.heat.slice(-KEEP_HEAT).filter((_, i) => i % 3 === 0);
+    if (NX && NX.flags && NX.flags.persist === false) { saving = false; return; }
     await idbPut(PKEY(), { v: 1, at: Date.now(), hb: D.hb, tr: { t, p, q, s }, heat: hs, bubbles: D.bubbles.slice(-3000), liqs: D.liqs.slice(-500), oi: D.oi.slice(-800) });
   } catch (e) { /* ohne Speicher weiter */ }
   saving = false;
@@ -467,7 +479,7 @@ function initChart() {
   cv = $('#cv'); ov = $('#ov'); cx = cv.getContext('2d'); ox = ov.getContext('2d'); colors();
   new ResizeObserver(resize).observe($('#cw')); resize(); bindChart();
   setInterval(() => redraw(), 250);
-  (function loop() { requestAnimationFrame(loop); if (dirty && performance.now() - lastDraw > 30) { dirty = false; lastDraw = performance.now(); try { draw(); } catch (e) { console.error(e); } } })();
+  (function loop() { requestAnimationFrame(loop); if (dirty && performance.now() - lastDraw > 30) { dirty = false; lastDraw = performance.now(); try { draw(); } catch (e) { console.error(e); } OBS.draw.push(performance.now() - lastDraw); if (OBS.draw.length > 120) OBS.draw.shift(); } })();
 }
 function redraw(now) { dirty = true; }
 function resetView() { V.auto = true; V.follow = true; V.barW = ST.mode === 'fp' ? 92 : 9; const l = D.candles[D.candles.length - 1]; V.right = (l ? l.t : Date.now()) + D.tfMs * (ST.mode === 'fp' ? 2.5 : 8); lastCT = l ? l.t : 0; }
@@ -812,7 +824,7 @@ const NX = {
   acct: { eq0: 10000, realized: 0, fees: 0, archived: 0, since: Date.now() }, recon: null,
   cost: { feeBp: { bnf: 5, hl: 4.5, bns: 10 }, slipBp: 1 },
   risk: { riskPct: 0.5, maxPos: 3, dayLossPct: 2, maxLev: 5, maxSpreadBp: 3, staleMs: 15000, lossStreak: 3, pauseMin: 30, probe: 0.25, minN: 20 },
-  algos: {}, signals: [], decisions: [], orders: [], pos: [], closed: [], events: [], hyp: [], cfgLog: [], notes: {}, pause: { until: 0, why: '' },
+  flags: { signals: true, heat: true, persist: true, rest: true, autoTrade: true }, algos: {}, signals: [], decisions: [], orders: [], pos: [], closed: [], events: [], hyp: [], cfgLog: [], notes: {}, pause: { until: 0, why: '' },
 };
 const subs = [];
 const onNX = f => subs.push(f);
@@ -822,6 +834,7 @@ function nxChanged() { clearTimeout(nxSaveT); nxSaveT = setTimeout(nxSave, 1500)
 /* Integritäts-Kette (FNV-1a, 2×32 Bit) – zeigt Manipulation/Lücken, ist keine Kryptografie */
 function fnv(s) { let a = 0x811c9dc5, b = 0x01000193 ^ s.length; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 0x01000193) >>> 0; b = Math.imul(b ^ c, 0x85ebca6b) >>> 0; } return a.toString(16).padStart(8, '0') + b.toString(16).padStart(8, '0'); }
 function emit(type, d, trace) {
+  if (trace && trace[0] === 'D') { const dd = NX.decisions.find(x => x.id === trace); if (dd) trace = dd.sig; }
   const e = { i: NX.events.length ? NX.events[0].i + 1 : 1, t: Date.now(), type, d: d || {}, tr: trace || null, p: NX.events.length ? NX.events[0].h : '0' };
   e.h = fnv(e.p + '|' + e.i + '|' + e.t + '|' + type + '|' + JSON.stringify(e.d));
   NX.events.unshift(e); if (NX.events.length > 2500) NX.events.length = 2500;
@@ -833,8 +846,8 @@ const nid = p => p + (NX.seq++).toString(36).toUpperCase() + Math.floor(Math.ran
 
 /* ----- Speichern/Laden (IndexedDB, Schlüssel „nexus“) ----- */
 async function nxSave() {
-  try { const o = JSON.parse(JSON.stringify(NX)); o.signals = o.signals.slice(0, 600); o.decisions = o.decisions.slice(0, 400); o.orders = o.orders.slice(0, 400); o.closed = o.closed.slice(0, 500); await idbPut('nexus', o); }
-  catch (e) { /* ohne Speicher */ }
+  try { OBS.saveOk = Date.now(); const o = JSON.parse(JSON.stringify(NX)); o.signals = o.signals.slice(0, 600); o.decisions = o.decisions.slice(0, 400); o.orders = o.orders.slice(0, 400); o.closed = o.closed.slice(0, 500); await idbPut('nexus', o); }
+  catch (e) { OBS.saveErr++; }
 }
 async function nxLoad() {
   try {
@@ -953,7 +966,7 @@ function fireSignal(sig) {
   nxOnSignal(sig);
 }
 function algoTick() {
-  if (!D.last || !D.candles.length) return; const now = Date.now(), ctx = marketCtx(); if (D.lastMsg && now - D.lastMsg > 20000) return; const C = closedC(); if (C.length < 30 || ctx.atr == null) return;
+  if (NX.flags.signals === false) return; if (!D.last || !D.candles.length) return; const now = Date.now(), ctx = marketCtx(); if (D.lastMsg && now - D.lastMsg > 20000) return; const C = closedC(); if (C.length < 30 || ctx.atr == null) return;
   const run = (a, vn) => { const cfg = algoCfg(a.id); if (!cfg.on) return; const ck = a.id + '|' + vn + '|' + nxKey(); const r = a.run(C, a.params[vn], ctx); if (!r) return;
     const cd = RUN.cool[ck + '|' + r.side] || 0, wait = a.kind === 'candle' ? a.cool * D.tfMs : a.cool; if (now - cd < wait) return;
     const sig = mkSignal(a, vn, r, ctx, false); if (!sig) return; RUN.cool[ck + '|' + r.side] = now; fireSignal(sig); };
@@ -1019,7 +1032,7 @@ function riskEvaluate(it) {          // it: {sym,src,side,entry,stop,scale}
 /* ===== Entscheidungs-Engine (Modul 21 – Ausschnitt): Kontext → Gegenprüfung → Nutzen → Freigabe ===== */
 const isTraderVariant = s => s.manual || (algoCfg(s.algo).trade && algoCfg(s.algo).tv === s.variant);
 function nxOnSignal(sig) {
-  if (NX.mode === 'off' || !isTraderVariant(sig)) return; const dec = decide(sig); NX.decisions.unshift(dec); if (NX.decisions.length > 400) NX.decisions.length = 400;
+  if (NX.mode === 'off' || !isTraderVariant(sig)) return; const dec = decide(sig); if (NX.flags.autoTrade === false && dec.verdict === 'auto') { dec.verdict = 'ask'; dec.state = 'wartet'; dec.reasons.push('Flag autoTrade aus → Freigabe nötig'); } NX.decisions.unshift(dec); if (NX.decisions.length > 400) NX.decisions.length = 400;
   emit('decision.issued', { id: dec.id, verdict: dec.verdict, algo: dec.algo, side: dec.side }, sig.id);
   if (dec.verdict === 'auto') nxExecute(dec); else if (dec.verdict === 'ask') { toast('Freigabe nötig: ' + algoName(dec.algo) + ' ' + (dec.side === 'long' ? 'Long' : 'Short') + ' ' + dec.sym, 6000); }
 }
@@ -1152,7 +1165,7 @@ function nxManual(side, stop, target) {
 }
 
 /* Takt */
-function nxTick() { if (D.last) LASTPX[nxKey()] = D.last.p; algoKeyCheck(); try { miTick(); trackSignals(); algoTick(); monitorPositions(); pendingExpiry(); autoSafety(); } catch (e) { console.error(e); emit('engine.error', { m: String(e && e.message || e) }); } }
+function nxTick() { OBS.tick = Date.now(); if (D.last) LASTPX[nxKey()] = D.last.p; algoKeyCheck(); try { if (NX.flags.rest !== false) miTick(); obsSample(); trackSignals(); algoTick(); monitorPositions(); pendingExpiry(); autoSafety(); } catch (e) { console.error(e); emit('engine.error', { m: String(e && e.message || e) }); } }
 
 'use strict';
 /* ===== NEXUS: Chart-Baukasten (gleiche Sprache wie die Chart-Engine: Canvas, Mono-Achsen, Preis-Pills, Fadenkreuz) ===== */
@@ -1778,6 +1791,326 @@ PANELS['01'] = {
   'Cross-Asset / Beta Context': vBeta, 'Market Data Quality & Provenance': vQuality,
 };
 IMPL['01'] = ['Market Intelligence Overview', 'Multi-Asset / Watchlist Overview', 'Market Structure & Price Action', 'Multi-Timeframe Context', 'Orderflow & CVD', 'Funding, Open Interest & Basis', 'Liquidations & Liquidity Maps', 'Orderbook / Spread / Depth', 'Volatility & Regime Detection', 'Cross-Asset / Beta Context', 'Market Data Quality & Provenance'];
+
+'use strict';
+/* ===== NEXUS Block 2: 06 Data Intelligence · 12 Konfiguration/Policy/Flags · 13 Observability · 16 Konnektoren ===== */
+const HOSTS = {
+  'fapi.binance.com': ['Binance Perp · REST', 'Marktdaten, Funding, OI, Kerzen'], 'fstream.binance.com': ['Binance Perp · WebSocket', 'Trades, Orderbuch-Diff, Kerzen, Liquidationen'],
+  'api.binance.com': ['Binance Spot · REST', 'Marktdaten Spot'], 'stream.binance.com': ['Binance Spot · WebSocket', 'Trades, Orderbuch-Diff, Kerzen'],
+  'api.hyperliquid.xyz': ['Hyperliquid · REST + WebSocket', 'Meta, Kerzen, Funding; WS: Trades, Buch, Kerzen'],
+};
+const hostName = h => (HOSTS[h] || [h])[0];
+const pctl = (a, p) => { if (!a.length) return null; const s = a.slice().sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(s.length * p))]; };
+const getp = path => path.split('.').reduce((o, k) => o == null ? o : o[k], NX);
+const flat = (path, def) => ({ path, def });
+
+/* ----- Messung: Stichprobe pro Sekunde, Warnungen, Leistungsschalter ----- */
+const OPS = { prevT: 0, prevM: 0, rc: [], rs: 0, brkSeen: {}, inv: null, hc: {}, it: {} };
+const FLAG_INFO = {
+  signals: ['Signal-Erzeugung', 'Algorithmen im Lab erzeugen neue Signale. Aus = keine neuen Signale, laufende Auswertung bleibt.'],
+  heat: ['Heatmap-Aufzeichnung', 'Orderbuch-Spalten für die Heatmap werden aufgezeichnet. Aus = Heatmap friert ein.'],
+  persist: ['Verlauf speichern', 'Trades und Heatmap werden im Browser gesichert (für das erneute Öffnen).'],
+  rest: ['Markt-Intelligenz (REST)', 'Watchlist, Mehr-Zeitrahmen, Funding und Beta werden per REST geladen. Aus = keine zusätzlichen Anfragen.'],
+  autoTrade: ['Automatische Papier-Orders', 'Aus = auch im Modus „auto“ braucht jede Order Freigabe.'],
+};
+function obsSample() {
+  const now = Date.now(), nT = OBS.nT, nM = OBS.nM, dt = OPS.prevT ? (now - OPS.prevT) / 1000 : 1;
+  const lat = (D.lat || []).slice(-60), dr = OBS.draw.slice(-30), b = D.book, spr = b && b.bids && b.bids.length && b.asks && b.asks.length ? (b.asks[0][0] - b.bids[0][0]) / ((b.asks[0][0] + b.bids[0][0]) / 2) * 1e4 : null;
+  if (OPS.prevT) OBS.ts.push({ t: now, tps: (nT - OPS.pT) / dt, mps: (nM - OPS.pM) / dt, lat: lat.length ? pctl(lat, 0.5) : null, draw: dr.length ? dr.reduce((x, y) => x + y, 0) / dr.length : null, spr, heap: performance.memory ? performance.memory.usedJSHeapSize : null });
+  if (OBS.ts.length > 900) OBS.ts.shift(); OPS.prevT = now; OPS.pT = nT; OPS.pM = nM;
+  while (OPS.rc.length < OBS.reconn) OPS.rc.push(now); OPS.rc = OPS.rc.filter(t => now - t < 300e3);
+  const hs = restStats(), cond = {};
+  if (D.feed && D.lastMsg && now - D.lastMsg > NX.risk.staleMs) cond.stale = ['bad', 'Datenstrom veraltet (' + Math.round((now - D.lastMsg) / 1000) + ' s ohne Daten)'];
+  if (OPS.rc.length >= 3) cond.reconn = ['warn', OPS.rc.length + ' Wiederverbindungen in 5 min'];
+  const bad = hs.filter(h => h.n60 >= 5 && h.err60 / h.n60 >= 0.3)[0]; if (bad) cond.rest = ['warn', 'Fehlerquote ' + Math.round(bad.err60 / bad.n60 * 100) + ' % bei ' + hostName(bad.h)];
+  const open = Object.keys(OBS.brk || {}).filter(h => OBS.brk[h] > now)[0]; if (open) cond.brk = ['bad', 'Leistungsschalter offen: ' + hostName(open)];
+  const p95 = pctl(OBS.draw, 0.95); if (p95 > 40 && OBS.draw.length > 30) cond.draw = ['warn', 'Chart-Zeichnen langsam (p95 ' + Math.round(p95) + ' ms)'];
+  if (OBS.saveErr > 0) cond.save = ['warn', 'Speichern fehlgeschlagen (' + OBS.saveErr + '×)'];
+  const ee = NX.events.find(e => e.type === 'engine.error' && now - e.t < 300e3); if (ee) cond.engine = ['bad', 'Engine-Fehler: ' + String(ee.d.m).slice(0, 60)];
+  if (OBS.errs[0] && now - OBS.errs[0].t < 120e3) cond.js = ['warn', 'Skriptfehler: ' + OBS.errs[0].m.slice(0, 60)];
+  for (const k of Object.keys(cond)) { if (!OBS.alerts.some(a => a.k === k && !a.t1)) { OBS.alerts.unshift({ k, sev: cond[k][0], msg: cond[k][1], t0: now, t1: 0 }); emit('ops.alert', { k, msg: cond[k][1] }); } else { const a = OBS.alerts.find(x => x.k === k && !x.t1); a.msg = cond[k][1]; a.sev = cond[k][0]; } }
+  for (const a of OBS.alerts) if (!a.t1 && !cond[a.k]) { a.t1 = now; emit('ops.alert_cleared', { k: a.k }); }
+  if (OBS.alerts.length > 100) OBS.alerts.length = 100;
+}
+function restStats() { const now = Date.now(); return Object.keys(OBS.rest).map(h => { const r = OBS.rest[h], a60 = r.at.filter(x => now - x[0] < 60000), ms = r.ms; return { h, n: r.n, err: r.err, n60: a60.length, err60: a60.filter(x => !x[1]).length, p50: pctl(ms, 0.5), p95: pctl(ms, 0.95), last: r.last, lastErr: r.lastErr }; }); }
+/* Leistungsschalter: 429/418 oder ≥60 % Fehler in 60 s (ab 6 Anfragen) öffnen ihn – danach keine Anfragen an diesen Host, bis die Pause vorbei ist */
+
+const _obsRest = obsRest;
+obsRest = function (h, ms, ok, st) {
+  _obsRest(h, ms, ok, st); if (ok) return; const now = Date.now(), r = OBS.rest[h], a = r.at.filter(x => now - x[0] < 60000), e = a.filter(x => !x[1]).length;
+  if (st === 429 || st === 418 || (a.length >= 6 && e / a.length >= 0.6)) { if (!(OBS.brk[h] > now)) { OBS.brk[h] = now + (st === 429 || st === 418 ? 60e3 : 30e3); try { emit('connector.breaker_open', { host: h, status: st, errors: e, of: a.length }); } catch (x) { /* */ } } }
+};
+
+/* ----- kleine Bausteine ----- */
+const sw = (on, a) => '<button class="sw' + (on ? ' on' : '') + '" data-a="' + a + '" aria-pressed="' + on + '"><i></i></button>';
+const dot = s => '<span class="dt ' + s + '"></span>';
+const sev = s => ({ ok: 'up', warn: 'warn', bad: 'dn' })[s] || '';
+const sparkPts = (k, n) => OBS.ts.slice(-(n || 300)).filter(s => s[k] != null).map(s => [s.t, s[k]]);
+const mini = (key, k, name, fmt, col, h) => ncHTML(key, h || 120, specSeries({ pts: sparkPts(k), name, fmt, color: col || C_.acc }));
+const dur2 = ms => { const s = Math.round(ms / 1000); return s < 90 ? s + ' s' : s < 5400 ? Math.round(s / 60) + ' min' : (s / 3600).toFixed(1).replace('.', ',') + ' h'; };
+const stAge = t => t ? Date.now() - t : Infinity;
+function streams() {
+  const f = D.feed, s = (f && f.status) || {}, now = Date.now(), mk = (n, k) => ({ n, k, t: s[k] || 0, ok: s[k] && now - s[k] < 20000 });
+  return [mk('Trades', 'trades'), mk('Orderbuch', 'depth'), mk('Kerzen', 'kline'), mk('Kennzahlen (REST)', 'rest')];
+}
+function srcHosts(src) { return src === 'hl' ? ['api.hyperliquid.xyz'] : src === 'bns' ? ['api.binance.com', 'stream.binance.com'] : ['fapi.binance.com', 'fstream.binance.com']; }
+
+/* ================= 06 Data Intelligence ================= */
+function ringSpan() { const r = D.ring; return r.len ? [r.t[rIdx(0)], r.t[rIdx(r.len - 1)]] : null; }
+function vDIOverview() {
+  const sp = ringSpan(), st = streams(), A = D.candles;
+  return card('Datenlage · ' + ST.sym + ' · ' + E(SRC[ST.src]), '<div class="two">' + st.map(x => kv(x.n, x.t ? ago(x.t) : '–', x.ok ? 'up' : 'dn')).join('') +
+    kv('Trades im Speicher', fq(D.ring.len)) + kv('Zeitraum', sp ? dur2(sp[1] - sp[0]) : '–') + kv('Kerzen', A.length + ' · ' + ST.tf) + kv('Heatmap-Spalten', D.heat.length) + kv('Blasen / Liquidationen', D.bubbles.length + ' / ' + D.liqs.length) + kv('OI-Punkte', D.oi.length) + '</div>' +
+    ncHTML('tps', 130, specSeries({ pts: sparkPts('tps', 300), name: 'Trades pro Sekunde (letzte 5 min)', fmt: v => nf(v, 1), color: C_.acc }))) +
+    card('Herkunft', '<p class="mut sm">Alle Daten kommen direkt aus öffentlichen Börsen-Schnittstellen in deinem Browser, ohne Zwischenserver und ohne Schlüssel. Normalisiert wird auf: Zeit (Börsen-Zeit, ms), Preis, Menge in Basiswährung, Seite (Käufer-/Verkäufer-Aggressor). Quellen siehe Tab „Exchanges“.</p>');
+}
+function vDIExchanges() {
+  const hs = restStats(), by = h => hs.find(x => x.h === h), now = Date.now();
+  const rows = ['bnf', 'hl', 'bns'].map(s => { const hh = srcHosts(s), act = ST.src === s; return '<div class="li"><div class="r1"><b>' + E(SRC[s]) + '</b> ' + (act ? chip2('aktiv', 'up') : '') + '<span class="sp"></span>' + (act ? '' : btnA('src:' + s, 'Wechseln')) + '</div>' +
+    hh.map(h => { const r = by(h), w = OBS.ws[h]; return '<div class="kv"><span>' + E(hostName(h)) + '</span><b>' + (r ? r.n + ' Anfr. · p50 ' + (r.p50 != null ? Math.round(r.p50) : '–') + ' ms' + (r.err ? ' · <span class="dn">' + r.err + ' Fehler</span>' : '') : '') + (w ? (r ? ' · ' : '') + fq(w.n) + ' Nachr.' + (w.conn ? ' · ' + w.conn + ' Reconnect' : '') : '') + (!r && !w ? '–' : '') + '</b></div>'; }).join('') + '</div>'; }).join('');
+  return card('Börsen & Verbindungen', rows + '<p class="mut sm">Zahlen seit dem Start dieser Seite (' + dur2(now - OBS.t0) + '). Nur die aktive Quelle liefert Live-Daten; die Watchlist (Modul 01) fragt zusätzlich REST ab.</p>');
+}
+function vDIOrderflow() {
+  const A = D.candles.slice(-120), has = A.some(c => c.d != null); if (A.length < 5) return card('Orderflow', empty('Warte auf Kerzen …'));
+  let cum = 0; const dl = A.map(c => [c.t, c.d || 0]), cv = A.map(c => [c.t, cum += (c.d || 0)]), buy = A.reduce((x, c) => x + (c.d > 0 ? c.d : 0), 0), sell = A.reduce((x, c) => x + (c.d < 0 ? -c.d : 0), 0), up = A.filter(c => c.d > 0).length;
+  return card('Delta & CVD · ' + A.length + ' Kerzen ' + ST.tf, (has ? '' : '<p class="mut sm">Diese Quelle liefert kein Kerzen-Delta; Werte stammen aus den Live-Trades seit dem Start.</p>') +
+    ncHTML('od', 120, specSeries({ pts: dl, bars: true, base: 0, name: 'Delta je Kerze', fmt: v => fq(v) })) + ncHTML('ocvd', 140, specSeries({ pts: cv, name: 'CVD (kumuliert)', fmt: v => fq(v), color: C_.warn })) +
+    '<div class="two">' + kv('Kerzen mit Kauf-Delta', up + ' / ' + A.length, up > A.length / 2 ? 'up' : 'dn') + kv('Σ Kauf-/Verkauf-Delta', fq(buy) + ' / ' + fq(sell)) + kv('Netto', pn(buy - sell, 0), cl(buy - sell)) + kv('Großtrades (Ring)', largeTrades()) + '</div>');
+}
+function largeTrades() { const r = D.ring, n = Math.min(r.len, 20000); if (n < 100) return '–'; let s = 0; const q = []; for (let i = r.len - n; i < r.len; i++) q.push(r.q[rIdx(i)]); const thr = pctl(q, 0.99); for (const x of q) if (x >= thr) s++; return s + ' (≥ ' + fq(thr) + ')'; }
+function vDIHeat() {
+  const H = D.heat; if (!H.length) return card('Heatmap-Daten', empty('Noch keine Spalten – Orderbuch lädt …'));
+  const first = H[0].t, last = H[H.length - 1].t; let gaps = 0, mx = 0; for (let i = 1; i < H.length; i++) { const g = H[i].t - H[i - 1].t; if (g > 4500) { gaps++; mx = Math.max(mx, g); } }
+  const lv = H[H.length - 1].idx ? H[H.length - 1].idx.length : 0;
+  return card('Heatmap-Daten', '<div class="two">' + kv('Spalten', H.length) + kv('Zeitraum', dur2(last - first)) + kv('Letzte Spalte', ago(last), Date.now() - last < 8000 ? 'up' : 'warn') + kv('Level je Spalte', lv) + kv('Lücken (> 4,5 s)', gaps, gaps ? 'warn' : 'up') + kv('Größte Lücke', gaps ? dur2(mx) : '–') + kv('Bucket-Größe', px(D.hb)) + kv('Aufzeichnung', NX.flags.heat === false ? 'AUS (Flag)' : 'an', NX.flags.heat === false ? 'dn' : 'up') + '</div>' +
+    '<p class="mut sm">Lücken entstehen, wenn die Seite im Hintergrund pausiert oder die Verbindung abreißt; sie werden im Chart nicht überbrückt. Gespeichert wird jede 3. Spalte (max. 1 h), damit das Wiederöffnen schnell geht.</p>') + card('Liquidationen', '<div class="two">' + kv('Ereignisse im Speicher', D.liqs.length) + kv('Quelle', ST.src === 'bnf' ? 'Binance forceOrder-Strom' : 'nicht verfügbar für diese Quelle') + '</div>');
+}
+function vDIHistory() {
+  if (!OPS.inv) invLoad();
+  const sp = ringSpan(), I = OPS.inv;
+  return card('Gespeicherter Verlauf (Browser)', (I ? '<div class="tw"><table class="tbl"><tr><th>Eintrag</th><th>Alter</th><th>Trades</th><th>Heat</th></tr>' + I.rows.map(r => '<tr><td>' + E(r.k) + '</td><td>' + (r.at ? ago(r.at) : '–') + '</td><td>' + (r.tr != null ? fq(r.tr) : '–') + '</td><td>' + (r.heat != null ? r.heat : '–') + '</td></tr>').join('') + '</table></div>' + kv('Speicher belegt', I.usage != null ? nf(I.usage / 1048576, 1) + ' MB von ' + nf(I.quota / 1048576, 0) + ' MB' : '–') : empty('Lade Inventar …')) +
+    '<div class="row">' + btnA('inv', 'Aktualisieren') + '</div><p class="mut sm">Beim Öffnen werden bis zu 6 h gespeicherter Verlauf wiedergeholt. Älteres wird verworfen. Historische Kerzen (Tage/Wochen) lädt Modul 01 bei Bedarf direkt von der Börse; eine eigene Langzeit-Datenbank gibt es nicht.</p>') +
+    card('Aktueller Speicher', '<div class="two">' + kv('Trades im Ring', fq(D.ring.len)) + kv('Zeitraum', sp ? dur2(sp[1] - sp[0]) : '–') + kv('Hyperliquid-Nachladen', ST.src === 'hl' ? 'nicht verfügbar' : 'ja (Binance)', ST.src === 'hl' ? 'warn' : '') + '</div>');
+}
+async function invLoad() {
+  OPS.inv = { rows: [], usage: null, quota: null }; try {
+    const db = await idbOpen(), rows = []; await new Promise(res => { const q = db.transaction('s').objectStore('s').openCursor(); q.onsuccess = () => { const c = q.result; if (!c) return res(); const v = c.value || {}; rows.push({ k: String(c.key), at: v.at || null, tr: v.tr && v.tr.t ? v.tr.t.length : null, heat: v.heat ? v.heat.length : null }); c.continue(); }; q.onerror = () => res(); });
+    OPS.inv.rows = rows.sort((a, b) => (b.at || 0) - (a.at || 0)); if (navigator.storage && navigator.storage.estimate) { const e = await navigator.storage.estimate(); OPS.inv.usage = e.usage; OPS.inv.quota = e.quota; }
+  } catch (e) { /* kein Speicher */ } renderNx(true);
+}
+PANELS['06'] = { 'Overview': vDIOverview, 'Exchanges': vDIExchanges, 'Orderflow': vDIOrderflow, 'Heatmaps': vDIHeat, 'Data Quality': () => vQuality(), 'Historical Data': vDIHistory };
+IMPL['06'] = ['Overview', 'Exchanges', 'Orderflow', 'Heatmaps', 'Data Quality', 'Historical Data'];
+
+/* ================= 12 Konfiguration, Policy, Flags ================= */
+const CFG_DEF = JSON.parse(JSON.stringify({ cost: NX.cost, acct: { eq0: NX.acct.eq0 }, flags: NX.flags }));
+const CFG = RISK_FIELDS.map(f => ({ path: 'risk.' + f.k, l: f.l, u: f.u, min: f.min, max: f.max, step: f.step, def: RISK_DEF[f.k] })).concat([
+  { path: 'cost.feeBp.bnf', l: 'Gebühr Binance Perp', u: 'bp', min: 0, max: 30, step: 0.5, def: CFG_DEF.cost.feeBp.bnf }, { path: 'cost.feeBp.hl', l: 'Gebühr Hyperliquid', u: 'bp', min: 0, max: 30, step: 0.5, def: CFG_DEF.cost.feeBp.hl },
+  { path: 'cost.feeBp.bns', l: 'Gebühr Binance Spot', u: 'bp', min: 0, max: 30, step: 0.5, def: CFG_DEF.cost.feeBp.bns }, { path: 'cost.slipBp', l: 'Zusätzlicher Slippage-Puffer', u: 'bp', min: 0, max: 50, step: 0.5, def: CFG_DEF.cost.slipBp },
+  { path: 'acct.eq0', l: 'Papier-Startkapital', u: '$', min: 100, max: 1e7, step: 100, def: CFG_DEF.acct.eq0 }]);
+const PROFILES = {
+  Vorsichtig: { riskPct: 0.25, maxPos: 2, dayLossPct: 1, maxLev: 3, maxSpreadBp: 2, lossStreak: 2, pauseMin: 60 },
+  Standard: Object.assign({}, RISK_DEF),
+  Offensiv: { riskPct: 1, maxPos: 5, dayLossPct: 3, maxLev: 8, maxSpreadBp: 5, lossStreak: 4, pauseMin: 15 },
+};
+const profMatch = n => Object.keys(PROFILES[n]).every(k => NX.risk[k] === PROFILES[n][k]);
+const drift = () => CFG.filter(c => getp(c.path) !== c.def).map(c => ({ c, v: getp(c.path), last: NX.cfgLog.find(x => x.path === c.path) })).concat(Object.keys(FLAG_INFO).filter(k => NX.flags[k] !== CFG_DEF.flags[k]).map(k => ({ c: { path: 'flags.' + k, l: FLAG_INFO[k][0], def: CFG_DEF.flags[k] }, v: NX.flags[k], last: NX.cfgLog.find(x => x.path === 'flags.' + k) })));
+function validate() {
+  const out = []; for (const c of CFG) { const v = getp(c.path); if (typeof v !== 'number' || !isFinite(v)) out.push(['bad', c.l + ': kein gültiger Wert']); else if (v < c.min || v > c.max) out.push(['bad', c.l + ': ' + v + ' außerhalb ' + c.min + '–' + c.max]); }
+  const R = NX.risk; if (R.riskPct * R.maxPos > R.dayLossPct) out.push(['warn', 'Risiko × Positionen (' + nf(R.riskPct * R.maxPos, 2) + ' %) übersteigt das Tagesverlust-Limit (' + R.dayLossPct + ' %) – alle Stops zugleich würden das Limit reißen']);
+  if (R.staleMs < 8000) out.push(['warn', '„Daten veraltet“ unter 8 s löst bei kurzen Funkstörungen oft aus']);
+  if (R.minN < 20) out.push(['warn', 'Erwartung zählt schon ab ' + R.minN + ' Signalen – statistisch dünn (Empfehlung ≥ 20)']);
+  if (NX.cost.slipBp === 0 && NX.cost.feeBp.bnf === 0) out.push(['warn', 'Kosten stehen auf 0 – Papier-Ergebnisse werden zu gut']);
+  if (R.maxLev > 10) out.push(['warn', 'Max. Gesamt-Hebel über 10×']);
+  return out;
+}
+function policies() {
+  const P = [], now = Date.now(), ck = chainOk(), sus = []; try { for (let i = 0; i < localStorage.length; i++) if (/key|secret|token|passw/i.test(localStorage.key(i))) sus.push(localStorage.key(i)); } catch (e) { /* */ }
+  P.push(['Live-Handel gesperrt', !LIVE_TRADING, 'Konstante im Code (LIVE_TRADING = false). Nur per Code-Änderung und ausdrückliche Freigabe zu ändern.']);
+  P.push(['Risiko-Engine hat Vetorecht', typeof riskEvaluate === 'function', 'Jede Order läuft durch riskEvaluate – unabhängig von Algorithmus und Modus.']);
+  P.push(['Jede offene Position hat einen Stop', NX.pos.every(p => p.stop > 0), NX.pos.length + ' offene Positionen geprüft.']);
+  P.push(['Risiko pro Trade ≤ 2 %', NX.risk.riskPct <= 2, 'Aktuell ' + NX.risk.riskPct + ' %.']);
+  P.push(['Daten frisch', !D.feed || !D.lastMsg || now - D.lastMsg < NX.risk.staleMs, D.lastMsg ? 'Letzte Nachricht ' + ago(D.lastMsg) + '.' : 'Noch keine Nachricht.']);
+  P.push(['Audit-Kette intakt', ck.ok, ck.ok ? ck.n + ' Ereignisse lückenlos verkettet.' : 'Bruch bei Ereignis ' + ck.at]);
+  P.push(['Konto stimmt mit Trades überein', NX.recon ? NX.recon.ok : null, NX.recon ? 'Abgleich ' + ago(NX.recon.t) + '.' : 'Noch kein Abgleich gelaufen.']);
+  P.push(['Keine Zugangsdaten im Browser', !sus.length, sus.length ? 'Verdächtige Schlüssel: ' + sus.join(', ') : 'Die App nutzt nur öffentliche Endpunkte.']);
+  return P;
+}
+function vCfgOverview() {
+  const d = drift(), v = validate(), p = policies(), prof = Object.keys(PROFILES).find(profMatch), last = NX.cfgLog[0];
+  return card('Konfigurations-Lage', '<div class="two">' + kv('Parameter', CFG.length) + kv('Profil', prof ? E(prof) : 'angepasst', prof ? '' : 'warn') + kv('Abweichungen vom Standard', d.length, d.length ? 'warn' : 'up') + kv('Flags aus', Object.keys(FLAG_INFO).filter(k => NX.flags[k] === false).length) + kv('Prüfwarnungen', v.length, v.some(x => x[0] === 'bad') ? 'dn' : v.length ? 'warn' : 'up') + kv('Regeln erfüllt', p.filter(x => x[1] === true).length + ' / ' + p.length, p.some(x => x[1] === false) ? 'dn' : 'up') + kv('Letzte Änderung', last ? ago(last.t) : '–') + kv('Änderungen gesamt', NX.cfgLog.length) + '</div>') +
+    (last ? card('Letzte Änderungen', NX.cfgLog.slice(0, 4).map(c => '<div class="li"><div class="r1"><b>' + E(c.path) + '</b><span class="sp"></span><span class="mut sm">' + ago(c.t) + '</span></div><div class="mut sm">' + E(String(c.old)) + ' → <b>' + E(String(c.val)) + '</b> · ' + E(c.why) + '</div></div>').join('')) : '');
+}
+function vCfgRegistry() {
+  return card('Alle Parameter', '<div class="tw"><table class="tbl"><tr><th>Parameter</th><th>Wert</th><th>Standard</th><th></th></tr>' + CFG.map(c => { const v = getp(c.path), dr = v !== c.def; return '<tr><td>' + E(c.l) + '<div class="mut sm">' + c.path + ' · ' + c.min + '–' + c.max + ' ' + E(c.u) + '</div></td><td>' + numIn(c.path, v, c) + '</td><td class="' + (dr ? 'warn' : 'mut') + '">' + c.def + '</td><td>' + (dr ? btnA('def:' + c.path, 'Std') : '') + '</td></tr>'; }).join('') + '</table></div><p class="mut sm">Werte werden beim Verlassen des Feldes geprüft, auf den erlaubten Bereich begrenzt und im Änderungsprotokoll festgehalten.</p>');
+}
+function vCfgProfiles() {
+  return card('Profile', Object.keys(PROFILES).map(n => { const P = PROFILES[n], on = profMatch(n); return '<div class="li"><div class="r1"><b>' + n + '</b> ' + (on ? chip2('aktiv', 'up') : '') + '<span class="sp"></span>' + (on ? '' : btnA('prof:' + n, armed('prof' + n) ? 'Sicher?' : 'Anwenden', n === 'Offensiv' ? 'dnb' : '')) + '</div><div class="mut sm">' + Object.keys(P).map(k => { const f = RISK_FIELDS.find(x => x.k === k); return (f ? f.l : k) + ' ' + P[k]; }).join(' · ') + '</div></div>'; }).join('') + '<p class="mut sm">Ein Profil setzt mehrere Risiko-Grenzen auf einmal (Papier-Handel). Jede Änderung wird protokolliert und lässt sich zurücknehmen.</p>');
+}
+function vCfgPolicy() {
+  const P = policies(); return card('Regeln, die immer gelten', P.map(([n, ok, why]) => '<div class="li"><div class="r1">' + dot(ok === true ? 'ok' : ok === false ? 'bad' : 'warn') + '<b>' + E(n) + '</b><span class="sp"></span>' + chip2(ok === true ? 'erfüllt' : ok === false ? 'VERLETZT' : 'offen', ok === true ? 'up' : ok === false ? 'dn' : 'warn') + '</div><div class="mut sm">' + E(why) + '</div></div>').join('') + '<p class="mut sm">Diese Regeln werden live gegen den Zustand geprüft – sie sind keine Absichtserklärung.</p>');
+}
+function vCfgFlags() {
+  return card('Feature-Flags', Object.keys(FLAG_INFO).map(k => '<div class="li"><div class="r1"><b>' + FLAG_INFO[k][0] + '</b><span class="sp"></span>' + sw(NX.flags[k] !== false, 'flag:' + k) + '</div><div class="mut sm">' + E(FLAG_INFO[k][1]) + '</div></div>').join('') + '<p class="mut sm">Flags wirken sofort, werden gespeichert und im Änderungsprotokoll geführt. Der Kill-Switch (Portfolio & Risk) bleibt davon unberührt.</p>');
+}
+function vCfgValidation() {
+  const v = validate(); return card('Prüfung der Konfiguration', v.length ? v.map(([s, t]) => '<div class="li"><div class="r1">' + dot(s) + '<span>' + E(t) + '</span></div></div>').join('') : '<div class="best"><b class="up">Alles in Ordnung</b><div class="mut sm">' + CFG.length + ' Parameter innerhalb der Grenzen, keine widersprüchlichen Kombinationen.</div></div>');
+}
+function vCfgDrift() {
+  const d = drift(); return card('Abweichungen vom Standard', d.length ? d.map(x => '<div class="li"><div class="r1"><b>' + E(x.c.l) + '</b><span class="sp"></span>' + btnA('def:' + x.c.path, 'Zurück') + '</div><div class="mut sm">Standard ' + E(String(x.c.def)) + ' → jetzt <b class="warn">' + E(String(x.v)) + '</b>' + (x.last ? ' · ' + ago(x.last.t) + ' (' + E(x.last.why) + ')' : '') + '</div></div>').join('') + '<div class="row">' + btnA('allstd', armed('allstd') ? 'Wirklich alles zurücksetzen?' : 'Alles auf Standard', 'dnb') + '</div>' : '<div class="best"><b class="up">Keine Abweichung</b><div class="mut sm">Alle Parameter und Flags stehen auf Standard.</div></div>');
+}
+function vCfgRollback() {
+  const L = NX.cfgLog; return card('Änderungen zurücknehmen', L.length ? L.slice(0, 25).map((c, i) => '<div class="li"><div class="r1"><b>' + E(c.path) + '</b><span class="sp"></span>' + btnA('cfgundo:' + i, '↶ Zurück') + '</div><div class="mut sm">' + E(String(c.old)) + ' → ' + E(String(c.val)) + ' · ' + ago(c.t) + ' · ' + E(c.why) + '</div></div>').join('') : empty('Noch keine Änderungen.'));
+}
+function vCfgAudit() {
+  const ev = NX.events.filter(e => /^config\.|^flag\./.test(e.type)).slice(0, 30), ck = chainOk(); return card('Änderungsprotokoll', kv('Kette', ck.ok ? ck.n + ' Ereignisse intakt' : 'GEBROCHEN bei ' + ck.at, ck.ok ? 'up' : 'dn') + (ev.length ? ev.map(e => '<div class="li"><div class="r1"><b>' + E(e.type) + '</b><span class="sp"></span><span class="mut sm">' + dtm(e.t) + ' · #' + e.i + '</span></div><div class="mut sm">' + E(e.d.path ? e.d.path + ': ' + e.d.old + ' → ' + e.d.val : JSON.stringify(e.d)) + ' <span class="faint">' + e.h.slice(0, 8) + '</span></div></div>').join('') : empty('Keine Konfigurationsereignisse.')));
+}
+PANELS['12'] = { 'Configuration Overview': vCfgOverview, 'Configuration Registry': vCfgRegistry, 'Environment Profiles': vCfgProfiles, 'Policy Engine': vCfgPolicy, 'Feature Flags': vCfgFlags, 'Configuration Validation': vCfgValidation, 'Drift Detection': vCfgDrift, 'Rollback': vCfgRollback, 'Change Audit Trail': vCfgAudit };
+IMPL['12'] = ['Configuration Overview', 'Configuration Registry', 'Environment Profiles', 'Policy Engine', 'Feature Flags', 'Configuration Validation', 'Drift Detection', 'Rollback', 'Change Audit Trail'];
+
+/* ================= 13 Observability ================= */
+function services() {
+  const now = Date.now(), s = streams(), st = h => (h.t ? (h.ok ? 'ok' : (now - h.t < 60000 ? 'warn' : 'bad')) : 'bad'), R = [];
+  s.forEach(x => R.push([x.n, st(x), x.t ? ago(x.t) : 'keine Daten']));
+  R.push(['NEXUS-Engine', now - OBS.tick < 3000 ? 'ok' : 'bad', OBS.tick ? ago(OBS.tick) : '–']);
+  R.push(['Speicher (Browser)', OBS.saveErr ? 'warn' : 'ok', OBS.saveErr ? OBS.saveErr + ' Fehler' : (OBS.saveOk ? 'zuletzt ' + ago(OBS.saveOk) : 'bereit')]);
+  R.push(['Risiko-Engine', NX.kill ? 'bad' : NX.pause.until > now ? 'warn' : 'ok', NX.kill ? 'Kill-Switch aktiv' : NX.pause.until > now ? 'Pause' : 'bereit']);
+  return R;
+}
+function vObsCockpit() {
+  const sv = services(), act = OBS.alerts.filter(a => !a.t1), bad = sv.filter(x => x[1] === 'bad').length, warn = sv.filter(x => x[1] === 'warn').length, last = OBS.ts[OBS.ts.length - 1] || {};
+  return card('Systemzustand', '<div class="best"><b class="' + (bad ? 'dn' : warn || act.length ? 'warn' : 'up') + '">' + (bad ? bad + ' Dienst(e) gestört' : warn || act.length ? 'Eingeschränkt' : 'Alles läuft') + '</b><div class="mut sm">' + sv.length + ' Dienste · ' + act.length + ' aktive Warnung(en) · Laufzeit ' + dur2(Date.now() - OBS.t0) + '</div></div>' +
+    '<div class="two">' + kv('Trades/s', last.tps != null ? nf(last.tps, 1) : '–') + kv('Nachrichten/s', last.mps != null ? nf(last.mps, 0) : '–') + kv('Latenz p50', last.lat != null ? Math.round(last.lat) + ' ms' : '–') + kv('Zeichnen', last.draw != null ? nf(last.draw, 1) + ' ms' : '–') + '</div>' + mini('oc1', 'mps', 'Nachrichten pro Sekunde', v => nf(v, 0), C_.acc, 110)) +
+    (act.length ? card('Aktive Warnungen', act.map(a => '<div class="li"><div class="r1">' + dot(a.sev) + '<span>' + E(a.msg) + '</span><span class="sp"></span><span class="mut sm">' + ago(a.t0) + '</span></div></div>').join('')) : '');
+}
+function vObsMetrics() {
+  const M = [['tps', 'Trades pro Sekunde', v => nf(v, 1)], ['mps', 'Nachrichten pro Sekunde', v => nf(v, 0)], ['lat', 'Latenz Börse→App (ms)', v => Math.round(v)], ['draw', 'Chart-Zeichnen (ms)', v => nf(v, 1)], ['spr', 'Spread (bp)', v => nf(v, 2)]];
+  return M.map(([k, n, f], i) => { const a = OBS.ts.map(s => s[k]).filter(x => x != null); return card(n, '<div class="two">' + kv('Jetzt', a.length ? f(a[a.length - 1]) : '–') + kv('Ø 5 min', a.length ? f(a.reduce((x, y) => x + y, 0) / a.length) : '–') + kv('Max', a.length ? f(Math.max(...a)) : '–') + kv('p95', a.length ? f(pctl(a, 0.95)) : '–') + '</div>' + mini('om' + i, k, '', f, C_.acc, 80)); }).join('') + card('Zähler', '<div class="two">' + kv('Trades gesamt', fq(OBS.nT)) + kv('WS-Nachrichten', fq(OBS.nM)) + kv('Wiederverbindungen', OBS.reconn) + kv('Buch-Neuabgleiche', OBS.resync) + '</div>');
+}
+function vObsHealth() {
+  return card('Dienste', services().map(([n, s, t]) => '<div class="li"><div class="r1">' + dot(s) + '<b>' + E(n) + '</b><span class="sp"></span><span class="' + sev(s) + ' sm">' + E(t) + '</span></div></div>').join(''));
+}
+function vObsLogs() {
+  const f = NXV.logf || 'alle', types = ['alle', 'ops', 'signal', 'order', 'position', 'config', 'engine'], ev = NX.events.filter(e => f === 'alle' || e.type.startsWith(f)).slice(0, 60);
+  return card('Ereignisse', '<div class="seg2">' + types.map(t => '<button class="' + (f === t ? 'on' : '') + '" data-a="logf:' + t + '">' + t + '</button>').join('') + '</div>' + (ev.length ? ev.map(e => '<div class="li"><div class="r1"><b>' + E(e.type) + '</b><span class="sp"></span><span class="mut sm">' + tm(e.t) + ' · #' + e.i + '</span></div><div class="mut sm">' + E(JSON.stringify(e.d).slice(0, 140)) + '</div></div>').join('') : empty('Keine Ereignisse.'))) +
+    card('Skriptfehler (Browser)', OBS.errs.length ? OBS.errs.slice(0, 15).map(e => '<div class="li"><div class="r1"><span class="dn">' + E(e.m.slice(0, 120)) + '</span><span class="sp"></span><span class="mut sm">' + tm(e.t) + '</span></div></div>').join('') : '<span class="mut sm">Keine Fehler seit dem Start.</span>');
+}
+function vObsTrace() {
+  const E2 = NX.events, ids = []; for (const e of E2) if (e.tr && !ids.includes(e.tr)) { ids.push(e.tr); if (ids.length >= 14) break; }
+  const sel = NXV.trace && ids.includes(NXV.trace) ? NXV.trace : ids[0], evs = sel ? E2.filter(e => e.tr === sel).reverse() : [];
+  return card('Verfolgung einer Entscheidung', ids.length ? '<div class="seg2" style="flex-wrap:wrap">' + ids.map(i => '<button class="' + (i === sel ? 'on' : '') + '" data-a="trace:' + i + '">' + E(i) + '</button>').join('') + '</div>' + '<div class="tl">' + evs.map((e, k) => '<div class="li"><div class="r1"><b>' + E(e.type) + '</b><span class="sp"></span><span class="mut sm">+' + (k ? ((e.t - evs[0].t) / 1000).toFixed(1) + ' s' : '0') + '</span></div><div class="mut sm">' + E(JSON.stringify(e.d).slice(0, 120)) + '</div></div>').join('') + '</div><p class="mut sm">Jedes Signal bekommt eine Kennung; Entscheidung, Order, Position und Schließung tragen sie weiter. So lässt sich jeder Trade lückenlos zurückverfolgen.</p>' : empty('Noch keine verfolgbaren Ereignisse – sie entstehen mit Signalen und Orders.'));
+}
+function vObsDeps() {
+  const sv = services(), g = n => (sv.find(x => x[0] === n) || [0, 'bad'])[1], chain = [['Börse', srcHosts(ST.src).map(hostName).join(' + '), g('Trades')], ['Datenstrom', 'Trades · Buch · Kerzen', g('Orderbuch')], ['Speicher', 'Ring · Heatmap · Kerzen', 'ok'], ['Algorithmen', 'Signal-Erzeugung ' + (NX.flags.signals === false ? 'AUS' : 'an'), NX.flags.signals === false ? 'warn' : g('NEXUS-Engine')], ['Entscheidung', 'Regeln · Erwartung · Einwände', g('NEXUS-Engine')], ['Risiko-Engine', 'Veto', g('Risiko-Engine')], ['Order-Maschine', 'simulierte Füllung am echten Buch', g('NEXUS-Engine')], ['Journal & Konto', 'IndexedDB', g('Speicher (Browser)')]];
+  return card('Abhängigkeiten', chain.map((c, i) => (i ? '<div class="arr">↓</div>' : '') + '<div class="li"><div class="r1">' + dot(c[2]) + '<b>' + c[0] + '</b><span class="sp"></span><span class="mut sm">' + E(c[1]) + '</span></div></div>').join('') + '<p class="mut sm">Fällt ein Glied aus, sind alle darunter betroffen. Die Farben sind live.</p>');
+}
+function vObsLatErr() {
+  const hs = restStats(), lat = (D.lat || []).slice(-300);
+  return card('Latenz Trade → App', '<div class="two">' + kv('p50', lat.length ? Math.round(pctl(lat, 0.5)) + ' ms' : '–') + kv('p95', lat.length ? Math.round(pctl(lat, 0.95)) + ' ms' : '–', pctl(lat, 0.95) > 3000 ? 'warn' : '') + '</div>' + mini('ol', 'lat', 'Median-Latenz (ms)', v => Math.round(v), C_.warn, 110) + '<p class="mut sm">Enthält die Uhr-Abweichung deines Geräts.</p>') +
+    card('REST-Anfragen je Host', hs.length ? '<div class="tw"><table class="tbl"><tr><th>Host</th><th>Anfr.</th><th>Fehler</th><th>p50</th><th>p95</th></tr>' + hs.map(h => '<tr><td>' + E(h.h) + '</td><td>' + h.n + '</td><td class="' + (h.err ? 'dn' : '') + '">' + h.err + '</td><td>' + (h.p50 != null ? Math.round(h.p50) : '–') + '</td><td>' + (h.p95 != null ? Math.round(h.p95) : '–') + '</td></tr>').join('') + '</table></div>' : empty('Noch keine Anfragen.'));
+}
+function vObsRes() {
+  const hp = OBS.ts.length ? OBS.ts[OBS.ts.length - 1].heap : null, I = OPS.inv;
+  return card('Ressourcen', '<div class="two">' + kv('JS-Speicher', hp != null ? nf(hp / 1048576, 0) + ' MB' : 'nicht messbar (Browser)') + kv('Trade-Ring', fq(D.ring.len) + ' Einträge') + kv('Ereignisse', NX.events.length + ' / 2500') + kv('Signale / Orders', NX.signals.length + ' / ' + NX.orders.length) + kv('Heat-Spalten', D.heat.length) + kv('DOM-Knoten', document.getElementsByTagName('*').length) + kv('Speicher belegt', I && I.usage != null ? nf(I.usage / 1048576, 1) + ' MB' : '–') + kv('Zeichnen p95', OBS.draw.length ? nf(pctl(OBS.draw, 0.95), 1) + ' ms' : '–') + '</div>' + mini('orh', 'heap', 'JS-Speicher (Bytes)', v => nf(v / 1048576, 0) + ' MB', C_.mute, 100) + '<div class="row">' + btnA('inv', 'Speicher messen') + '</div>');
+}
+function vObsPipe() {
+  const S = NX.signals, D2 = NX.decisions, O = NX.orders, st = ['filled', 'partial'], q = [['Roh-Trades empfangen', OBS.nT], ['Kerzen', D.candles.length], ['Heatmap-Spalten', D.heat.length], ['Signale (Lab)', S.length], ['Entscheidungen', D2.length], ['  davon Papier-Order', D2.filter(d => d.verdict === 'auto' || d.state === 'freigegeben').length], ['Orders', O.length], ['  davon gefüllt', O.filter(o => st.includes(o.st)).length], ['Positionen offen / geschlossen', NX.pos.length + ' / ' + NX.closed.length]];
+  return card('Datenpfad von der Börse bis zum Journal', q.map(([n, v]) => '<div class="kv"><span>' + E(n) + '</span><b>' + (typeof v === 'number' ? fq(v) : v) + '</b></div>').join('') + '<p class="mut sm">Zahlen sinken nach rechts – jede Stufe filtert. Springt eine Stufe auf 0, ist sie das Nadelöhr.</p>');
+}
+function vObsTrading() {
+  const S = NX.signals, h = 3600e3, s1 = S.filter(s => Date.now() - s.t < h).length, O = NX.orders, rej = O.filter(o => o.st === 'rejected').length, fl = O.filter(o => o.st === 'filled'), sl = fl.map(o => o.slipBp).filter(x => x != null && isFinite(x)), p = perf(NX.closed);
+  return card('Handels-Kennzahlen', '<div class="two">' + kv('Signale letzte Stunde', s1) + kv('Entscheidungen', NX.decisions.length) + kv('Orders', O.length) + kv('Abgelehnt', rej, rej ? 'warn' : '') + kv('Ø Slippage', sl.length ? nf(mean(sl), 2) + ' bp' : '–') + kv('Geschlossen', p.n) + kv('Trefferquote', p.n ? nf(p.win * 100, 0) + ' %' : '–') + kv('Ø R', p.n ? pn(p.avgR, 2) : '–', cl(p.avgR)) + '</div>');
+}
+function vObsAlerts() {
+  const A = OBS.alerts; return card('Warnungen', A.length ? A.slice(0, 40).map(a => '<div class="li"><div class="r1">' + dot(a.t1 ? 'mute' : a.sev) + '<span>' + E(a.msg) + '</span><span class="sp"></span>' + chip2(a.t1 ? 'beendet' : 'aktiv', a.t1 ? '' : sev(a.sev)) + '</div><div class="mut sm">' + dtm(a.t0) + (a.t1 ? ' – ' + tm(a.t1) + ' (' + dur2(a.t1 - a.t0) + ')' : '') + '</div></div>').join('') : '<div class="best"><b class="up">Keine Warnungen seit dem Start</b></div>') +
+    card('Regeln', '<div class="mut sm">Datenstrom veraltet · ≥ 3 Wiederverbindungen / 5 min · REST-Fehlerquote ≥ 30 % · Leistungsschalter offen · Zeichnen p95 > 40 ms · Speicherfehler · Engine-Fehler · Skriptfehler. Gleiche Warnungen werden zusammengefasst (kein Alarm-Sturm).</div>');
+}
+function vObsAnom() {
+  const T = OBS.ts; if (T.length < 90) return card('Auffälligkeiten', empty('Sammle Basiswerte … (' + T.length + ' / 90 s)'));
+  const chk = (k, n) => { const a = T.map(s => s[k]).filter(x => x != null); if (a.length < 90) return [n, null]; const rec = a.slice(-10), base = a.slice(0, -10), m = mean(base), s = sd(base) || 1e-9, z = (mean(rec) - m) / s; return [n, z, mean(rec), m]; };
+  const R = [chk('tps', 'Trades pro Sekunde'), chk('lat', 'Latenz'), chk('spr', 'Spread'), chk('draw', 'Zeichnen')];
+  return card('Auffälligkeiten (z-Wert letzte 10 s gegen Rest)', R.map(([n, z, a, b]) => '<div class="li"><div class="r1">' + dot(z == null ? 'mute' : Math.abs(z) > 3 ? 'bad' : Math.abs(z) > 2 ? 'warn' : 'ok') + '<b>' + n + '</b><span class="sp"></span><span class="' + (z != null && Math.abs(z) > 3 ? 'dn' : '') + '">' + (z == null ? '–' : (z > 0 ? '+' : '') + nf(z, 1) + ' σ') + '</span></div>' + (z != null ? '<div class="mut sm">jetzt ' + nf(a, 2) + ' · normal ' + nf(b, 2) + '</div>' : '') + '</div>').join('') + '<p class="mut sm">Einfaches Verfahren: Abweichung des Mittelwerts der letzten 10 s vom bisherigen Mittel in Standardabweichungen. Ab 3 σ gilt es als auffällig. Es erkennt Ausreißer, keine Ursachen.</p>');
+}
+function vObsPerf() {
+  return card('Leistung', mini('opd', 'draw', 'Chart-Zeichnen (ms)', v => nf(v, 1), C_.warn, 120) + mini('opt', 'tps', 'Trades pro Sekunde', v => nf(v, 1), C_.acc, 120) + '<div class="two">' + kv('Engine-Takt', OBS.tick ? ago(OBS.tick) : '–') + kv('Zeichnen p95', OBS.draw.length ? nf(pctl(OBS.draw, 0.95), 1) + ' ms' : '–') + '</div>');
+}
+PANELS['13'] = { 'Observability Cockpit': vObsCockpit, 'Central Metrics': vObsMetrics, 'Service Health': vObsHealth, 'Logs Explorer': vObsLogs, 'Distributed Tracing': vObsTrace, 'Service Dependencies': vObsDeps, 'Latency & Errors': vObsLatErr, 'Resource Monitoring': vObsRes, 'Data Pipeline': vObsPipe, 'Trading Metrics': vObsTrading, 'Alert Intelligence': vObsAlerts, 'Anomaly Detection': vObsAnom, 'Performance Dashboards': vObsPerf };
+IMPL['13'] = Object.keys(PANELS['13']);
+
+/* ================= 16 Konnektoren ================= */
+const CONN = [
+  { id: 'bnf', n: 'Binance Perp', hosts: ['fapi.binance.com', 'fstream.binance.com'], data: 'Trades, Buch, Kerzen, Liquidationen, Funding, OI', ping: 'https://fapi.binance.com/fapi/v1/ping', test: 'https://fapi.binance.com/fapi/v1/ticker/price?symbol=BTCUSDT', chk: j => j && +j.price > 0, lim: 2400 },
+  { id: 'bns', n: 'Binance Spot', hosts: ['api.binance.com', 'stream.binance.com'], data: 'Trades, Buch, Kerzen', ping: 'https://api.binance.com/api/v3/ping', test: 'https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT', chk: j => j && +j.price > 0, lim: 6000 },
+  { id: 'hl', n: 'Hyperliquid', hosts: ['api.hyperliquid.xyz'], data: 'Trades, Buch, Kerzen, Funding, Meta', ping: null, test: 'https://api.hyperliquid.xyz/info', body: { type: 'allMids' }, chk: j => j && +j.BTC > 0, lim: 1200 },
+];
+const connState = c => { const now = Date.now(), open = c.hosts.some(h => OBS.brk[h] > now), hs = restStats().filter(x => c.hosts.includes(x.h)), ws = c.hosts.map(h => OBS.ws[h]).filter(Boolean), fresh = ws.some(w => now - w.last < 20000) || hs.some(x => now - x.last < 90000); return open ? 'bad' : ST.src === c.id ? (fresh ? 'ok' : 'bad') : (hs.length || ws.length ? 'ok' : 'mute'); };
+function vConCockpit() {
+  const st = CONN.map(c => [c, connState(c)]);
+  return card('Integrationen', st.map(([c, s]) => '<div class="li"><div class="r1">' + dot(s) + '<b>' + c.n + '</b> ' + (ST.src === c.id ? chip2('aktiv', 'up') : '') + '<span class="sp"></span><span class="mut sm">' + (s === 'mute' ? 'ungenutzt' : s === 'ok' ? 'läuft' : 'gestört') + '</span></div><div class="mut sm">' + E(c.data) + '</div></div>').join('') + '<p class="mut sm">Es gibt keinen eigenen Server und keine Weiterleitung: Der Browser spricht direkt mit den Börsen.</p>') +
+    card('Schutz', kv('Leistungsschalter offen', Object.keys(OBS.brk).filter(h => OBS.brk[h] > Date.now()).length || 'keiner') + kv('Zugangsdaten gespeichert', 'keine', 'up') + kv('Live-Orders', 'gesperrt', 'up'));
+}
+function vConRegistry() {
+  return card('Verzeichnis', '<div class="tw"><table class="tbl"><tr><th>Konnektor</th><th>Endpunkte</th><th>Zweck</th><th>Rechte</th></tr>' + CONN.map(c => '<tr><td><b>' + c.n + '</b></td><td>' + c.hosts.map(E).join('<br>') + '</td><td>' + E(c.data) + '</td><td>nur lesen</td></tr>').join('') + '</table></div>');
+}
+function vConExchange() {
+  return CONN.map(c => { const hs = restStats().filter(x => c.hosts.includes(x.h)), n = hs.reduce((x, y) => x + y.n, 0), er = hs.reduce((x, y) => x + y.err, 0), ws = c.hosts.map(h => OBS.ws[h]).filter(Boolean); return card(c.n, '<div class="two">' + kv('Status', ({ ok: 'läuft', bad: 'gestört', mute: 'ungenutzt' })[connState(c)], sev(connState(c))) + kv('REST-Anfragen', n) + kv('Fehler', er, er ? 'dn' : '') + kv('WS-Nachrichten', fq(ws.reduce((x, y) => x + y.n, 0))) + kv('Reconnects', ws.reduce((x, y) => x + y.conn, 0)) + '</div>' + (ST.src === c.id ? '' : '<div class="row">' + btnA('src:' + c.id, 'Als Quelle nutzen') + '</div>')); }).join('');
+}
+function vConProvider() {
+  const rows = [['Trades (Echtzeit)', 'WebSocket', 'Binance aggTrade · HL trades'], ['Orderbuch', 'WebSocket + Snapshot', 'Binance depth-Diff (lokal geführt) · HL l2Book'], ['Kerzen', 'REST + WebSocket', 'Binance klines · HL candleSnapshot'], ['Funding / Basis', 'REST', 'Binance premiumIndex, fundingRate · HL metaAndAssetCtxs'], ['Open Interest', 'REST', 'Binance openInterest(+Hist) · HL Asset-Kontext'], ['Liquidationen', 'WebSocket', 'Binance forceOrder (nur Perp)'], ['Watchlist / Mehr-Zeitrahmen', 'REST', 'Binance ticker/24hr, klines']];
+  return card('Welche Daten woher', '<div class="tw"><table class="tbl"><tr><th>Daten</th><th>Art</th><th>Quelle</th></tr>' + rows.map(r => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td><td>' + E(r[2]) + '</td></tr>').join('') + '</table></div><p class="mut sm">Kein Drittanbieter, kein API-Schlüssel. Nachteil: Die Börsen können Anfragen aus dem Browser drosseln; dafür gibt es den Leistungsschalter (Tab „Fallback“).</p>');
+}
+function vConCreds() {
+  const sus = []; try { for (let i = 0; i < localStorage.length; i++) if (/key|secret|token|passw/i.test(localStorage.key(i))) sus.push(localStorage.key(i)); } catch (e) { /* */ }
+  return card('Zugangsdaten & Rechte', kv('Gespeicherte Schlüssel', sus.length ? sus.length + ' (!)' : 'keine', sus.length ? 'dn' : 'up') + kv('Rechte-Stufe', 'nur öffentliche Marktdaten') + kv('Konto-/Handelsrechte', 'keine') + kv('Live-Orders', LIVE_TRADING ? 'AN' : 'gesperrt im Code', LIVE_TRADING ? 'dn' : 'up') + '<p class="mut sm">Diese App kennt keine Börsen-Schlüssel. Wenn später echtes Handeln kommt, gehören Schlüssel mit eng begrenzten Rechten (nur Handel, keine Auszahlung, IP-Bindung) auf einen eigenen abgesicherten Dienst – nicht in den Browser. Das ist Teil von Execution (Modul 25) und wird erst nach unabhängiger Validierung gebaut.</p>');
+}
+function vConRates() {
+  const now = Date.now(); return card('Anfragen pro Minute', CONN.map(c => { const n = restStats().filter(x => c.hosts.includes(x.h)).reduce((x, y) => x + y.n60, 0); return '<div class="li"><div class="r1"><b>' + c.n + '</b><span class="sp"></span><span>' + n + ' / min</span></div><div class="bar sm"><i style="width:' + Math.min(100, n / (c.lim / 5) * 100).toFixed(0) + '%"></i></div></div>'; }).join('') + '<p class="mut sm">Gezählt werden Anfragen, nicht das Gewicht der Börse (Binance: 2 400 Gewicht/min je IP; Hyperliquid: 1 200/min). Der Balken zeigt den Anteil an einem Fünftel des Limits als Vorwarnung. Bei HTTP 429/418 öffnet der Leistungsschalter sofort für 60 s.</p>');
+}
+async function hcRun(c) {
+  const t0 = performance.now(); OPS.hc[c.id] = { busy: true };
+  try { const r = await fetch(c.ping || c.test, c.ping ? undefined : { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(c.body) }), ms = performance.now() - t0; obsRest(c.hosts[0], ms, r.ok, r.status); OPS.hc[c.id] = { ok: r.ok, ms, t: Date.now(), st: r.status }; }
+  catch (e) { obsRest(c.hosts[0], performance.now() - t0, false, 0); OPS.hc[c.id] = { ok: false, ms: performance.now() - t0, t: Date.now(), err: e.message }; }
+  emit('connector.healthcheck', { id: c.id, ok: OPS.hc[c.id].ok, ms: Math.round(OPS.hc[c.id].ms) }); renderNx(true);
+}
+async function itRun(c) {
+  OPS.it[c.id] = { busy: true }; renderNx(true);
+  try { const r = await fetch(c.test, c.body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(c.body) } : undefined), j = r.ok ? await r.json() : null, ok = !!(r.ok && c.chk(j)); OPS.it[c.id] = { ok, t: Date.now(), why: ok ? 'Antwort hat erwartetes Format' : r.ok ? 'Format weicht ab' : 'HTTP ' + r.status }; }
+  catch (e) { OPS.it[c.id] = { ok: false, t: Date.now(), why: e.message }; }
+  emit('connector.test', { id: c.id, ok: OPS.it[c.id].ok }); renderNx(true);
+}
+function vConHealth() {
+  return card('Verbindungstest', CONN.map(c => { const h = OPS.hc[c.id]; return '<div class="li"><div class="r1"><b>' + c.n + '</b><span class="sp"></span>' + (h && h.busy ? '<span class="mut sm">prüfe …</span>' : btnA('hc:' + c.id, 'Testen')) + '</div>' + (h && !h.busy ? '<div class="mut sm">' + dot(h.ok ? 'ok' : 'bad') + ' ' + (h.ok ? 'erreichbar · ' + Math.round(h.ms) + ' ms' : 'nicht erreichbar · ' + E(h.err || 'HTTP ' + h.st)) + ' · ' + ago(h.t) + '</div>' : '') + '</div>'; }).join('') + '<div class="row">' + btnA('hcall', 'Alle testen') + '</div><p class="mut sm">Ein echter Aufruf vom Browser aus: zeigt auch, ob dein Netz die Börse blockiert.</p>');
+}
+function vConBreaker() {
+  const now = Date.now(), hs = Object.keys(HOSTS).filter(h => OBS.rest[h] || OBS.brk[h]);
+  return card('Leistungsschalter', (hs.length ? hs.map(h => { const o = OBS.brk[h] > now; return '<div class="li"><div class="r1">' + dot(o ? 'bad' : 'ok') + '<b>' + E(hostName(h)) + '</b><span class="sp"></span>' + (o ? chip2('OFFEN noch ' + Math.ceil((OBS.brk[h] - now) / 1000) + ' s', 'dn') : chip2('geschlossen', 'up')) + '</div></div>'; }).join('') : empty('Noch keine Anfragen.')) +
+    '<p class="mut sm">Regel: HTTP 429/418 → 60 s Pause für diesen Host. Oder ≥ 6 Anfragen in 60 s mit ≥ 60 % Fehlern → 30 s Pause. Währenddessen gehen keine weiteren Anfragen raus (schützt vor Sperren); WebSocket-Ströme laufen mit eigener Wiederverbindung weiter. Fallback-Adressen der Streams: Binance Spot hat 2, Perp je Strom 2, Hyperliquid 1.</p>' +
+    (Object.keys(OBS.brk).length ? '<div class="h4">Auslösungen</div>' + NX.events.filter(e => e.type === 'connector.breaker_open').slice(0, 8).map(e => '<div class="kv"><span>' + E(e.d.host) + '</span><b>' + dtm(e.t) + ' · ' + (e.d.status || e.d.errors + '/' + e.d.of) + '</b></div>').join('') : ''));
+}
+function vConTests() {
+  return card('Format-Tests', CONN.map(c => { const r = OPS.it[c.id]; return '<div class="li"><div class="r1"><b>' + c.n + '</b><span class="sp"></span>' + (r && r.busy ? '<span class="mut sm">läuft …</span>' : btnA('it:' + c.id, 'Test')) + '</div>' + (r && !r.busy ? '<div class="mut sm">' + dot(r.ok ? 'ok' : 'bad') + ' ' + E(r.why) + ' · ' + ago(r.t) + '</div>' : '') + '</div>'; }).join('') + '<p class="mut sm">Holt einen echten Preis und prüft, ob die Antwort noch das erwartete Format hat. Fängt Änderungen der Börsen-Schnittstelle ab, bevor sie Signale verfälschen.</p>');
+}
+function vConAudit() {
+  const ev = NX.events.filter(e => e.type.startsWith('connector.') || e.type.startsWith('ops.')).slice(0, 40); return card('Protokoll der Konnektoren', ev.length ? ev.map(e => '<div class="li"><div class="r1"><b>' + E(e.type) + '</b><span class="sp"></span><span class="mut sm">' + dtm(e.t) + '</span></div><div class="mut sm">' + E(JSON.stringify(e.d).slice(0, 120)) + '</div></div>').join('') : empty('Noch keine Ereignisse.'));
+}
+PANELS['16'] = { 'Integration Cockpit': vConCockpit, 'Connector Registry': vConRegistry, 'Exchange Connectors': vConExchange, 'Market Data Provider': vConProvider, 'Credentials & Scopes': vConCreds, 'Rate Limits': vConRates, 'Health Checks': vConHealth, 'Fallback & Circuit Breakers': vConBreaker, 'Integration Tests': vConTests, 'Audit Trail': vConAudit };
+IMPL['16'] = Object.keys(PANELS['16']);
+
+/* ----- Aktionen dieses Blocks ----- */
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-a]'); if (!t || !$('#nxView').contains(t)) return; const [a, ...r] = t.dataset.a.split(':'), arg = r.join(':');
+  const A = {
+    src: () => { if (ST.src !== arg) { ST.src = arg; saveST(); connect(); syncUI(); emit('connector.source_changed', { src: arg }); } renderNx(true); },
+    flag: () => { cfgSet('flags.' + arg, NX.flags[arg] === false, 'Flag'); renderNx(true); },
+    def: () => { const c = CFG.find(x => x.path === arg); cfgSet(arg, c ? c.def : CFG_DEF.flags[arg.replace('flags.', '')], 'Standard'); renderNx(true); },
+    prof: () => { if (arg === 'Offensiv' && !armed('prof' + arg)) return arm('prof' + arg); const P = PROFILES[arg]; for (const k of Object.keys(P)) cfgSet('risk.' + k, P[k], 'Profil ' + arg); emit('config.profile', { profile: arg }); renderNx(true); },
+    allstd: () => { if (!armed('allstd')) return arm('allstd'); for (const c of CFG) cfgSet(c.path, c.def, 'Alles Standard'); for (const k of Object.keys(CFG_DEF.flags)) cfgSet('flags.' + k, CFG_DEF.flags[k], 'Alles Standard'); renderNx(true); },
+    logf: () => { NXV.logf = arg; renderNx(true); }, trace: () => { NXV.trace = arg; renderNx(true); },
+    inv: () => { invLoad(); },
+    hc: () => { const c = CONN.find(x => x.id === arg); if (c) hcRun(c); renderNx(true); }, hcall: () => { CONN.forEach(hcRun); },
+    it: () => { const c = CONN.find(x => x.id === arg); if (c) itRun(c); },
+  };
+  if (A[a] && ['src', 'flag', 'def', 'prof', 'allstd', 'logf', 'trace', 'inv', 'hc', 'hcall', 'it'].includes(a)) { e.preventDefault(); A[a](); }
+});
 
 'use strict';
 /* ===== Start ===== */
