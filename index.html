@@ -824,7 +824,7 @@ const NX = {
   acct: { eq0: 10000, realized: 0, fees: 0, archived: 0, since: Date.now() }, recon: null,
   cost: { feeBp: { bnf: 5, hl: 4.5, bns: 10 }, slipBp: 1 },
   risk: { riskPct: 0.5, maxPos: 3, dayLossPct: 2, maxLev: 5, maxSpreadBp: 3, staleMs: 15000, lossStreak: 3, pauseMin: 30, probe: 0.25, minN: 20 },
-  flags: { signals: true, heat: true, persist: true, rest: true, autoTrade: true }, algos: {}, signals: [], decisions: [], orders: [], pos: [], closed: [], events: [], hyp: [], cfgLog: [], notes: {}, pause: { until: 0, why: '' },
+  flags: { signals: true, heat: true, persist: true, rest: true, autoTrade: true, releaseGate: false, allocWeights: false, ddControl: true }, strat: {}, rel: { minN: 20, maxDD: 8, topShare: 50, canaryScale: 0.25, canaryMin: 10, killDDc: 3, killDDp: 5, killStreak: 5 }, alloc: { method: 'gleich', maxW: 40 }, algos: {}, signals: [], decisions: [], orders: [], pos: [], closed: [], events: [], hyp: [], cfgLog: [], notes: {}, pause: { until: 0, why: '' },
 };
 const subs = [];
 const onNX = f => subs.push(f);
@@ -1044,6 +1044,7 @@ function decide(sig) {
   if (st.n >= R.minN) { dec.ev = { n: st.n, avg: st.avg, lo: st.lo }; if (st.avg <= 0 || st.lo < -0.3) { dec.reasons.push('Keine belegte Erwartung: Ø ' + nf(st.avg, 2) + ' R, konservativ ' + nf(st.lo, 2) + ' R (n=' + st.n + ')'); } else dec.scale = 1; }
   else { dec.ev = { n: st.n, avg: null, lo: null }; dec.scale = R.probe; dec.challenge.push('Statistik fehlt (n=' + st.n + ' < ' + R.minN + ') → nur Probe-Größe ' + Math.round(R.probe * 100) + ' %'); }
   chk('Erwartung', !dec.reasons.length, st.n >= R.minN ? 'Ø ' + nf(st.avg, 2) + ' R' : 'Exploration (n=' + st.n + ')');
+  if (typeof decideHooks === 'function') decideHooks(sig, dec, chk);
   /* Gegenprüfung (adversarial): was spricht gegen den Trade? */
   if ((ctx.trend === 'auf' && dir < 0) || (ctx.trend === 'ab' && dir > 0)) dec.challenge.push('Trend (' + ctx.trend + ') läuft gegen die Richtung');
   if (ctx.fund != null && ((dir > 0 && ctx.fund > 0.03) || (dir < 0 && ctx.fund < -0.03))) dec.challenge.push('Funding ' + nf(ctx.fund, 4) + ' %/8h: Seite ist überfüllt');
@@ -1165,7 +1166,7 @@ function nxManual(side, stop, target) {
 }
 
 /* Takt */
-function nxTick() { OBS.tick = Date.now(); if (D.last) LASTPX[nxKey()] = D.last.p; algoKeyCheck(); try { if (NX.flags.rest !== false) miTick(); obsSample(); trackSignals(); algoTick(); monitorPositions(); pendingExpiry(); autoSafety(); } catch (e) { console.error(e); emit('engine.error', { m: String(e && e.message || e) }); } }
+function nxTick() { OBS.tick = Date.now(); if (D.last) LASTPX[nxKey()] = D.last.p; algoKeyCheck(); try { if (NX.flags.rest !== false) miTick(); obsSample(); trackSignals(); algoTick(); monitorPositions(); pendingExpiry(); autoSafety(); if (typeof stratTick === 'function') stratTick(); } catch (e) { console.error(e); emit('engine.error', { m: String(e && e.message || e) }); } }
 
 'use strict';
 /* ===== NEXUS: Chart-Baukasten (gleiche Sprache wie die Chart-Engine: Canvas, Mono-Achsen, Preis-Pills, Fadenkreuz) ===== */
@@ -1467,7 +1468,7 @@ document.addEventListener('click', e => {
 document.addEventListener('change', e => {
   const t = e.target; if (!$('#nxView').contains(t) && t.id !== 'impf') return;
   if (t.id === 'impf') { const f = t.files[0]; if (f) f.text().then(nxImport).catch(x => toast('Einspielen fehlgeschlagen: ' + x.message, 6000)); return; }
-  if (t.dataset.cfg) { const f = RISK_FIELDS.find(x => 'risk.' + x.k === t.dataset.cfg) || (t.dataset.cfg === 'acct.eq0' ? { min: 100, max: 1e7 } : t.dataset.cfg === 'cost.slipBp' ? { min: 0, max: 50 } : t.dataset.cfg.startsWith('cost.feeBp') ? { min: 0, max: 30 } : null); let v = parseFloat(String(t.value).replace(',', '.')); if (!isFinite(v) || !f) { renderNx(true); return; } v = clamp(v, f.min, f.max); cfgSet(t.dataset.cfg, v, 'manuell'); renderNx(true); }
+  if (t.dataset.cfg) { const f = CFG.find(x => x.path === t.dataset.cfg); let v = parseFloat(String(t.value).replace(',', '.')); if (!isFinite(v) || !f) { renderNx(true); return; } v = clamp(v, f.min, f.max); cfgSet(t.dataset.cfg, v, 'manuell'); renderNx(true); }
   if (t.dataset.form) { NXV.form[t.dataset.form] = t.value; if (t.dataset.rr) renderNx(true); }
 });
 document.addEventListener('input', e => { const t = e.target; if (t.dataset && t.dataset.form) NXV.form[t.dataset.form] = t.value; });
@@ -1812,6 +1813,9 @@ const FLAG_INFO = {
   persist: ['Verlauf speichern', 'Trades und Heatmap werden im Browser gesichert (für das erneute Öffnen).'],
   rest: ['Markt-Intelligenz (REST)', 'Watchlist, Mehr-Zeitrahmen, Funding und Beta werden per REST geladen. Aus = keine zusätzlichen Anfragen.'],
   autoTrade: ['Automatische Papier-Orders', 'Aus = auch im Modus „auto“ braucht jede Order Freigabe.'],
+  releaseGate: ['Strategie-Freigabe erzwingen', 'An = nur Strategien in Canary/Produktion bekommen Papier-Orders (Canary mit reduzierter Größe). Aus = wie bisher Probe-Größe nach Statistik.'],
+  allocWeights: ['Allokationsgewichte anwenden', 'An = Ordergröße wird mit dem Gewicht der Strategie aus Portfolio → Allokation skaliert.'],
+  ddControl: ['Drawdown-Kontrolle', 'An = Ordergröße sinkt automatisch bei Rückgang vom Eigenkapital-Hoch (ab 3 % halb, ab 5 % Viertel, ab 8 % Pause).'],
 };
 function obsSample() {
   const now = Date.now(), nT = OBS.nT, nM = OBS.nM, dt = OPS.prevT ? (now - OPS.prevT) / 1000 : 1;
@@ -2110,6 +2114,271 @@ document.addEventListener('click', e => {
     it: () => { const c = CONN.find(x => x.id === arg); if (c) itRun(c); },
   };
   if (A[a] && ['src', 'flag', 'def', 'prof', 'allstd', 'logf', 'trace', 'inv', 'hc', 'hcall', 'it'].includes(a)) { e.preventDefault(); A[a](); }
+});
+
+'use strict';
+/* ===== NEXUS Block 3: 09 Strategie-Freigabe · 21 Entscheidungs-Intelligenz · 23 Portfolio & Kapital ===== */
+const VARIANTS = ['locker', 'standard', 'streng'];
+const STAGES = { forward: ['Vorwärtstest', ''], canary: ['Canary (klein)', 'warn'], prod: ['Produktion (Papier)', 'up'], stopped: ['Gestoppt', 'dn'] };
+const skey = (a, v) => a + '|' + v;
+const stratList = () => ALGOS.flatMap(a => VARIANTS.map(v => { const key = skey(a.id, v), st = algoStats(a.id, v); return { key, aid: a.id, v, name: a.name, st, vd: algoVerdict(st), s: stratOf(key) }; }));
+function stratOf(key) { return NX.strat[key] || (NX.strat[key] = { stage: 'forward', since: NX.acct.since, log: [] }); }
+function relStage(aid, v) { return stratOf(skey(aid, v)).stage; }
+function stageSet(key, to, why) { const s = stratOf(key), from = s.stage; if (from === to) return; s.stage = to; s.since = Date.now(); s.log.unshift({ t: Date.now(), from, to, why }); if (s.log.length > 30) s.log.length = 30; emit('strategy.stage', { key, from, to, why }); nxChanged(); }
+const sigDone = (aid, v) => NX.signals.filter(s => s.algo === aid && s.variant === v && s.st === 'done' && !s.manual).sort((a, b) => a.t - b.t);
+const tradesOf = (aid, v, since) => NX.closed.filter(c => c.algo === aid && c.variant === v && (!since || c.t0 >= since));
+function rDD(Rs) { let c = 0, pk = 0, dd = 0; for (const r of Rs) { c += r; pk = Math.max(pk, c); dd = Math.max(dd, pk - c); } return dd; }
+function streakL(Rs) { let k = 0; for (let i = Rs.length - 1; i >= 0 && Rs[i] <= 0; i--) k++; return k; }
+
+/* Freigabe-Tore: Vorwärtstest → Canary */
+function gatesFwd(x) {
+  const Rl = sigDone(x.aid, x.v), Rs = Rl.map(s => s.R), n = Rs.length, rel = NX.rel, pos = Rs.filter(r => r > 0).reduce((a, b) => a + b, 0), top = Rs.length ? Math.max(...Rs) : 0, span = n > 1 ? Rl[n - 1].t - Rl[0].t : 0, dd = rDD(Rs);
+  return [
+    ['Genug Signale', n >= rel.minN, n + ' von ' + rel.minN],
+    ['Vorteil belegt (untere Schranke > 0)', x.st.lo != null && x.st.lo > 0, x.st.lo != null ? nf(x.st.lo, 2) + ' R' : '–'],
+    ['Ø Ertrag nach Kosten > 0', n > 0 && x.st.avg > 0, n ? pn(x.st.avg, 2) + ' R' : '–'],
+    ['Max. Rückgang (R) ≤ ' + rel.maxDD, n > 0 && dd <= rel.maxDD, nf(dd, 1) + ' R'],
+    ['Kein Einzeltreffer > ' + rel.topShare + ' % des Gewinns', n > 0 && (pos <= 0 || top / pos * 100 <= rel.topShare), pos > 0 ? nf(top / pos * 100, 0) + ' %' : '–'],
+    ['Zeitraum ≥ 12 h (mehrere Marktphasen)', span >= 12 * 3600e3, dur2(span)],
+  ];
+}
+/* Canary → Produktion */
+function gatesCanary(x) {
+  const s = stratOf(x.key), T = tradesOf(x.aid, x.v, s.since), Rs = T.slice().reverse().map(c => c.R), n = Rs.length, avg = n ? mean(Rs) : 0, rel = NX.rel, fw = x.st.avg || 0;
+  return [
+    ['Genug echte Papier-Trades im Canary', n >= rel.canaryMin, n + ' von ' + rel.canaryMin],
+    ['Ø Ertrag im Canary > 0', n > 0 && avg > 0, n ? pn(avg, 2) + ' R' : '–'],
+    ['Nicht schlechter als Vorwärtstest − 0,3 R', n > 0 && avg >= fw - 0.3, n ? pn(avg - fw, 2) + ' R Abstand' : '–'],
+    ['Rückgang im Canary < ' + rel.killDDc + ' R', n > 0 && rDD(Rs) < rel.killDDc, nf(rDD(Rs), 1) + ' R'],
+    ['Vorwärts-Vorteil weiter belegt', x.st.lo != null && x.st.lo > 0, x.st.lo != null ? nf(x.st.lo, 2) + ' R' : '–'],
+  ];
+}
+function killCheck(x) {
+  const s = x.s, rel = NX.rel, T = tradesOf(x.aid, x.v, s.since), Rs = T.slice().reverse().map(c => c.R), why = [], lim = s.stage === 'canary' ? rel.killDDc : rel.killDDp;
+  if (rDD(Rs) >= lim) why.push('Rückgang ' + nf(rDD(Rs), 1) + ' R ≥ ' + lim + ' R'); if (streakL(Rs) >= rel.killStreak) why.push(streakL(Rs) + ' Verluste in Folge'); if (x.st.n >= 30 && x.st.hi0 < 0) why.push('Vorwärts-Statistik klar negativ (obere Schranke ' + nf(x.st.hi0, 2) + ' R)');
+  return why;
+}
+function stratTick() {
+  const eq = equity(); if (NX.acct.peakSince !== NX.acct.since || !NX.acct.peak) { NX.acct.peak = eq; NX.acct.peakSince = NX.acct.since; } if (eq > NX.acct.peak) NX.acct.peak = eq;
+  if (Date.now() - (stratTick.t || 0) < 5000) return; stratTick.t = Date.now();
+  for (const x of stratList()) if (x.s.stage === 'canary' || x.s.stage === 'prod') { const w = killCheck(x); if (w.length) { stageSet(x.key, 'stopped', 'Kill-Kriterium: ' + w.join(' · ')); toast('Strategie gestoppt: ' + x.name + ' ' + x.v, 6000); } }
+}
+const ddNow = () => NX.acct.peak ? Math.max(0, (NX.acct.peak - equity()) / NX.acct.peak * 100) : 0;
+const ddScale = () => { const d = ddNow(); return d >= 8 ? 0 : d >= 5 ? 0.25 : d >= 3 ? 0.5 : 1; };
+
+/* ----- Allokation ----- */
+function eligible() { return stratList().filter(x => x.s.stage === 'canary' || x.s.stage === 'prod'); }
+function allocWeights(method) {
+  const L = eligible(), m = method || NX.alloc.method, cap = NX.alloc.maxW / 100; if (!L.length) return {};
+  let raw = L.map(x => { const Rs = sigDone(x.aid, x.v).map(s => s.R), v = Rs.length > 2 ? sd(Rs) : 1; return m === 'gleich' ? 1 : m === 'evidenz' ? Math.max(0, x.st.lo != null ? x.st.lo : 0) + 0.02 : (1 / (v || 1)); });
+  let w = raw.map(r => r / raw.reduce((a, b) => a + b, 0));
+  for (let it = 0; it < 5; it++) { let ex = 0, free = 0; w = w.map(x => { if (x > cap) { ex += x - cap; return cap; } return x; }); free = w.filter(x => x < cap).length; if (ex > 1e-9 && free) w = w.map(x => x < cap ? x + ex / free : x); }
+  const o = {}; L.forEach((x, i) => { o[x.key] = w[i]; }); return o;
+}
+function decideHooks(sig, dec, chk) {
+  const key = skey(sig.algo, sig.variant);
+  if (NX.flags.releaseGate && !sig.manual) { const st = relStage(sig.algo, sig.variant); chk('Strategie freigegeben', st === 'canary' || st === 'prod', STAGES[st][0]); if (st === 'forward' || st === 'stopped') dec.reasons.push('Strategie nicht freigegeben (' + STAGES[st][0] + ')'); else if (st === 'canary') { dec.scale = Math.min(dec.scale, NX.rel.canaryScale); dec.challenge.push('Canary: Größe auf ' + Math.round(NX.rel.canaryScale * 100) + ' % begrenzt'); } }
+  if (NX.flags.allocWeights && !sig.manual) { const w = allocWeights(), n = Object.keys(w).length; if (w[key] != null && n > 1) { const m = Math.min(2, w[key] * n); dec.scale *= m; chk('Allokation', true, 'Gewicht ' + nf(w[key] * 100, 0) + ' % → ×' + nf(m, 2)); } }
+  if (NX.flags.ddControl !== false) { const k = ddScale(); if (k < 1) { chk('Drawdown-Kontrolle', k > 0, 'Rückgang ' + nf(ddNow(), 1) + ' % → ×' + k); if (k === 0) dec.reasons.push('Drawdown-Kontrolle: Pause ab 8 % Rückgang'); else dec.scale *= k; } }
+}
+
+/* ================= 09 Strategie-Freigabe ================= */
+const stageChip = s => chip2(STAGES[s][0], STAGES[s][1]);
+function selKey() { const L = stratList(); return NXV.skey && L.some(x => x.key === NXV.skey) ? NXV.skey : (L.find(x => x.s.stage !== 'forward') || L.slice().sort((a, b) => b.st.n - a.st.n)[0]).key; }
+function vRelCockpit() {
+  const L = stratList(), c = k => L.filter(x => x.s.stage === k).length, rd = L.filter(x => x.s.stage === 'forward' && gatesFwd(x).every(g => g[1]));
+  return card('Freigabe-Lage', '<div class="two">' + kv('Vorwärtstest', c('forward')) + kv('Canary', c('canary'), c('canary') ? 'warn' : '') + kv('Produktion (Papier)', c('prod'), c('prod') ? 'up' : '') + kv('Gestoppt', c('stopped'), c('stopped') ? 'dn' : '') + kv('Freigabe erzwungen', NX.flags.releaseGate ? 'ja' : 'nein (Flag aus)', NX.flags.releaseGate ? 'up' : 'warn') + kv('Bereit für Canary', rd.length, rd.length ? 'up' : '') + '</div>' +
+    (NX.flags.releaseGate ? '' : '<p class="mut sm">Solange das Flag „Strategie-Freigabe erzwingen“ aus ist, laufen alle Strategien wie bisher (Probe-Größe nach Statistik). Schalte es unter Konfiguration → Feature-Flags ein, damit nur freigegebene Strategien handeln.</p>')) +
+    (rd.length ? card('Bereit', rd.map(x => '<div class="li"><div class="r1"><b>' + E(x.name) + '</b> <span class="mut">' + x.v + '</span><span class="sp"></span>' + btnA('stage:' + x.key + ':canary', 'Canary starten', 'upb') + '</div></div>').join('')) : '') +
+    card('Stufen', '<div class="mut sm">1 Vorwärtstest: Signale laufen auf Live-Kursen, keine Orders (oder Probe).<br>2 Canary: echte Papier-Orders mit ' + Math.round(NX.rel.canaryScale * 100) + ' % Größe.<br>3 Produktion: volle Größe nach Risiko-Regeln.<br>Jederzeit zurück: Rollback. Kill-Kriterien stoppen automatisch.</div>');
+}
+function vRelRegistry() {
+  return card('Strategien', '<div class="tw"><table class="tbl"><tr><th>Strategie</th><th>Stufe</th><th>n</th><th>Ø R</th><th>Urteil</th><th></th></tr>' + stratList().map(x => '<tr><td><b>' + E(x.name) + '</b><div class="mut sm">' + x.v + '</div></td><td>' + stageChip(x.s.stage) + '</td><td>' + x.st.n + '</td><td class="' + cl(x.st.avg) + '">' + (x.st.n ? pn(x.st.avg, 2) : '–') + '</td><td class="' + x.vd.c + '">' + E(x.vd.t.split(' –')[0]) + '</td><td>' + btnA('rsel:' + x.key, 'Tore') + '</td></tr>').join('') + '</table></div>');
+}
+function gateRows(g) { return g.map(([n, ok, v]) => '<div class="li"><div class="r1">' + dot(ok ? 'ok' : 'bad') + '<span>' + E(n) + '</span><span class="sp"></span><b class="' + (ok ? 'up' : 'dn') + '">' + E(v) + '</b></div></div>').join(''); }
+function vRelGates() {
+  const key = selKey(), x = stratList().find(y => y.key === key), g1 = gatesFwd(x), g2 = gatesCanary(x), ok1 = g1.every(g => g[1]), ok2 = g2.every(g => g[1]), L = stratList();
+  return card('Strategie wählen', '<div class="seg2">' + L.map(y => '<button class="' + (y.key === key ? 'on' : '') + '" data-a="rsel:' + y.key + '"><b>' + E(y.name.split('-')[0]) + '</b><small>' + y.v + '</small></button>').join('') + '</div>') +
+    card(E(x.name) + ' · ' + x.v + ' ' + stageChip(x.s.stage), '<div class="h4">Tore: Vorwärtstest → Canary</div>' + gateRows(g1) + '<div class="row">' + (x.s.stage === 'forward' ? btnA('stage:' + key + ':canary', ok1 ? 'Canary starten' : 'Tore nicht erfüllt', ok1 ? 'upb' : '') : '') + '</div>' +
+      '<div class="h4">Tore: Canary → Produktion</div>' + (x.s.stage === 'canary' || x.s.stage === 'prod' ? gateRows(g2) : '<div class="mut sm">Erst nach Canary-Start auswertbar.</div>') + '<div class="row">' + (x.s.stage === 'canary' ? btnA('stage:' + key + ':prod', ok2 ? 'In Produktion nehmen' : 'Tore nicht erfüllt', ok2 ? 'upb' : '') : '') + '</div><p class="mut sm">Die Tore lassen sich nicht umgehen: Nur wenn alle erfüllt sind, wirkt der Button. Die Freigabe ist immer eine bewusste Handlung von dir.</p>');
+}
+function vRelPaper() {
+  const L = stratList().filter(x => x.s.stage === 'canary' || x.s.stage === 'prod'), Tc = NX.closed;
+  return card('Papier-Handel nach Strategie', L.length ? L.map(x => { const T = tradesOf(x.aid, x.v, x.s.since), pnl = T.reduce((a, c) => a + c.pnl, 0), open = NX.pos.filter(p => p.algo === x.aid && p.variant === x.v).length; return '<div class="li"><div class="r1"><b>' + E(x.name) + '</b> <span class="mut">' + x.v + '</span> ' + stageChip(x.s.stage) + '<span class="sp"></span><b class="' + cl(pnl) + '">' + pn(pnl, 2) + ' $</b></div><div class="mut sm">' + T.length + ' Trades seit ' + dtm(x.s.since) + ' · offen ' + open + (T.length ? ' · Ø ' + pn(mean(T.map(c => c.R)), 2) + ' R' : '') + '</div></div>'; }).join('') : empty('Keine Strategie in Canary/Produktion. Start unter „Release Gates“.')) +
+    card('Konto gesamt', '<div class="two">' + kv('Eigenkapital', '$' + nf(equity(), 2)) + kv('Papier-Trades', Tc.length) + '</div>');
+}
+function vRelCanary() {
+  const L = stratList().filter(x => x.s.stage === 'canary'); return card('Canary-Fortschritt', L.length ? L.map(x => { const g = gatesCanary(x), ok = g.filter(y => y[1]).length; return '<div class="li"><div class="r1"><b>' + E(x.name) + '</b> <span class="mut">' + x.v + '</span><span class="sp"></span><span class="mut sm">seit ' + ago(x.s.since) + '</span></div><div class="bar sm"><i style="width:' + (ok / g.length * 100).toFixed(0) + '%"></i></div><div class="mut sm">' + ok + ' von ' + g.length + ' Toren · ' + g.filter(y => !y[1]).map(y => E(y[0])).join(' · ') + '</div></div>'; }).join('') : empty('Kein Canary aktiv.')) + '<p class="mut sm">Größe im Canary: ' + Math.round(NX.rel.canaryScale * 100) + ' % (einstellbar in Konfiguration).</p>';
+}
+function vRelRollback() {
+  const L = stratList().filter(x => x.s.stage !== 'forward'); return card('Rollback', L.length ? L.map(x => '<div class="li"><div class="r1"><b>' + E(x.name) + '</b> <span class="mut">' + x.v + '</span> ' + stageChip(x.s.stage) + '<span class="sp"></span>' + btnA('stage:' + x.key + ':forward', 'Zurück zum Vorwärtstest', 'dnb') + '</div>' + (x.s.log[0] ? '<div class="mut sm">' + E(x.s.log[0].why) + ' · ' + ago(x.s.log[0].t) + '</div>' : '') + '</div>').join('') : empty('Nichts zurückzunehmen.')) + '<p class="mut sm">Ein Rollback schließt keine offenen Positionen (die laufen über ihre Stops/Ziele), verhindert aber neue Orders dieser Strategie.</p>';
+}
+function drift2(x) {
+  const Rs = sigDone(x.aid, x.v).map(s => s.R), n = Rs.length; if (n < 20) return null; const h = n >> 1, a = Rs.slice(0, h), b = Rs.slice(h), se = Math.sqrt(sd(a) ** 2 / a.length + sd(b) ** 2 / b.length) || 1e-9, d = mean(b) - mean(a), z = d / se;
+  const live = tradesOf(x.aid, x.v), lv = live.length >= 5 ? mean(live.map(c => c.R)) : null; return { d, z, a: mean(a), b: mean(b), live: lv, gap: lv != null ? lv - x.st.avg : null };
+}
+function vRelDrift() {
+  const L = stratList().map(x => [x, drift2(x)]).filter(y => y[1]);
+  return card('Leistungs-Drift (erste vs. zweite Hälfte der Signale)', L.length ? '<div class="tw"><table class="tbl"><tr><th>Strategie</th><th>früher</th><th>jetzt</th><th>z</th><th>Papier vs Signal</th></tr>' + L.map(([x, d]) => '<tr><td>' + E(x.name) + '<div class="mut sm">' + x.v + '</div></td><td>' + pn(d.a, 2) + '</td><td class="' + cl(d.b) + '">' + pn(d.b, 2) + '</td><td class="' + (d.z < -1.5 ? 'dn' : d.z > 1.5 ? 'up' : '') + '">' + pn(d.z, 1) + '</td><td>' + (d.gap != null ? pn(d.gap, 2) + ' R' : '–') + '</td></tr>').join('') + '</table></div><p class="mut sm">z &lt; −1,5: Ertrag ist zuletzt spürbar schlechter. „Papier vs Signal“ zeigt, was Ausführung (Spread, Slippage, Gebühren) kostet.</p>' : empty('Drift braucht ≥ 20 ausgewertete Signale je Strategie.'));
+}
+function vRelKill() {
+  const R = NX.rel; return card('Kill-Kriterien (automatisch)', '<div class="mut sm">Eine Strategie in Canary/Produktion wird sofort gestoppt, wenn:</div><div class="li"><div class="r1"><span>Rückgang seit Start (R)</span><span class="sp"></span><b>Canary ≥ ' + R.killDDc + ' · Produktion ≥ ' + R.killDDp + '</b></div></div><div class="li"><div class="r1"><span>Verluste in Folge</span><span class="sp"></span><b>≥ ' + R.killStreak + '</b></div></div><div class="li"><div class="r1"><span>Vorwärts-Statistik klar negativ</span><span class="sp"></span><b>obere Schranke &lt; 0 ab n=30</b></div></div><p class="mut sm">Grenzen stehen in Konfiguration → Registry (rel.*).</p>') +
+    card('Jetzt', stratList().filter(x => x.s.stage === 'canary' || x.s.stage === 'prod').map(x => { const w = killCheck(x); return '<div class="li"><div class="r1">' + dot(w.length ? 'bad' : 'ok') + '<b>' + E(x.name) + '</b> <span class="mut">' + x.v + '</span><span class="sp"></span><span class="' + (w.length ? 'dn' : 'up') + ' sm">' + (w.length ? E(w.join(' · ')) : 'in Ordnung') + '</span></div></div>'; }).join('') || empty('Keine aktive Strategie.'));
+}
+function evAudit(re, title) { const ev = NX.events.filter(e => re.test(e.type)).slice(0, 40); return card(title, ev.length ? ev.map(e => '<div class="li"><div class="r1"><b>' + E(e.type) + '</b><span class="sp"></span><span class="mut sm">' + dtm(e.t) + ' · #' + e.i + '</span></div><div class="mut sm">' + E(JSON.stringify(e.d).slice(0, 150)) + '</div></div>').join('') : empty('Noch keine Ereignisse.')); }
+PANELS['09'] = { 'Release Cockpit': vRelCockpit, 'Strategy Registry': vRelRegistry, 'Release Gates': vRelGates, 'Paper Trading': vRelPaper, 'Canary Rollout': vRelCanary, 'Rollback': vRelRollback, 'Performance Drift': vRelDrift, 'Kill Criteria': vRelKill, 'Audit Trail': () => evAudit(/^strategy\./, 'Freigabe-Protokoll') };
+IMPL['09'] = Object.keys(PANELS['09']);
+
+/* ================= 21 Entscheidungs-Intelligenz ================= */
+function candidates() {
+  const C = []; for (const d of NX.decisions.filter(d => d.state === 'wartet')) { const st = algoStats(d.algo, d.variant), ev = st.n >= NX.risk.minN ? st.avg : null; C.push({ id: d.id, kind: 'Freigabe offen', name: algoName(d.algo) + ' ' + d.variant + ' · ' + (d.side === 'long' ? 'Long' : 'Short') + ' ' + d.sym, ev, lo: st.lo, n: st.n, ch: d.challenge.length, d }); }
+  for (const s of NX.signals.filter(s => s.st === 'open' && !s.manual && Date.now() - s.t < 15 * 60e3)) { const st = algoStats(s.algo, s.variant); C.push({ id: s.id, kind: 'Offenes Signal', name: algoName(s.algo) + ' ' + s.variant + ' · ' + (s.side === 'long' ? 'Long' : 'Short') + ' ' + s.sym, ev: st.n >= NX.risk.minN ? st.avg : null, lo: st.lo, n: st.n, ch: 0 }); }
+  return C;
+}
+const euOf = c => c.ev == null ? null : c.ev - costBpOf(ST.src) / 1e4 * 100;   // grobe Kostenkorrektur in R-Einheiten (konservativ)
+function vDecCenter() {
+  const D2 = NX.decisions, rec = D2.slice(0, 50), by = k => rec.filter(d => d.verdict === k).length, wait = D2.filter(d => d.state === 'wartet').length;
+  return card('Entscheidungs-Lage', '<div class="two">' + kv('Wartet auf dich', wait, wait ? 'warn' : '') + kv('Modus', { off: 'nur Signale', ask: 'Vorschlag + Freigabe', auto: 'Papier automatisch' }[NX.mode]) + kv('Letzte 50: Papier-Order', by('auto')) + kv('Freigabe nötig', by('ask')) + kv('Übersprungen', by('skip')) + kv('Veto', by('veto'), by('veto') ? 'warn' : '') + '</div>' + (NX.kill ? '<div class="ban">Kill-Switch aktiv – keine Entscheidungen werden ausgeführt</div>' : '')) +
+    (rec.length ? card('Letzte Entscheidungen', rec.slice(0, 6).map(d => '<div class="li"><div class="l1">' + sideC(d.side) + ' <b>' + E(algoName(d.algo)) + '</b> <span class="mut">' + d.variant + ' · ' + d.sym + '</span><span class="rt ' + verdictC(d.verdict) + '">' + E(verdictT(d)) + '</span></div><div class="mut sm">' + ago(d.t) + (d.reasons[0] ? ' · ' + E(d.reasons[0]) : '') + '</div></div>').join('')) : card('Letzte Entscheidungen', empty('Noch keine Entscheidung. Sie entsteht, sobald ein Signal der Trader-Variante auftritt und der Modus nicht „nur Signale“ ist.')));
+}
+function vDecGoals() {
+  const dd = ddNow(), p = perf(NX.closed), bad = NX.closed.filter(c => c.tag).length, G = [
+    ['1 · Kapital schützen', 'Rückgang vom Hoch ' + nf(dd, 1) + ' %', dd < 3 ? 'up' : dd < 8 ? 'warn' : 'dn', 'Vorrang vor allem: Risiko-Engine, Kill-Switch, Drawdown-Kontrolle'],
+    ['2 · Evidenz vor Aktivität', 'Strategien mit Beleg: ' + stratList().filter(x => x.vd.k === 'kand').length + ' / 12', stratList().some(x => x.vd.k === 'kand') ? 'up' : 'warn', 'Ohne Beleg nur Probe-Größe; lieber nichts tun als raten'],
+    ['3 · Kosten kontrollieren', p.n ? 'Gebühren ' + nf(p.fees, 2) + ' $ von Brutto ' + nf(p.pnl + p.fees, 2) + ' $' : 'noch keine Trades', '', 'Kosten stehen in jeder Erwartung'],
+    ['4 · Lernen', bad + ' Fehler getaggt · ' + NX.hyp.length + ' Hypothesen', '', 'Fehler-Journal und Hypothesen füttern künftige Vorschläge'],
+    ['5 · Rendite', p.n ? pn(p.pnl, 2) + ' $ · ' + pn(p.avgR, 2) + ' R Ø' : '–', cl(p.pnl), 'Erst nach 1–4'],
+  ];
+  return card('Ziele in fester Rangfolge', G.map(g => '<div class="li"><div class="r1"><b>' + g[0] + '</b><span class="sp"></span><span class="' + g[2] + '">' + E(g[1]) + '</span></div><div class="mut sm">' + E(g[3]) + '</div></div>').join('') + '<p class="mut sm">Bei Zielkonflikt gewinnt immer die niedrigere Nummer. Das ist keine Einstellung, sondern die Regel, nach der Risiko-Engine und Entscheidungs-Engine gebaut sind.</p>');
+}
+function vDecSituation() {
+  const c = marketCtx(), a = NX.acct, ck = chainOk();
+  return card('Lage', '<div class="two">' + kv('Markt', ST.sym + ' ' + px(c.px)) + kv('Regime', E(c.regime || '–')) + kv('Funding/8h', c.fund != null ? nf(c.fund, 4) + ' %' : '–') + kv('OI 1 h', c.oi1h != null ? pn(c.oi1h, 2) + ' %' : '–') + kv('Spread', c.spreadBp != null ? nf(c.spreadBp, 2) + ' bp' : '–') + kv('Bid/Ask', c.imb != null ? nf(c.imb, 2) : '–') + kv('Eigenkapital', '$' + nf(equity(), 2)) + kv('Offene Positionen', NX.pos.length + ' / ' + NX.risk.maxPos) + kv('Pause', NX.pause.until > Date.now() ? 'bis ' + tm(NX.pause.until) : 'nein') + kv('Kill-Switch', NX.kill ? 'AKTIV' : 'aus', NX.kill ? 'dn' : 'up') + kv('Datenfrische', D.lastMsg ? ago(D.lastMsg) : '–') + kv('Audit-Kette', ck.ok ? 'intakt' : 'GEBROCHEN', ck.ok ? 'up' : 'dn') + '</div><p class="mut sm">Diese Lage wird bei jeder Entscheidung eingefroren und mitgespeichert.</p>');
+}
+function vDecCands() {
+  const C = candidates(); return card('Kandidaten', (C.length ? C.map(c => '<div class="li"><div class="r1"><b>' + E(c.name) + '</b><span class="sp"></span>' + chip2(c.kind, c.kind === 'Freigabe offen' ? 'warn' : '') + '</div><div class="mut sm">n=' + c.n + (c.ev != null ? ' · Ø ' + pn(c.ev, 2) + ' R' : ' · noch ohne Statistik') + '</div></div>').join('') : '') + '<div class="li"><div class="r1"><b>Nichts tun</b><span class="sp"></span>' + chip2('immer möglich') + '</div><div class="mut sm">Wird gewählt, wenn kein Kandidat eine belegte positive Erwartung nach Kosten hat.</div></div>');
+}
+function vDecEU() {
+  const C = candidates().map(c => Object.assign(c, { eu: euOf(c) })).sort((a, b) => (b.eu == null ? -9 : b.eu) - (a.eu == null ? -9 : a.eu));
+  return card('Erwartungsnutzen je Kandidat', C.length ? '<div class="tw"><table class="tbl"><tr><th>Kandidat</th><th>Ø R</th><th>konserv.</th><th>n</th></tr>' + C.map(c => '<tr><td>' + E(c.name) + '</td><td class="' + cl(c.ev) + '">' + (c.ev != null ? pn(c.ev, 2) : '–') + '</td><td class="' + cl(c.lo) + '">' + (c.lo != null ? pn(c.lo, 2) : '–') + '</td><td>' + c.n + '</td></tr>').join('') + '</table></div>' : empty('Keine Kandidaten.')) + '<p class="mut sm">Ø R = Mittel der ausgewerteten Vorwärts-Signale nach Kosten. „Konservativ“ = untere 90-%-Schranke. Entschieden wird auf Basis der konservativen Zahl; die Größe ist immer begrenzt durch das Risiko-Budget pro Trade.</p>';
+}
+function vDecUncert() {
+  const rows = stratList().filter(x => x.st.n > 0).map(x => { const w = x.st.hi0 - x.st.lo0; return [x, w]; }).sort((a, b) => b[1] - a[1]);
+  return card('Unsicherheit je Strategie', rows.length ? '<div class="tw"><table class="tbl"><tr><th>Strategie</th><th>n</th><th>Band (R)</th><th>Lesart</th></tr>' + rows.map(([x, w]) => '<tr><td>' + E(x.name) + '<div class="mut sm">' + x.v + '</div></td><td>' + x.st.n + '</td><td>' + nf(x.st.lo0, 2) + ' … ' + nf(x.st.hi0, 2) + '</td><td class="' + (x.st.lo0 > 0 ? 'up' : x.st.hi0 < 0 ? 'dn' : 'warn') + '">' + (x.st.lo0 > 0 ? 'positiv' : x.st.hi0 < 0 ? 'negativ' : 'offen') + '</td></tr>').join('') + '</table></div><p class="mut sm">Breites Band = das System weiß es nicht. Dann gilt: kleine Größe oder gar nicht handeln.</p>' : empty('Noch keine ausgewerteten Signale.'));
+}
+function vDecPolicy() { return typeof vCfgPolicy === 'function' ? vCfgPolicy() : ''; }
+function vDecChallenge() {
+  const cnt = {}; for (const d of NX.decisions) for (const c of d.challenge) { const k = c.replace(/[0-9.,%−-]+/g, '#').slice(0, 48); cnt[k] = (cnt[k] || 0) + 1; }
+  const top = Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  return card('Häufigste Gegenargumente', top.length ? top.map(([k, n]) => '<div class="kv"><span>' + E(k) + '</span><b>' + n + '×</b></div>').join('') : empty('Noch keine.')) + card('Regel', '<p class="mut sm">Jeder Vorschlag wird gegen sich selbst geprüft: Trend, Funding, Orderbuch, Kosten, Ruhe. Ab 2 Gegenargumenten entscheidet der Mensch, auch im Auto-Modus. Wer einen Trade durchwinkt, sieht die Einwände vorher.</p>');
+}
+function vDecArb() {
+  const C = candidates().map(c => Object.assign(c, { eu: euOf(c) })).filter(c => c.kind === 'Freigabe offen').sort((a, b) => (b.eu == null ? -9 : b.eu) - (a.eu == null ? -9 : a.eu));
+  return card('Rangfolge der offenen Freigaben', C.length ? C.map((c, i) => '<div class="li"><div class="r1"><b>' + (i + 1) + '. ' + E(c.name) + '</b><span class="sp"></span>' + (c.eu != null ? '<span class="' + cl(c.eu) + '">' + pn(c.eu, 2) + ' R</span>' : '<span class="mut">ohne Statistik</span>') + '</div><div class="mut sm">' + c.ch + ' Gegenargument(e)</div></div>').join('') + '<p class="mut sm">Mehr als ' + NX.risk.maxPos + ' Positionen gleichzeitig lässt die Risiko-Engine ohnehin nicht zu: Es gewinnt, wer zuerst freigegeben wird und das Veto passiert. Empfehlung: oberste zuerst.</p>' : empty('Keine offene Freigabe.'));
+}
+function vDecGates() {
+  const W = NX.decisions.filter(d => d.state === 'wartet'); return card('Wartet auf deine Freigabe', W.length ? W.map(d => '<div class="li"><div class="l1">' + sideC(d.side) + ' <b>' + E(algoName(d.algo)) + '</b> <span class="mut">' + d.variant + ' · ' + d.sym + '</span><span class="rt">' + Math.max(0, 180 - Math.round((Date.now() - d.t) / 1000)) + ' s</span></div><div class="mut sm">' + d.challenge.map(E).join(' · ') + '</div><div class="row">' + btnA('approve:' + d.id, 'Freigeben', 'upb') + btnA('reject:' + d.id, 'Ablehnen', 'dnb') + '</div></div>').join('') : empty('Nichts offen.')) +
+    card('Wann der Mensch gefragt wird', '<div class="mut sm">• Modus „Vorschlag + Freigabe“: immer<br>• Modus „auto“: bei ≥ 2 Gegenargumenten oder wenn das Flag „Automatische Papier-Orders“ aus ist<br>• Immer: Live-Handel (gesperrt), Strategie-Freigabe (Canary/Produktion), Änderung von Risiko-Grenzen<br>• Freigaben verfallen nach 3 min</div>');
+}
+function vDecAuth() {
+  const D2 = NX.decisions.filter(d => d.verdict === 'auto' || d.state === 'freigegeben').slice(0, 25);
+  return card('Wer hat was autorisiert?', D2.length ? D2.map(d => { const o = NX.orders.find(x => x.dec === d.id && x.kind === 'entry'); return '<div class="li"><div class="r1"><b>' + E(algoName(d.algo)) + '</b> <span class="mut">' + d.sym + '</span><span class="sp"></span>' + chip2(d.state === 'freigegeben' ? 'Mensch' : 'System (Papier)', d.state === 'freigegeben' ? 'warn' : '') + '</div><div class="mut sm">' + dtm(d.t) + ' → Order ' + (o ? lblS(o.st) : 'keine') + ' · Risiko-Engine ' + (d.risk && d.risk.ok ? 'bestanden' : '–') + '</div></div>'; }).join('') : empty('Noch nichts autorisiert.'));
+}
+function vDecFeedback() {
+  const rows = NX.closed.filter(c => c.dec).slice(0, 30).map(c => { const d = NX.decisions.find(x => x.id === c.dec); return [c, d]; });
+  const w = rows.filter(r => r[1] && r[1].ev && r[1].ev.avg != null);
+  return card('Vorhersage vs. Ergebnis', rows.length ? '<div class="two">' + kv('Entscheidungen mit Ausgang', rows.length) + kv('Ø erwartet', w.length ? pn(mean(w.map(r => r[1].ev.avg)), 2) + ' R' : 'n/a (Probe)') + kv('Ø realisiert', pn(mean(rows.map(r => r[0].R)), 2) + ' R', cl(mean(rows.map(r => r[0].R)))) + '</div>' + rows.slice(0, 10).map(([c, d]) => '<div class="li"><div class="r1"><b>' + E(algoName(c.algo)) + '</b> <span class="mut">' + c.sym + '</span><span class="sp"></span><span class="' + cl(c.R) + '">' + pn(c.R, 2) + ' R</span></div><div class="mut sm">erwartet ' + (d && d.ev && d.ev.avg != null ? pn(d.ev.avg, 2) + ' R' : 'Probe') + ' · ' + E(c.reason) + '</div></div>').join('') : empty('Noch keine abgeschlossenen Entscheidungen.'));
+}
+function vDecMemory() {
+  const T = NX.closed, by = {}; for (const c of T) { const r = (c.ctx && c.ctx.regime) || '–', k = c.algo + ' · ' + r; (by[k] = by[k] || []).push(c.R); }
+  const rows = Object.entries(by).filter(([, a]) => a.length >= 3).map(([k, a]) => [k, a.length, mean(a)]).sort((a, b) => b[2] - a[2]), tags = {}; for (const c of T) if (c.tag) tags[c.tag] = (tags[c.tag] || 0) + 1;
+  return card('Was wann funktioniert hat', rows.length ? rows.map(r => '<div class="kv"><span>' + E(r[0]) + ' <small class="mut">n=' + r[1] + '</small></span><b class="' + cl(r[2]) + '">' + pn(r[2], 2) + ' R</b></div>').join('') : empty('Gedächtnis füllt sich ab 3 Trades je Algorithmus und Regime.')) + card('Fehler-Tags', Object.keys(tags).length ? Object.entries(tags).map(([k, n]) => '<div class="kv"><span>' + E(k) + '</span><b>' + n + '×</b></div>').join('') : '<span class="mut sm">Keine getaggt.</span>') + card('Hypothesen', NX.hyp.length ? NX.hyp.slice(0, 5).map(h => '<div class="li"><div class="r1"><span>' + E(h.text) + '</span><span class="sp"></span>' + chip2(h.st) + '</div></div>').join('') : '<span class="mut sm">Keine.</span>');
+}
+function vDecStop() {
+  const now = Date.now(), dl = (() => { const t0 = dayStart(), pnl = NX.closed.filter(c => c.t1 >= t0).reduce((a, c) => a + c.pnl, 0); return pnl / NX.acct.eq0 * 100; })(), S = [
+    ['Kill-Switch', NX.kill, NX.kill ? NX.killWhy : 'aus'], ['Pause nach Verlustserie', NX.pause.until > now, NX.pause.until > now ? NX.pause.why : 'keine'], ['Tagesverlust-Limit', dl <= -NX.risk.dayLossPct, nf(dl, 2) + ' % von −' + NX.risk.dayLossPct + ' %'],
+    ['Drawdown-Kontrolle', ddScale() === 0, 'Rückgang ' + nf(ddNow(), 1) + ' % (Pause ab 8 %)'], ['Daten veraltet', !!D.lastMsg && now - D.lastMsg > NX.risk.staleMs, D.lastMsg ? ago(D.lastMsg) : '–'], ['Audit-Kette gebrochen', !chainOk().ok, chainOk().ok ? 'intakt' : 'gebrochen']];
+  return card('Bedingungen, die Autonomie anhalten', S.map(([n, on, t]) => '<div class="li"><div class="r1">' + dot(on ? 'bad' : 'ok') + '<b>' + n + '</b><span class="sp"></span><span class="' + (on ? 'dn' : 'mut') + ' sm">' + E(t) + '</span></div></div>').join('') + '<p class="mut sm">Jede dieser Bedingungen blockiert neue Orders sofort; offene Positionen laufen über ihre Stops weiter (außer „Alles schließen“).</p>');
+}
+PANELS['21'] = { 'Decision Command Center': vDecCenter, 'Goal & Priority Hierarchy': vDecGoals, 'Situation / Context Assembly': vDecSituation, 'Candidate Action Registry': vDecCands, 'Expected Utility & Trade-offs': vDecEU, 'Uncertainty Assessment': vDecUncert, 'Policy & Permission Checks': vDecPolicy, 'Adversarial Challenge': vDecChallenge, 'Decision Arbitration': vDecArb, 'Human / System Approval Gates': vDecGates, 'Execution Authorization': vDecAuth, 'Feedback & Outcome Evaluation': vDecFeedback, 'Strategic Memory': vDecMemory, 'Stop Conditions': vDecStop, 'Decision Audit Trail': () => evAudit(/^decision\.|^order\./, 'Entscheidungs-Protokoll') };
+IMPL['21'] = Object.keys(PANELS['21']);
+
+/* ================= 23 Portfolio & Kapital ================= */
+const METHODS = { gleich: 'Gleich', evidenz: 'Nach Evidenz', vola: 'Inverse Streuung' };
+function curW() { const t = NX.pos.reduce((a, p) => a + p.riskUsd, 0), o = {}; for (const p of NX.pos) { const k = skey(p.algo, p.variant); o[k] = (o[k] || 0) + (t ? p.riskUsd / t : 0); } return o; }
+function vPfCenter() {
+  const eq = equity(), ex = exposure(), W = allocWeights();
+  return card('Portfolio', '<div class="two">' + kv('Eigenkapital', '$' + nf(eq, 2)) + kv('Exposure brutto', '$' + fusd(ex) + ' · ' + nf(ex / eq, 2) + '×') + kv('Positionen', NX.pos.length) + kv('Rückgang vom Hoch', nf(ddNow(), 1) + ' %', ddNow() > 3 ? 'warn' : '') + kv('Aktive Strategien', Object.keys(W).length) + kv('Größen-Faktor (Drawdown)', '×' + ddScale(), ddScale() < 1 ? 'warn' : '') + '</div>' + ncHTML('pfeq', 140, specEquity(NX.closed))) +
+    (Object.keys(W).length ? '' : card('Hinweis', '<p class="mut sm">Es gibt noch keine Strategie in Canary/Produktion (Modul 09). Allokation und Konstruktion arbeiten nur mit freigegebenen Strategien; bis dahin zeigen die Ansichten die Regeln und den Ist-Zustand.</p>'));
+}
+function methodSeg() { return '<div class="seg2">' + Object.keys(METHODS).map(m => '<button class="' + (NX.alloc.method === m ? 'on' : '') + '" data-a="almeth:' + m + '"><b>' + METHODS[m] + '</b></button>').join('') + '</div>'; }
+function vPfAlloc() {
+  const L = eligible(), W = allocWeights(), cw = curW();
+  return card('Gewichte', methodSeg() + (L.length ? L.map(x => '<div class="li"><div class="r1"><b>' + E(x.name) + '</b> <span class="mut">' + x.v + '</span><span class="sp"></span><b>' + nf(W[x.key] * 100, 0) + ' %</b></div><div class="bar sm"><i style="width:' + (W[x.key] * 100).toFixed(0) + '%"></i></div><div class="mut sm">Ist (Risiko offen): ' + nf((cw[x.key] || 0) * 100, 0) + ' %</div></div>').join('') + '<p class="mut sm">Obergrenze je Strategie: ' + NX.alloc.maxW + ' %. Wirkung auf Ordergrößen nur, wenn das Flag „Allokationsgewichte anwenden“ an ist (Konfiguration → Feature-Flags). Gleich = jede gleich; Evidenz = nach unterer Schranke; Streuung = ruhigere Strategien mehr.</p>' : empty('Keine freigegebene Strategie.')));
+}
+function vPfBudget() {
+  const eq = equity(), W = allocWeights(), tot = eq * NX.risk.riskPct / 100 * NX.risk.maxPos, open = NX.pos.reduce((a, p) => a + p.riskUsd, 0);
+  return card('Risiko-Budget', '<div class="two">' + kv('Risiko pro Trade', '$' + nf(eq * NX.risk.riskPct / 100, 2)) + kv('Max. gleichzeitig', '$' + nf(tot, 2)) + kv('Aktuell offen', '$' + nf(open, 2), open > tot ? 'dn' : '') + kv('Tagesverlust-Limit', '$' + nf(NX.acct.eq0 * NX.risk.dayLossPct / 100, 2)) + '</div><div class="bar"><i style="width:' + Math.min(100, tot ? open / tot * 100 : 0).toFixed(0) + '%"></i></div>' + Object.keys(W).map(k => { const x = stratList().find(y => y.key === k); return '<div class="kv"><span>' + E(x.name) + ' ' + x.v + '</span><b>$' + nf(tot * W[k], 2) + '</b></div>'; }).join(''));
+}
+function vPfRisk() {
+  const eq = equity(), by = {}, bs = {}; for (const p of NX.pos) { by[p.sym] = (by[p.sym] || 0) + p.riskUsd; const k = skey(p.algo, p.variant); bs[k] = (bs[k] || 0) + p.riskUsd; }
+  const row = (n, v) => '<div class="kv"><span>' + E(n) + '</span><b>$' + nf(v, 2) + ' · ' + nf(v / eq * 100, 2) + ' %</b></div>';
+  return card('Offenes Risiko', NX.pos.length ? '<div class="h4">Nach Asset</div>' + Object.entries(by).map(([k, v]) => row(k, v)).join('') + '<div class="h4">Nach Strategie</div>' + Object.entries(bs).map(([k, v]) => row(k.replace('|', ' '), v)).join('') + kv('Summe', '$' + nf(NX.pos.reduce((a, p) => a + p.riskUsd, 0), 2) + ' von max $' + nf(eq * NX.risk.riskPct / 100 * NX.risk.maxPos, 2)) : empty('Keine offene Position – kein Risiko gebunden.'));
+}
+function vPfConstruct() {
+  const L = eligible(), W = allocWeights(); return card('Soll-Portfolio', L.length ? '<div class="tw"><table class="tbl"><tr><th>Strategie</th><th>Gew.</th><th>Stufe</th><th>Ø R</th></tr>' + L.map(x => '<tr><td>' + E(x.name) + '<div class="mut sm">' + x.v + '</div></td><td>' + nf(W[x.key] * 100, 0) + ' %</td><td>' + stageChip(x.s.stage) + '</td><td class="' + cl(x.st.avg) + '">' + pn(x.st.avg, 2) + '</td></tr>').join('') + '</table></div>' : empty('Noch keine Strategie freigegeben – es gibt nichts zu kombinieren.')) + '<p class="mut sm">Zulassung: nur Canary/Produktion. Konstruktion = Gewichte (Tab Allokation) + Grenzen (Tab Governance).</p>';
+}
+function corrMat() {
+  const L = ALGOS.map(a => ({ a, v: algoCfg(a.id).tv })), B = 3600e3, ser = L.map(x => { const m = new Map(); for (const s of sigDone(x.a.id, x.v)) { const b = Math.floor(s.t / B); m.set(b, (m.get(b) || 0) + s.R); } return m; });
+  return L.map((x, i) => L.map((y, j) => { if (i === j) return { c: 1, n: ser[i].size }; const ks = [...ser[i].keys()].filter(k => ser[j].has(k)); if (ks.length < 5) return { c: null, n: ks.length }; const a = ks.map(k => ser[i].get(k)), b = ks.map(k => ser[j].get(k)), ma = mean(a), mb = mean(b), cov = mean(a.map((v, k) => (v - ma) * (b[k] - mb))), d = sd(a) * sd(b); return { c: d ? cov / d : null, n: ks.length }; }));
+}
+function vPfCorr() {
+  const L = ALGOS, M = corrMat(), cc = c => c == null ? '–' : nf(c, 2);
+  return card('Korrelation der Strategien (Stunden-Ergebnis, Trader-Variante)', '<div class="tw"><table class="tbl"><tr><th></th>' + L.map(a => '<th>' + a.id + '</th>').join('') + '</tr>' + M.map((r, i) => '<tr><td><b>' + L[i].id + '</b></td>' + r.map(c => '<td class="' + (c.c != null && i !== M.indexOf(r) ? '' : '') + (c.c != null && Math.abs(c.c) > 0.6 && c.c !== 1 ? 'warn' : '') + '">' + cc(c.c) + '<div class="mut sm">' + c.n + '</div></td>').join('') + '</tr>').join('') + '</table></div><p class="mut sm">Zahl darunter = gemeinsame Stunden. „–“ = weniger als 5 gemeinsame Stunden, zu wenig für eine Aussage. Hohe Korrelation heißt: Zwei Strategien sind in Wahrheit eine.</p>') + (typeof vBeta === 'function' ? vBeta() : '');
+}
+function vPfDiv() {
+  const W = allocWeights(), ws = Object.values(W), neff = ws.length ? 1 / ws.reduce((a, w) => a + w * w, 0) : 0, M = corrMat(), cs = []; M.forEach((r, i) => r.forEach((c, j) => { if (j > i && c.c != null) cs.push(c.c); }));
+  return card('Diversifikation', '<div class="two">' + kv('Strategien aktiv', ws.length) + kv('Effektive Anzahl (1/Σw²)', ws.length ? nf(neff, 2) : '–') + kv('Ø Korrelation', cs.length ? nf(mean(cs), 2) : 'unbekannt (zu wenig Daten)') + kv('Assets gehandelt', new Set(NX.closed.map(c => c.sym).concat(NX.pos.map(p => p.sym))).size) + '</div><p class="mut sm">Effektive Anzahl nahe 1 = alles hängt an einer Wette. Ziel: mehrere unabhängige Strategien und Assets – das System skaliert erst dann sinnvoll auf mehrere Märkte.</p>');
+}
+function vPfExposure() {
+  const eq = equity(), by = {}, side = { long: 0, short: 0 }; for (const p of NX.pos) { const n = p.qty * (pxOf(p.sym, p.src) || p.entry); by[p.sym] = (by[p.sym] || 0) + n * (p.side === 'long' ? 1 : -1); side[p.side] += n; }
+  return card('Exposure', NX.pos.length ? '<div class="two">' + kv('Long', '$' + fusd(side.long), 'up') + kv('Short', '$' + fusd(side.short), 'dn') + kv('Netto', '$' + fusd(side.long - side.short)) + kv('Brutto-Hebel', nf((side.long + side.short) / eq, 2) + '× von max ' + NX.risk.maxLev + '×') + '</div>' + Object.entries(by).map(([s, n]) => '<div class="kv"><span>' + s + '</span><b class="' + cl(n) + '">$' + fusd(n) + '</b></div>').join('') : empty('Keine offenen Positionen.'));
+}
+function vPfRebal() {
+  const W = allocWeights(), cw = curW(), keys = Object.keys(W); if (!keys.length) return card('Rebalancing', empty('Keine freigegebene Strategie.'));
+  const rows = keys.map(k => { const x = stratList().find(y => y.key === k), d = (cw[k] || 0) - W[k]; return [x, W[k], cw[k] || 0, d]; });
+  return card('Soll vs. Ist (Risiko-Anteil)', rows.map(([x, w, c, d]) => '<div class="li"><div class="r1"><b>' + E(x.name) + '</b> <span class="mut">' + x.v + '</span><span class="sp"></span><span class="' + (Math.abs(d) > 0.25 ? 'warn' : '') + '">Soll ' + nf(w * 100, 0) + ' % · Ist ' + nf(c * 100, 0) + ' %</span></div></div>').join('') + '<p class="mut sm">Abweichungen entstehen nur durch Signal-Zufall. Rebalancing heißt hier: Neue Orders werden nach den Soll-Gewichten skaliert (Flag „Allokationsgewichte anwenden“) – bestehende Positionen werden nicht angefasst.</p>');
+}
+function vPfOpt() {
+  const L = eligible().length ? eligible() : stratList().filter(x => x.st.n >= 10); if (!L.length) return card('Optimierung', empty('Braucht Strategien mit ≥ 10 ausgewerteten Signalen.'));
+  return card('Kelly-Schätzung je Strategie (Heuristik)', '<div class="tw"><table class="tbl"><tr><th>Strategie</th><th>Ø R</th><th>σ R</th><th>½-Kelly (konserv.)</th></tr>' + L.map(x => { const Rs = sigDone(x.aid, x.v).map(s => s.R), s = sd(Rs) || 1, f = Math.max(0, x.st.lo0) / (s * s) / 2; return '<tr><td>' + E(x.name) + '<div class="mut sm">' + x.v + '</div></td><td>' + pn(x.st.avg, 2) + '</td><td>' + nf(s, 2) + '</td><td>' + nf(f * 100, 1) + ' % Risiko</td></tr>'; }).join('') + '</table></div><p class="mut sm">Rechnet Ø R aus der unteren Schranke durch die Streuung (halbes Kelly). Das ist eine Obergrenze zum Vergleich, keine Empfehlung: Dein Risiko pro Trade (' + NX.risk.riskPct + ' %) liegt davon meist weit entfernt – gut so.</p>');
+}
+function vPfCap() {
+  const bs = bookStats(0.0025), eq = equity(); return card('Liquidität & Kapazität · ' + ST.sym, bs ? '<div class="two">' + kv('Tiefe ±0,25 % Bid', '$' + fusd(bs.b)) + kv('Tiefe ±0,25 % Ask', '$' + fusd(bs.a)) + kv('Spread', nf(bs.spreadBp, 2) + ' bp') + kv('Max. Order bei 10 % der Tiefe', '$' + fusd(Math.min(bs.a, bs.b) * 0.1)) + kv('Deine typische Order', '$' + fusd(eq * NX.risk.riskPct / 100 / 0.005)) + '</div><p class="mut sm">Faustregel: Eine Order über 10 % der sichtbaren Tiefe bewegt den Preis spürbar. Papier-Fills laufen durch das echte Buch, Slippage ist also eingerechnet.</p>' : empty('Orderbuch lädt …'));
+}
+function vPfDD() {
+  const d = ddNow(), k = ddScale(); return card('Drawdown-Kontrolle', '<div class="two">' + kv('Eigenkapital-Hoch', '$' + nf(NX.acct.peak || equity(), 2)) + kv('Jetzt', '$' + nf(equity(), 2)) + kv('Rückgang', nf(d, 2) + ' %', d >= 3 ? 'warn' : '') + kv('Größen-Faktor', '×' + k, k < 1 ? 'warn' : 'up') + kv('Kontrolle', NX.flags.ddControl === false ? 'AUS (Flag)' : 'an', NX.flags.ddControl === false ? 'dn' : 'up') + '</div><div class="h4">Stufen</div>' + [['< 3 %', 'volle Größe', d < 3], ['3 – 5 %', 'halbe Größe', d >= 3 && d < 5], ['5 – 8 %', 'Viertel-Größe', d >= 5 && d < 8], ['≥ 8 %', 'Pause (keine neuen Orders)', d >= 8]].map(r => '<div class="li"><div class="r1">' + dot(r[2] ? (d < 3 ? 'ok' : 'warn') : 'mute') + '<span>' + r[0] + '</span><span class="sp"></span><b>' + r[1] + '</b></div></div>').join('') + ncHTML('pfdd', 120, specSeries({ pts: ddHist(), name: 'Rückgang in %', fmt: v => nf(v, 1) + ' %', color: C_.dn })));
+}
+function ddHist() { const chron = NX.closed.slice().reverse(); let eq = NX.acct.eq0, pk = eq; const o = [[NX.acct.since, 0]]; for (const c of chron) { eq += c.pnl; pk = Math.max(pk, eq); o.push([c.t1, (pk - eq) / pk * 100]); } o.push([Date.now(), ddNow()]); return o; }
+function vPfStress() {
+  const eq = equity(), open = NX.pos.reduce((a, p) => a + p.riskUsd, 0), ex = exposure(), S = [['Alle Stops gleichzeitig (mit Slippage ×3)', -open * (1 + NX.cost.slipBp * 3 / 1e4 * 100)], ['Gap −5 % gegen alle Positionen', -ex * 0.05], ['Gap −10 % gegen alle Positionen', -ex * 0.1], ['Korrelation 1: alle Strategien verlieren gleichzeitig ' + NX.risk.maxPos + '×R', -eq * NX.risk.riskPct / 100 * NX.risk.maxPos]];
+  return card('Szenarien auf das jetzige Portfolio', S.map(([n, v]) => '<div class="li"><div class="r1"><span>' + E(n) + '</span><span class="sp"></span><b class="dn">' + pn(v, 2) + ' $ · ' + nf(v / eq * 100, 2) + ' %</b></div></div>').join('') + '<p class="mut sm">Gerechnet auf Eigenkapital $' + nf(eq, 2) + '. Bei Gaps greift der Stop nicht zum Stop-Preis – deshalb zeigt die Gap-Zeile den echten Rahmen.</p>');
+}
+function vPfGov() {
+  return card('Regeln der Allokation', '<div class="li"><div class="r1"><span>Max. Gewicht je Strategie</span><span class="sp"></span><b>' + NX.alloc.maxW + ' %</b></div></div><div class="li"><div class="r1"><span>Zulassung</span><span class="sp"></span><b>nur Canary / Produktion</b></div></div><div class="li"><div class="r1"><span>Methode</span><span class="sp"></span><b>' + METHODS[NX.alloc.method] + '</b></div></div><div class="li"><div class="r1"><span>Gewichte wirken auf Orders</span><span class="sp"></span><b class="' + (NX.flags.allocWeights ? 'up' : 'warn') + '">' + (NX.flags.allocWeights ? 'ja' : 'nein (Flag aus)') + '</b></div></div><div class="row"><label class="mut sm">Max. Gewicht % </label><input type="number" inputmode="decimal" data-cfg="alloc.maxW" value="' + NX.alloc.maxW + '" min="20" max="100" step="5"></div><p class="mut sm">Änderungen von Methode und Obergrenze werden protokolliert (Tab Audit Trail). Freigabe neuer Strategien bleibt bei dir (Modul 09).</p>');
+}
+PANELS['23'] = { 'Portfolio Command Center': vPfCenter, 'Strategy Allocation': vPfAlloc, 'Capital Budgeting': vPfBudget, 'Portfolio Construction': vPfConstruct, 'Correlation Intelligence': vPfCorr, 'Diversification Engine': vPfDiv, 'Risk Budgeting': vPfRisk, 'Exposure Management': vPfExposure, 'Dynamic Rebalancing': vPfRebal, 'Portfolio Optimization': vPfOpt, 'Liquidity & Capacity Analysis': vPfCap, 'Drawdown Control': vPfDD, 'Portfolio Stress Testing': vPfStress, 'Allocation Governance': vPfGov, 'Portfolio Audit Trail': () => evAudit(/^alloc\.|^config\.|^strategy\./, 'Portfolio-Protokoll') };
+IMPL['23'] = Object.keys(PANELS['23']);
+CFG.push({ path: 'alloc.maxW', l: 'Max. Gewicht je Strategie', u: '%', min: 20, max: 100, step: 5, def: 40 }, { path: 'rel.minN', l: 'Freigabe: min. Signale', u: '', min: 10, max: 200, step: 5, def: 20 }, { path: 'rel.maxDD', l: 'Freigabe: max. R-Rückgang', u: 'R', min: 2, max: 30, step: 1, def: 8 }, { path: 'rel.canaryScale', l: 'Canary-Größe', u: '× Risiko', min: 0.05, max: 1, step: 0.05, def: 0.25 }, { path: 'rel.canaryMin', l: 'Canary: min. Trades', u: '', min: 3, max: 100, step: 1, def: 10 }, { path: 'rel.killDDc', l: 'Kill: Rückgang Canary', u: 'R', min: 1, max: 20, step: 0.5, def: 3 }, { path: 'rel.killDDp', l: 'Kill: Rückgang Produktion', u: 'R', min: 1, max: 30, step: 0.5, def: 5 }, { path: 'rel.killStreak', l: 'Kill: Verluste in Folge', u: '', min: 3, max: 20, step: 1, def: 5 });
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-a]'); if (!t || !$('#nxView').contains(t)) return; const [a, ...r] = t.dataset.a.split(':'), arg = r.join(':');
+  const A = {
+    rsel: () => { NXV.skey = arg; NXV.tab['09'] = 2; if (NXV.cur !== '09') go('09'); else renderNx(true); },
+    stage: () => { const [key, to] = [arg.split(':').slice(0, 1)[0], arg.split(':')[1]], x = stratList().find(y => y.key === key); if (!x) return; const full = key.includes(':') ? 0 : 1; if (to === 'canary' && x.s.stage === 'forward') { if (!gatesFwd(x).every(g => g[1])) return toast('Tore nicht erfüllt', 3000); stageSet(key, 'canary', 'Tore erfüllt, von dir freigegeben'); } else if (to === 'prod' && x.s.stage === 'canary') { if (!gatesCanary(x).every(g => g[1])) return toast('Tore nicht erfüllt', 3000); stageSet(key, 'prod', 'Canary-Tore erfüllt, von dir freigegeben'); } else if (to === 'forward') stageSet(key, 'forward', 'Rollback durch dich'); renderNx(true); },
+    almeth: () => { cfgSet('alloc.method', arg, 'Allokation'); renderNx(true); },
+  };
+  if (A[a] && ['rsel', 'stage', 'almeth'].includes(a)) { e.preventDefault(); A[a](); }
 });
 
 'use strict';
