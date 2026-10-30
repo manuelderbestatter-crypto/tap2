@@ -94,3 +94,8 @@ Freie, öffentliche Quellen (Binance Spot/Perp, Fear & Greed, Coin Metrics, Defi
 - **Offen**: Orderbuch-Heatmap-Aufnahme, Footprint je Preisstufe, Deribit-GEX, Rückfüllung (data.binance.vision), ETF-Flüsse (Schlüssel nötig), Vorhersage-Liquidations-Heatmap (Modell).
 - **Historie (`server/hist.js`)**: freie Binance-Archive (data.binance.vision) – 36 Monate Stundenkerzen Spot+Perp mit Taker-Volumen, Funding, 400 Tage Open Interest; einmalig, danach täglich 04:00 UTC; Platte `DATA/hist`. `/api/hist`. Der Evidenz-Check nutzt damit Jahre statt Wochen (Fluss, Basis, Positionierung, Funding, Absorption).
 - **Optionen-Gamma (GEX)**: Server holt Deribit-Optionsdaten (frei), rechnet Black-Scholes-Gamma × Open Interest (Calls +, Puts −; Annahme ungeprüft), liefert Gesamt-Gamma, Wechsel-Niveau, Call-/Put-Wand (`/api/hub?id=gex_btc|gex_eth`, 10 min Cache). Nur BTC/ETH, nur Kontext (keine Historie → kein Evidenz-Check).
+
+## Oberfläche v1.0 (30.10.2026): vier Bereiche
+- Leiste: **Chart · Lage · Trader · Labor · Menü**. Lage = eine Seite (Überschrift-Satz, gemessene Kacheln mit Evidenz-Chip, Setup-Status je Stufe, Freigaben, Belegt). Trader = Modul 03 ohne doppelte Trade-Frage. Labor = Evidenz, Setups im Test, Algorithmen, Quellen. Menü → Farbe + „System · 31 Module“ (alle Module erreichbar).
+- Ein Ort pro Frage: Lagebild nur in „Lage“ (aus Command Center und Daten-Hub entfernt). Kein Darstellungs-Umschalter mehr (Pro/Klassisch); Versionen laufen intern über Git-Tags (`v0.9-vor-neuem-layout` = Stand davor).
+- Code: `views.js` (VIEWS/AREAS, viewRender), `nx_setup.js` (lageHeadline, lageSetupRows, lageBest), `pro.js` (Leiste, Drawer), `pro.css` (.lgHead/.tiles/.lgList).

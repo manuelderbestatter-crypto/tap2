@@ -188,6 +188,21 @@ body.pro .tb.on{color:var(--acc);border-color:var(--accln);background:var(--accb
 body.pro .btn.upb:hover{border-color:var(--accln)}
 @media (min-width:900px){.psb{align-items:center}.psh{border-radius:18px;border-bottom:1px solid var(--line);max-height:80vh}.psh.full{height:80vh}.psb.left{align-items:stretch}.psh.drawer{border-radius:0 18px 18px 0}}
 @media (max-width:400px){.ppill{padding:0 9px;gap:3px}.ppill i,.ppill small{display:none}.pbtn{width:32px}.ptr1{gap:3px;padding:6px 6px 4px}.ptr1 .pend{padding:0 2px}.ppill b{font-size:12.5px}}
+/* Lage */
+.lgHead{background:var(--pn);border:1px solid var(--line);border-radius:12px;padding:12px 14px 13px;margin-bottom:12px;border-left:3px solid var(--acc)}
+.lgHead.up{border-left-color:var(--up)}.lgHead.dn{border-left-color:var(--dn)}.lgHead.warn{border-left-color:var(--warn)}
+.lgTop{display:flex;gap:10px;font:500 11px var(--mono);color:var(--mute);flex-wrap:wrap}.lgTop span+span::before{content:'·';margin-right:10px;color:var(--faint)}
+.lgHead h1{margin:6px 0 3px;font-size:19px;line-height:1.2;font-weight:600;letter-spacing:-.01em}.lgHead p{margin:0;color:var(--mute);font-size:12.5px;line-height:1.4}
+.lgSec{display:flex;align-items:baseline;gap:8px;font-size:10px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);margin:14px 2px 6px}.lgSec span{font-weight:500;letter-spacing:0;text-transform:none;color:var(--faint);margin-left:auto;font-size:10.5px}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.tile{background:var(--pn);border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-width:0;display:flex;flex-direction:column;gap:3px}
+.tile small{font-size:10px;color:var(--faint);letter-spacing:.02em}.tile b{font-size:12.5px;font-weight:600;line-height:1.25;overflow-wrap:anywhere}.tile .c2{align-self:flex-start;margin-top:2px}
+.lgList{background:var(--pn);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.lgRow{display:flex;gap:10px;padding:9px 11px;border-bottom:1px solid var(--line);align-items:flex-start}.lgRow:last-child{border-bottom:0}
+.lgL{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.lgL b{font-size:13px;font-weight:600}.lgL small,.lgR small{color:var(--faint);font-size:10.5px;line-height:1.3}
+.lgR{flex:1.2;min-width:0;display:flex;flex-direction:column;gap:2px;font-size:11.5px;text-align:right;align-items:flex-end}.lgR span{color:var(--mute)}
+.lgFoot{margin:12px 2px 0}
+@media (min-width:700px){.tiles{grid-template-columns:repeat(4,1fr)}}
 
 </style></head><body>
 <div id="app">
@@ -1684,7 +1699,7 @@ PANELS['02'] = {
 
 /* ===================== 03 · Autonomous Trader ===================== */
 PANELS['03'] = {
-  'Cockpit': () => PAPER + pBest() + pApprovals() + card('Live-Chart · Setups, Positionen, Signale', ncHTML('mini', 260, specMini(70))) + card('Steuerung', modeSwitch() + killBox()) + card('Eigener Setup (läuft durch dieselbe Prüfung)', '<p class="mut sm">' + ST.sym + ' @ ' + px(D.last ? D.last.p : null) + ' · leer lassen = Stop 1 ATR, Ziel 1,5 R.</p><div class="row"><label class="fl"><span>Stop</span><input type="text" inputmode="decimal" data-form="stop" value="' + E(NXV.form.stop) + '"></label><label class="fl"><span>Ziel</span><input type="text" inputmode="decimal" data-form="target" value="' + E(NXV.form.target) + '"></label></div><div class="row">' + btnA('manual:long', 'Long prüfen', 'upb') + btnA('manual:short', 'Short prüfen', 'dnb') + '</div>') + card('Auslastung', usageMeters()) + pPositions() + card('Konto', '<div class="two">' + kv('Equity', nf(equity(), 2) + ' $') + kv('Realisiert', pn(NX.acct.realized, 2) + ' $', cl(NX.acct.realized)) + kv('Gebühren', nf(NX.acct.fees, 2) + ' $') + kv('Tag', pn(dayPnl(), 2) + ' $', cl(dayPnl())) + '</div>'),
+  'Cockpit': () => PAPER + pApprovals() + card('Live-Chart · Setups, Positionen, Signale', ncHTML('mini', 260, specMini(70))) + card('Steuerung', modeSwitch() + killBox()) + card('Eigener Setup (läuft durch dieselbe Prüfung)', '<p class="mut sm">' + ST.sym + ' @ ' + px(D.last ? D.last.p : null) + ' · leer lassen = Stop 1 ATR, Ziel 1,5 R.</p><div class="row"><label class="fl"><span>Stop</span><input type="text" inputmode="decimal" data-form="stop" value="' + E(NXV.form.stop) + '"></label><label class="fl"><span>Ziel</span><input type="text" inputmode="decimal" data-form="target" value="' + E(NXV.form.target) + '"></label></div><div class="row">' + btnA('manual:long', 'Long prüfen', 'upb') + btnA('manual:short', 'Short prüfen', 'dnb') + '</div>') + card('Auslastung', usageMeters()) + pPositions() + card('Konto', '<div class="two">' + kv('Equity', nf(equity(), 2) + ' $') + kv('Realisiert', pn(NX.acct.realized, 2) + ' $', cl(NX.acct.realized)) + kv('Gebühren', nf(NX.acct.fees, 2) + ' $') + kv('Tag', pn(dayPnl(), 2) + ' $', cl(dayPnl())) + '</div>'),
   'Setups': () => card('Entscheidungen (' + NX.decisions.length + ')', NX.decisions.length ? NX.decisions.slice(0, 25).map(decRow).join('') : empty(NX.mode === 'off' ? 'Modus ist „Aus“. Wähle Vorschlag oder Auto im Cockpit.' : 'Noch keine Entscheidung.')) + card('Signale', NX.signals.slice(0, 10).map(sigRow).join('') || empty('Noch keine Signale.')),
   'Positions': () => PAPER + pPositions() + card('Abgeschlossen (' + NX.closed.length + ')', NX.closed.length ? NX.closed.slice(0, 20).map(c => '<div class="li" data-a="replay:' + c.id + '"><div class="l1">' + sideC(c.side) + ' <b>' + c.sym + '</b> <span class="mut">' + E(algoName(c.algo)) + ' · ' + E(c.reason) + '</span><span class="rt ' + cl(c.pnl) + '"><b>' + pn(c.pnl, 2) + ' $</b> · ' + pn(c.R, 2) + ' R</span></div><div class="l2 mut sm">' + px(c.entry) + ' → ' + px(c.exit) + ' · ' + dur(c.t1 - c.t0) + ' · ' + ago(c.t1) + ' · Replay im Journal</div></div>').join('') : empty('Noch kein Trade abgeschlossen.')),
   'Order Management': () => { const r = NX.recon || nxReconcile(); return PAPER + card('Abgleich', kv('Konto ↔ gebuchte Trades', r.ok ? 'stimmt ✓' : 'ABWEICHUNG', r.ok ? 'up' : 'dn') + kv('Realisiert', nf(r.realized, 2) + ' $') + kv('Aus Trades', nf(r.fromTrades, 2) + ' $') + '<p class="mut sm">Jede Order durchläuft: erstellt → Risiko geprüft → gesendet → (teil)gefüllt/storniert/abgelehnt. Ungültige Übergänge werden abgewiesen und protokolliert. Doppel-Orders verhindert die Client-ID. Die Simulation füllt gegen das echte Orderbuch (Ø-Preis über die Tiefe, Gebühren, Slippage).</p>') + card('Orders (' + NX.orders.length + ')', NX.orders.length ? NX.orders.slice(0, 30).map(ordRow).join('') : empty('Noch keine Orders.')); },
@@ -3012,7 +3027,7 @@ document.addEventListener('click', e => {
 
 'use strict';
 /* ===== NEXUS Block 6a: 14 Backup & Wiederherstellung · 17 Deployment/Version ===== */
-const BUILD_T = 1793349448042;
+const BUILD_T = 1793350215842;
 NX.bk = NX.bk || { lastExport: 0, lastSnap: 0, rpoH: 24, drills: [], exports: [], snapMade: 0 };
 const BK = { snaps: null, val: null, busy: '', ver: null, st: null };
 const BK_KEY = 'nexus_bk', BK_KEEP = 3;
@@ -4548,23 +4563,53 @@ function lageFacts() {
   if (f.spxVs != null) out.push(['Aktien ' + (f.spxVs >= 0 ? 'über' : 'unter') + ' 125-Tage-Schnitt' + (f.vix != null ? ', VIX ' + nf(f.vix, 0) : ''), 'Makro (FRED)', null]);
   return out;
 }
-function vLage(compact) {
-  const ctx = marketCtx(), facts = lageFacts();
-  const setRows = Object.keys(HSET).map(id => { const a = algoOf(id), c = algoCfg(id), r = [0, 1, 2].map(l => hsEval(id, l, ctx)), st = algoStats(id, c.tv), vd = algoVerdict(st), top = r[2].side && !r[2].blocked.length ? 2 : r[1].side && !r[1].blocked.length ? 1 : r[0].side ? 0 : -1;
-    const state = top < 0 ? '<span class="mut">' + E(r[0].none || '–') + '</span>' : '<b class="' + (r[0].side === 'long' ? 'up' : 'dn') + '">' + (r[0].side === 'long' ? 'Long' : 'Short') + ' ausgelöst</b> · ' + ['nur Auslöser', 'mit Orderflow-Bestätigung', 'alle Filter frei'][top] + (top < 2 && r[2].blocked && r[2].blocked.length ? '<div class="mut sm">Blockiert: ' + E(r[2].blocked.join(' · ')) + '</div>' : '');
-    return '<div class="li"><div class="r1"><b>' + E(a.name) + '</b><span class="sp"></span>' + chip2(HZ_OF(a), '') + chip2(vd.t.split(' (')[0] + (st.n ? ' · n ' + st.n : ''), vd.c) + '</div><div class="sm">' + state + '</div></div>'; }).join('');
-  const best = lageBest();
-  const fRows = facts.length ? facts.map(x => '<div class="li"><div class="r1"><b>' + E(x[0]) + '</b><span class="sp"></span>' + (x[2] ? hEvChip(x[2]) : chip2('nur Kontext', '')) + '</div><div class="mut sm">' + E(x[1]) + '</div></div>').join('') : empty('Daten-Hub lädt noch …');
-  const head = '<div class="two">' + kv('Markt', E(ST.sym) + ' · ' + E(ctx.regime || '–')) + kv('Quellen aktuell', HSRC.filter(s => HSTATE(s.id)[0] === 'ok').length + ' / ' + HSRC.length) + '</div>';
-  return card('Lagebild · was das System jetzt sieht', head + fRows + '<p class="mut sm">Nur gemessene Werte. Der Chip zeigt, ob das Merkmal in der Vergangenheit die Kursrichtung danach vorhergesagt hat (Evidenz-Check, Modul 06).</p>') +
-    card('Setups jetzt (Auslöser → Orderflow → Regime → Risiko)', setRows + '<p class="mut sm">Jedes Setup läuft in drei Stufen parallel (locker / standard / streng) und wird vorwärts ausgewertet. Ausgelöste Signale erscheinen als Dreiecke im Chart.</p>') +
-    (compact ? '' : card('Was am wahrscheinlichsten funktioniert', best));
+/* Bausteine des Lagebilds – zusammengesetzt in views.js (Bereich „Lage“). Es gibt genau einen Ort dafür. */
+function lageSetupRows() {
+  const ctx = marketCtx();
+  return Object.keys(HSET).map(id => { const a = algoOf(id), c = algoCfg(id), r = [0, 1, 2].map(l => hsEval(id, l, ctx)), st = algoStats(id, c.tv), vd = algoVerdict(st), top = r[2].side && !r[2].blocked.length ? 2 : r[1].side && !r[1].blocked.length ? 1 : r[0].side ? 0 : -1;
+    return { a, st, vd, top, side: r[0].side || null, none: r[0].none || '', blocked: r[2].blocked || [], stage: top < 0 ? '' : ['nur Auslöser', 'mit Orderflow-Bestätigung', 'alle Filter frei'][top] }; });
 }
-(() => {
-  const p0 = PANELS['00']['NEXUS Intelligence Overview / Command Center']; PANELS['00']['NEXUS Intelligence Overview / Command Center'] = () => vLage(false) + p0();
-  const h0 = PANELS['06']['Evidence Hub']; PANELS['06']['Evidence Hub'] = () => vLage(true) + h0();
-  const c3 = PANELS['03'] && PANELS['03']['Cockpit']; if (c3) PANELS['03']['Cockpit'] = () => card('Was am wahrscheinlichsten funktioniert', lageBest() + '<div class="row">' + btnA('go:00', 'Lagebild ›') + '</div>') + c3();
-})();
+function lageHeadline() {
+  const ctx = marketCtx(), w = NX.decisions.find(d => d.state === 'wartet'), rows = lageSetupRows(), fired = rows.filter(r => r.top >= 0), kand = [];
+  for (const a of ALGOS) for (const v of VARS) { const st = algoStats(a.id, v); if (algoVerdict(st).k === 'kand') kand.push(a); }
+  if (NX.kill) return ['Kill-Switch aktiv', 'Keine neuen Orders, bis du ihn löst.', 'dn'];
+  if (w) return ['Freigabe wartet: ' + (w.side === 'long' ? 'Long' : 'Short') + ' ' + algoName(w.algo), w.sym + ' · entscheide im Trader.', 'warn'];
+  if (fired.length) return [fired.map(r => r.a.name + ' → ' + (r.side === 'long' ? 'Long' : 'Short')).join(' · '), fired.every(r => r.top === 2) ? 'Alle Filter frei – läuft als Papier-Signal im Vorwärtstest.' : 'Ausgelöst, aber Filter blockieren: ' + E(fired.map(r => r.blocked[0]).filter(Boolean).join('; ') || 'noch keine Bestätigung.'), fired.every(r => r.top === 2) ? 'up' : 'warn'];
+  if (kand.length) return ['Kein Setup aktiv', kand.length + ' Setup(s) mit belegtem Vorteil warten auf ihren Auslöser.', ''];
+  return ['Kein belegtes Setup', ctx.regime ? E(ST.sym) + ' ' + E(ctx.regime) + '. Das System beobachtet und prüft weiter.' : 'Warte auf Marktdaten.', ''];
+}
+
+
+'use strict';
+/* ===== Produkt-Bereiche: Chart · Lage · Trader · Labor (+ Menü → System mit allen Modulen) =====
+   Ein Ort pro Frage: Lage = was ist los und gibt es ein Setup · Trader = Freigaben, Positionen, Konto · Labor = Prüfung, Setups im Test, Quellen.
+   Die 31 Module bleiben vollständig erreichbar (Menü → System); sie sind das Fundament, nicht die Oberfläche. */
+const VIEWS = {
+  lage: { n: 'Lage', s: ['Jetzt', 'Markt'], r: { 'Jetzt': () => vLageJetzt(), 'Markt': () => pMarket() + hubMacroCard() + vWatch() } },
+  labor: { n: 'Labor', s: ['Evidenz', 'Setups im Test', 'Algorithmen', 'Quellen'], r: { 'Evidenz': () => vHubView(), 'Setups im Test': () => PANELS['02']['Validation'](), 'Algorithmen': () => PANELS['02']['Algorithm Lab Overview']() + PANELS['02']['Algorithms'](), 'Quellen': () => vHubReg() } },
+};
+const AREAS = ['tape', 'lage', '03', 'labor'];
+const tile = (label, val, chipH, cls) => '<div class="tile"><small>' + label + '</small><b class="' + (cls || '') + '">' + val + '</b>' + (chipH || '') + '</div>';
+function vLageJetzt() {
+  const ctx = marketCtx(), [h1, h2, hc] = lageHeadline(), facts = lageFacts(), rows = lageSetupRows(), live = HSRC.filter(s => HSTATE(s.id)[0] === 'ok').length;
+  let h = '<div class="lgHead ' + hc + '"><div class="lgTop"><span>' + E(ST.sym) + ' · ' + E(SRC[ST.src] || ST.src) + '</span><span>' + (ctx.px ? px(ctx.px) : '–') + '</span><span>' + E(ctx.regime || '–') + '</span></div><h1>' + h1 + '</h1><p>' + h2 + '</p></div>';
+  h += '<div class="lgSec">Gemessen<span>' + live + ' / ' + HSRC.length + ' Quellen</span></div><div class="tiles">' + (facts.length ? facts.map(x => tile(E(x[1]), E(x[0]), x[2] ? hEvChip(x[2]) : chip2('Kontext', ''))).join('') : '<div class="tile"><small>Daten-Hub</small><b class="mut">lädt …</b></div>') + '</div>';
+  h += '<div class="lgSec">Setups<span>Auslöser → Orderflow → Regime → Risiko</span></div><div class="lgList">' + rows.map(r => '<div class="lgRow"><div class="lgL"><b>' + E(r.a.name) + '</b><small>' + E(HZ_OF(r.a)) + ' · ' + E(r.vd.t.split(' (')[0]) + (r.st.n ? ' · n ' + r.st.n : '') + '</small></div><div class="lgR">' + (r.top < 0 ? '<span class="mut">' + E(r.none) + '</span>' : '<b class="' + (r.side === 'long' ? 'up' : 'dn') + '">' + (r.side === 'long' ? 'Long' : 'Short') + '</b> <span>' + E(r.stage) + '</span>' + (r.top < 2 && r.blocked.length ? '<small>' + E(r.blocked.join(' · ')) + '</small>' : '')) + '</div></div>').join('') + '</div>';
+  const w = NX.decisions.filter(d => d.state === 'wartet'); if (w.length) h += '<div class="lgSec">Freigaben</div>' + card('', w.map(decRow).join(''));
+  if (NX.pos.length) h += '<div class="lgSec">Positionen</div>' + pPositions();
+  h += '<div class="lgSec">Belegt<span>Vorwärtstest, ≥ 20 Signale, untere Grenze &gt; 0 R</span></div>' + card('', lageBest());
+  return h + '<p class="mut sm lgFoot">Nur gemessene Werte. Chips zeigen, ob ein Merkmal die Kursrichtung danach in der Vergangenheit vorhergesagt hat (Labor → Evidenz). Papier-Handel gegen echte Live-Kurse.</p>';
+}
+function viewRender() {
+  const V = VIEWS[NXV.cur], body = $('#nxBody'), st = body.scrollTop, cur = NXV.tab[NXV.cur] || 0, sec = V.s[cur] || V.s[0];
+  $('#nxHead').innerHTML = '<div class="mh"><h2>' + E(V.n) + '</h2></div>';
+  $('#nxTabs').innerHTML = V.s.length > 1 ? V.s.map((s, i) => '<button class="tb' + (i === cur ? ' on' : '') + '" data-a="tab:' + i + '">' + E(s) + '</button>').join('') : '';
+  let html; try { html = V.r[sec](); } catch (e) { console.error(e); html = card('Fehler in dieser Ansicht', '<p class="mut">' + E(e.message) + '</p>'); }
+  body.innerHTML = html; body.scrollTop = st; nxBadge(); ncMount();
+}
+{ const _r = renderNx; renderNx = function (force) { if (VIEWS[NXV.cur]) { if (!force && ncBusy()) return; return viewRender(); } return _r(force); }; }
+addEventListener('popstate', () => { const h = location.hash.slice(1); if (VIEWS[h] && NXV.cur !== h) go(h, false); });
+/* Tab-Klick innerhalb einer Ansicht (renderNx' Handler setzt NXV.tab[cur] – gilt auch hier, da über NXV.cur) */
 
 'use strict';
 /* ===== Pro-Oberfläche (umschaltbar gegen „Klassisch“) =====
@@ -4574,7 +4619,7 @@ const PRO = { sheets: [], tm: null };
 const proOn = () => ST.ui !== 'classic';
 const PI = {
   menu: '<path d="M4 7h16M4 12h16M4 17h16"/>', ind: '<path d="M3 17l5-6 4 3 6-9"/><path d="M3 21h18"/>', more: '<circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/>',
-  chart: '<path d="M3 17l5-6 4 3 6-9"/>', db: '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/>', wl: '<path d="M6 3h12v18l-6-4-6 4z"/>', trader: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', alarm: '<path d="M18 16V11a6 6 0 10-12 0v5l-2 2h16z"/><path d="M10 21h4"/>',
+  chart: '<path d="M3 17l5-6 4 3 6-9"/>', lage: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>', lab: '<path d="M9 3h6M10 3v6l-5 9a2 2 0 002 3h10a2 2 0 002-3l-5-9V3"/>', db: '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/>', wl: '<path d="M6 3h12v18l-6-4-6 4z"/>', trader: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', alarm: '<path d="M18 16V11a6 6 0 10-12 0v5l-2 2h16z"/><path d="M10 21h4"/>',
   star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>', gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>', check: '<path d="M5 12l4 4 10-10"/>',
 };
 const pSvg = (p, c) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="' + (c || '') + '">' + p + '</svg>';
@@ -4694,9 +4739,9 @@ function proMenu(open) {
   if (d) return; d = document.createElement('div'); d.id = 'pdr'; d.className = 'psb left';
   const row = (id, name, extra) => { const m = modOf(id), n = (IMPL[id] || []).length, s = modState(m); return '<button class="prow mod" data-px="go:' + id + '"><span class="pmid">' + id + '</span><div class="pn"><b>' + E(id === '00' ? 'Command Center' : name || m.n) + '</b><small>' + n + '/' + m.s.length + ' Abschnitte' + (extra || '') + '</small></div><span class="dt ' + ({ live: 'ok', part: 'warn' }[s] || '') + '"></span></button>'; };
   d.innerHTML = '<div class="psh drawer"><div class="phd"><div class="pbrand">' + pSvg('<path d="M7 22V10l9 8 9-8v12" transform="scale(.75)"/>') + '<b>TAPE</b><small>NEXUS</small></div><button class="pbtn" data-px="close" aria-label="Schließen">✕</button></div><div class="pbd">' +
-    '<div class="psec2">Darstellung</div><div class="pchips"><button class="pchip' + (proOn() ? ' on' : '') + '" data-px="ui:pro">Pro</button><button class="pchip' + (!proOn() ? ' on' : '') + '" data-px="ui:classic">Klassisch</button><span class="pgap"></span><button class="pchip' + (ST.theme !== 'blue' ? ' on' : '') + '" data-px="theme:gold">Gold</button><button class="pchip' + (ST.theme === 'blue' ? ' on' : '') + '" data-px="theme:blue">Blau</button></div>' +
+    '<div class="pchips"><span class="psec2" style="margin:0 6px 0 4px">Farbe</span><button class="pchip' + (ST.theme !== 'blue' ? ' on' : '') + '" data-px="theme:gold">Gold</button><button class="pchip' + (ST.theme === 'blue' ? ' on' : '') + '" data-px="theme:blue">Blau</button></div>' +
     (SRV.on ? '<button class="prow" data-px="srv"><div class="pn"><b>Eigener Server</b><small>' + (SRV.ok ? 'verbunden – Engine läuft rund um die Uhr' : 'nicht verbunden') + '</small></div><span class="dt ' + (SRV.ok ? 'ok' : 'bad') + '"></span></button>' : '') +
-    row('00') + LAYERS.map(([name, ids]) => '<div class="psec2">' + E(name) + '</div>' + ids.map(id => row(id)).join('')).join('') + '</div></div>';
+    '<div class="psec2">System · ' + MODS.length + ' Module</div><p class="mut sm" style="margin:2px 4px 6px">Das Fundament unter den vier Bereichen. Alles erreichbar, nichts versteckt.</p>' + row('00') + LAYERS.map(([name, ids]) => '<div class="psec2">' + E(name) + '</div>' + ids.map(id => row(id)).join('')).join('') + '</div></div>';
   d.addEventListener('click', e => {
     if (e.target === d || e.target.closest('[data-px="close"]')) return proMenu(false);
     const b = e.target.closest('[data-px]'); if (!b) return; const [a, v] = b.dataset.px.split(':');
@@ -4739,19 +4784,19 @@ function proMount(on) {
     const ct = t.querySelector('[data-p="ct"]'); /* langes Drücken = Auswahl, kurzes Tippen = umschalten wäre verwirrend: Tippen öffnet die Auswahl */
     s.addEventListener('click', e => {
       const b = e.target.closest('[data-s]'); if (!b) return; const k = b.dataset.s;
-      if (k === 'feed') toast(healthText(), 6000); if (k === 'pnl') go('05'); if (k === 'risk') go('00'); if (k === 'mode') go('03'); if (k === 'srv') { NXV.tab['17'] = 4; go('17'); }
+      if (k === 'feed') toast(healthText(), 6000); if (k === 'pnl') go('05'); if (k === 'risk') go('lage'); if (k === 'mode') go('03'); if (k === 'srv') { NXV.tab['17'] = 4; go('17'); }
     });
   }
   if (on) { $('.ptr2', t).append($('#stats')); $('.pend', t).append($('#dot')); }
   else { $('#sideBtn').before($('#stats')); $('#top').append($('#dot')); }
 }
 function proNav() {
-  const T = [['tape', 'Chart', PI.chart], ['06', 'Daten', PI.db], ['03', 'Trader', PI.trader], ['10', 'Alarme', PI.alarm], ['p:menu', 'Menü', PI.menu]];
+  const T = [['tape', 'Chart', PI.chart], ['lage', 'Lage', PI.lage], ['03', 'Trader', PI.trader], ['labor', 'Labor', PI.lab], ['p:menu', 'Menü', PI.menu]];
   $('#nav').innerHTML = T.map(([id, l, svg]) => '<button ' + (id.startsWith('p:') ? 'data-pro="' + id.slice(2) + '"' : 'data-go="' + id + '"') + '>' + pSvg(svg) + '<span>' + l + '</span><i></i></button>').join('');
   $('#nav').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.go) go(b.dataset.go); else if (b.dataset.pro === 'wl') proSymSheet(); else if (b.dataset.pro === 'menu') proMenu(); };
   proMark(NXV.cur); try { nxBadge(); } catch (e) { /* */ }
 }
-function proMark(id) { if (!proOn()) return; $$('#nav button').forEach(b => b.classList.toggle('on', !!b.dataset.go && b.dataset.go === id)); const m = $('#nav [data-pro="menu"]'); if (m) m.classList.toggle('on', id !== 'tape' && id !== '03' && id !== '10' && id !== '06'); }
+function proMark(id) { if (!proOn()) return; $$('#nav button').forEach(b => b.classList.toggle('on', !!b.dataset.go && b.dataset.go === id)); const m = $('#nav [data-pro="menu"]'); if (m) m.classList.toggle('on', !AREAS.includes(id)); }
 function proSync() {
   if (!$('#ptb')) return; const s = $('#pSym'); if (!s) return;
   s.textContent = ST.sym; $('#pSrc').textContent = ({ bnf: 'Perp', hl: 'HL', bns: 'Spot' })[ST.src] || ''; $('#pTf').textContent = ST.tf; $('#pCt').textContent = ST.mode === 'fp' ? 'Footprint' : 'Kerzen';
