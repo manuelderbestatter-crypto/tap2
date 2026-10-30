@@ -99,3 +99,8 @@ Freie, öffentliche Quellen (Binance Spot/Perp, Fear & Greed, Coin Metrics, Defi
 - Leiste: **Chart · Lage · Trader · Labor · Menü**. Lage = eine Seite (Überschrift-Satz, gemessene Kacheln mit Evidenz-Chip, Setup-Status je Stufe, Freigaben, Belegt). Trader = Modul 03 ohne doppelte Trade-Frage. Labor = Evidenz, Setups im Test, Algorithmen, Quellen. Menü → Farbe + „System · 31 Module“ (alle Module erreichbar).
 - Ein Ort pro Frage: Lagebild nur in „Lage“ (aus Command Center und Daten-Hub entfernt). Kein Darstellungs-Umschalter mehr (Pro/Klassisch); Versionen laufen intern über Git-Tags (`v0.9-vor-neuem-layout` = Stand davor).
 - Code: `views.js` (VIEWS/AREAS, viewRender), `nx_setup.js` (lageHeadline, lageSetupRows, lageBest), `pro.js` (Leiste, Drawer), `pro.css` (.lgHead/.tiles/.lgList).
+
+## Brücke Gehirn → Chart (v1.1, 30.10.2026)
+- `brain.js`: `BRAIN.layers = { at, key, items[] }`, Elemente `line|zone|mark|band` mit `role`, `src`, `label`, `ev`, `vis`. `brainLayers()` sammelt jede Sekunde (nur im Chart sichtbar): Positionen (Einstieg/Stop/Ziel), wartende Freigaben (Vorschlag), ausgelöste Hub-Setups der Handelsvariante (Markierung + Stop/Ziel als Vorschlag, gestrichelt), Liquidations-Zonen (3 größte in ±5 %), STH-Kostenbasis (BTC), Optionen-Wände (nur < 5 % entfernt; Gamma-Wechsel nur bei „Alle“), Absorption 24 h als Band.
+- Chart (`chart.js`) ruft nur `drawBrain(0)` im Preisfenster und `drawBrain(1)` an der Preisachse; keine Logik im Chart. Linien außerhalb des Bildes: Pfeil-Schild am Rand.
+- Schalter: Indikatoren → Reiter „Gehirn“ (5 Gruppen + „Alle Gehirn-Ebenen“), gespeichert in `ST.brain`. Lage-Seite: „Im Chart zeigen ›“.

@@ -742,8 +742,10 @@ function draw() {
   cx.save(); cx.beginPath(); cx.rect(0, pp.y, pw, pp.h); cx.clip();
   if (ST.mode === 'fp') drawFootprint(i0, i1); else drawCandles(i0, i1);
   drawMarks();
+  if (typeof drawBrain === 'function') try { drawBrain(0); } catch (e) { console.error(e); }
   const lp = D.last ? D.last.p : null; if (lp) { const y = Math.round(yOf(lp)) + .5; cx.strokeStyle = C.mute; cx.setLineDash([3, 3]); cx.beginPath(); cx.moveTo(0, y); cx.lineTo(pw, y); cx.stroke(); cx.setLineDash([]); }
   cx.restore();
+  if (typeof drawBrain === 'function') try { drawBrain(1); } catch (e) { console.error(e); }
   if (lp) { const lc = D.candles[D.candles.length - 1], up = lc ? lc.c >= lc.o : true; tag(nf(lp, lp < 100 ? 3 : lp < 1000 ? 2 : 1), clamp(yOf(lp), pp.y + 9, pp.y + pp.h - 9), up ? C.up : C.dn, '#06080b'); }
   cx.save(); cx.beginPath(); cx.rect(0, 0, pw, H); cx.clip();
   if (ST.delta) drawDelta(i0, i1); if (ST.cvd) drawCVD(i0, i1); if (ST.oi) drawOI();
@@ -3027,7 +3029,7 @@ document.addEventListener('click', e => {
 
 'use strict';
 /* ===== NEXUS Block 6a: 14 Backup & Wiederherstellung · 17 Deployment/Version ===== */
-const BUILD_T = 1793350215842;
+const BUILD_T = 1793354168929;
 NX.bk = NX.bk || { lastExport: 0, lastSnap: 0, rpoH: 24, drills: [], exports: [], snapMade: 0 };
 const BK = { snaps: null, val: null, busy: '', ver: null, st: null };
 const BK_KEY = 'nexus_bk', BK_KEEP = 3;
@@ -4592,7 +4594,7 @@ const AREAS = ['tape', 'lage', '03', 'labor'];
 const tile = (label, val, chipH, cls) => '<div class="tile"><small>' + label + '</small><b class="' + (cls || '') + '">' + val + '</b>' + (chipH || '') + '</div>';
 function vLageJetzt() {
   const ctx = marketCtx(), [h1, h2, hc] = lageHeadline(), facts = lageFacts(), rows = lageSetupRows(), live = HSRC.filter(s => HSTATE(s.id)[0] === 'ok').length;
-  let h = '<div class="lgHead ' + hc + '"><div class="lgTop"><span>' + E(ST.sym) + ' · ' + E(SRC[ST.src] || ST.src) + '</span><span>' + (ctx.px ? px(ctx.px) : '–') + '</span><span>' + E(ctx.regime || '–') + '</span></div><h1>' + h1 + '</h1><p>' + h2 + '</p></div>';
+  let h = '<div class="lgHead ' + hc + '"><div class="lgTop"><span>' + E(ST.sym) + ' · ' + E(SRC[ST.src] || ST.src) + '</span><span>' + (ctx.px ? px(ctx.px) : '–') + '</span><span>' + E(ctx.regime || '–') + '</span></div><h1>' + h1 + '</h1><p>' + h2 + '</p><div class="row" style="margin-top:8px">' + btnA('go:tape', 'Im Chart zeigen ›') + '</div></div>';
   h += '<div class="lgSec">Gemessen<span>' + live + ' / ' + HSRC.length + ' Quellen</span></div><div class="tiles">' + (facts.length ? facts.map(x => tile(E(x[1]), E(x[0]), x[2] ? hEvChip(x[2]) : chip2('Kontext', ''))).join('') : '<div class="tile"><small>Daten-Hub</small><b class="mut">lädt …</b></div>') + '</div>';
   h += '<div class="lgSec">Setups<span>Auslöser → Orderflow → Regime → Risiko</span></div><div class="lgList">' + rows.map(r => '<div class="lgRow"><div class="lgL"><b>' + E(r.a.name) + '</b><small>' + E(HZ_OF(r.a)) + ' · ' + E(r.vd.t.split(' (')[0]) + (r.st.n ? ' · n ' + r.st.n : '') + '</small></div><div class="lgR">' + (r.top < 0 ? '<span class="mut">' + E(r.none) + '</span>' : '<b class="' + (r.side === 'long' ? 'up' : 'dn') + '">' + (r.side === 'long' ? 'Long' : 'Short') + '</b> <span>' + E(r.stage) + '</span>' + (r.top < 2 && r.blocked.length ? '<small>' + E(r.blocked.join(' · ')) + '</small>' : '')) + '</div></div>').join('') + '</div>';
   const w = NX.decisions.filter(d => d.state === 'wartet'); if (w.length) h += '<div class="lgSec">Freigaben</div>' + card('', w.map(decRow).join(''));
@@ -4818,6 +4820,94 @@ function proInit() {
   const _sync = syncUI; syncUI = function () { _sync(); proSync(); };
   setInterval(() => { proStatus(); proSync(); }, 1000);
 }
+
+'use strict';
+/* ===== Brücke Gehirn → Chart =====
+   Das Gehirn (Setups, Hub-Merkmale, Konto) schreibt BRAIN.layers; der Chart liest nur und zeichnet. Keine Rechenlogik im Chart.
+   Element: { kind: line|zone|mark|band, id, role, src, label, ev, vis, … }
+     line: p          zone: p0, p1          mark: t, p, side          band: t0, t1, side
+   role bestimmt das Aussehen: entry, stop, target, prop-stop, prop-target, prop-entry, level, wall, zone, setup, event.
+   src ist die Nutzer-Gruppe (Schalter im Indikatoren-Blatt, Reiter „Gehirn“): setup, zone, level, wall, event.
+   vis:false = nebensächlich → nur sichtbar, wenn der Nutzer „Alle Gehirn-Ebenen“ einschaltet.
+   Standard-Regel (im Gehirn, nicht im Chart): sichtbar ist, was zu einer Position, Freigabe oder einem ausgelösten Setup gehört,
+   was einen Beleg/Hinweis im Evidenz-Check hat, oder eine echte Messung mit Ortsbezug ist (höchstens 3 je Gruppe). */
+const BRAIN = { layers: { at: 0, key: '', items: [] } };
+const BR_GRP = [['setup', 'Setups, Stops, Ziele', 'Offene Positionen, wartende Freigaben und ausgelöste Setups (als Vorschlag gestrichelt).'],
+  ['zone', 'Liquidations-Zonen', 'Preisbereiche, in denen in 7 Tagen tatsächlich liquidiert wurde (Eigenaufnahme Binance/Bybit/OKX).'],
+  ['level', 'Kostenbasis', 'Kostenbasis der kurzfristigen Halter (On-Chain, nur BTC).'],
+  ['wall', 'Optionen-Wände', 'Call-/Put-Wand und Gamma-Wechsel aus Deribit (Modell). Standard nur, wenn nah am Preis.'],
+  ['event', 'Absorption', 'Stunden, in denen aggressiver Druck aufgefangen wurde (letzte 24 h).']];
+const brOn = g => !ST.brain || ST.brain[g] !== 0;
+const brAll = () => !!(ST.brain && ST.brain.all);
+const brSet = (g, v) => { ST.brain = Object.assign({}, ST.brain || {}); ST.brain[g] = v ? 1 : 0; };
+const brEvOk = id => { const e = typeof hEvOf === 'function' ? hEvOf(id) : null; return e && (e.lab === 'Beleg' || e.lab === 'Hinweis'); };
+const brEvLab = id => { const e = typeof hEvOf === 'function' ? hEvOf(id) : null; return e ? e.lab : null; };
+
+function brainLayers() {
+  const items = [], k = nxKey(), lp = D.last ? D.last.p : null, add = o => items.push(o);
+  if (!lp) { BRAIN.layers = { at: Date.now(), key: k, items }; return; }
+  /* Setups: Positionen → Freigaben → ausgelöste Hub-Setups (Vorschlag) */
+  for (const p of NX.pos.filter(x => x.sym === ST.sym && x.src === ST.src)) {
+    const n = algoName(p.algo); add({ kind: 'line', id: 'e:' + p.id, role: 'entry', src: 'setup', p: p.entry, label: 'Einstieg ' + (p.side === 'long' ? 'Long' : 'Short') + ' · ' + n });
+    add({ kind: 'line', id: 's:' + p.id, role: 'stop', src: 'setup', p: p.stop, label: 'Stop' }); add({ kind: 'line', id: 't:' + p.id, role: 'target', src: 'setup', p: p.target, label: 'Ziel' });
+  }
+  for (const d of NX.decisions.filter(x => x.state === 'wartet' && x.sym === ST.sym && x.src === ST.src)) {
+    add({ kind: 'line', id: 'de:' + d.id, role: 'prop-entry', src: 'setup', p: d.px, label: 'Freigabe wartet · ' + (d.side === 'long' ? 'Long' : 'Short') + ' ' + algoName(d.algo) });
+    add({ kind: 'line', id: 'ds:' + d.id, role: 'prop-stop', src: 'setup', p: d.stop, label: 'Stop (Vorschlag)' }); add({ kind: 'line', id: 'dt:' + d.id, role: 'prop-target', src: 'setup', p: d.target, label: 'Ziel (Vorschlag)' });
+  }
+  const seen = new Set(), busy = NX.pos.length || NX.decisions.some(x => x.state === 'wartet');
+  for (const s of NX.signals) {
+    if (s.st !== 'open' || s.k !== k || s.manual || seen.has(s.algo)) continue; const a = algoOf(s.algo); if (!a || !a.hub || s.variant !== algoCfg(s.algo).tv) continue; seen.add(s.algo);
+    add({ kind: 'mark', id: 'm:' + s.id, role: 'setup', src: 'setup', t: s.t, p: s.px, side: s.side, label: a.name });
+    if (!busy) { add({ kind: 'line', id: 'ss:' + s.id, role: 'prop-stop', src: 'setup', p: s.stop, label: 'Stop (Vorschlag) · ' + a.name }); add({ kind: 'line', id: 'st:' + s.id, role: 'prop-target', src: 'setup', p: s.target, label: 'Ziel (Vorschlag)' }); }
+  }
+  /* Liquidations-Zonen (gemessen): die 3 größten innerhalb ±5 % sichtbar, Rest zuschaltbar */
+  const zs = (HUB.ff && HUB.ff.zones || []).slice().sort((a, b) => (b.L + b.S) - (a.L + a.S));
+  let zn = 0; for (const z of zs) { const near = Math.abs(z.p / lp - 1) < 0.05, w = z.p * 0.00125; add({ kind: 'zone', id: 'z:' + Math.round(z.p), role: 'zone', src: 'zone', p0: z.p - w, p1: z.p + w, side: z.L >= z.S ? 'long' : 'short', label: (z.L >= z.S ? 'Long' : 'Short') + '-Liquidationen 7 d · ' + fusd(z.L + z.S), ev: brEvLab('liq'), vis: near && zn < 3 }); if (near) zn++; }
+  /* Kostenbasis kurzfristiger Halter (nur BTC) */
+  const f = HUB.f || {}; if (ST.sym === 'BTC' && f.sthRp) add({ kind: 'line', id: 'sth', role: 'level', src: 'level', p: f.sthRp, label: 'STH-Kostenbasis', ev: brEvLab('sthgap'), vis: Math.abs(f.sthRp / lp - 1) < 0.15 || brEvOk('sthgap') });
+  /* Optionen-Wände (Modell): nur nah am Preis sichtbar */
+  const g = HUB.s.gex && HUB.s.gex.key === ST.sym && HUB.s.gex.d; if (g) {
+    if (g.callWall) add({ kind: 'line', id: 'gc', role: 'wall', src: 'wall', p: g.callWall, label: 'Call-Wand (Modell)', vis: Math.abs(g.callWall / lp - 1) < 0.05 });
+    if (g.putWall) add({ kind: 'line', id: 'gp', role: 'wall', src: 'wall', p: g.putWall, label: 'Put-Wand (Modell)', vis: Math.abs(g.putWall / lp - 1) < 0.05 });
+    if (g.flip) add({ kind: 'line', id: 'gf', role: 'wall', src: 'wall', p: g.flip, label: 'Gamma-Wechsel (Modell)', vis: false });
+  }
+  /* Absorption der letzten 24 h (gemessen, Stundenbänder) */
+  for (const e of (HUB.ff && HUB.ff.absEv || []).filter(x => x.t > Date.now() - 864e5).slice(-3)) add({ kind: 'band', id: 'a:' + e.t, role: 'event', src: 'event', t0: e.t, t1: e.t + 3600e3, side: e.a > 0 ? 'long' : 'short', label: e.a > 0 ? 'Verkauf aufgefangen' : 'Kauf aufgefangen', ev: brEvLab('absorb') });
+  BRAIN.layers = { at: Date.now(), key: k, items };
+}
+const brShown = () => { const L = BRAIN.layers; if (!L || L.key !== nxKey()) return []; return L.items.filter(i => brOn(i.src) && (i.vis !== false || brAll())); };
+
+/* ----- Chart-Seite: wird aus draw() aufgerufen. phase 0 = im Preisfenster (Clip), phase 1 = Preisachse ----- */
+function brCol(role, side) { return ({ entry: C.fg, stop: C.dn, target: C.up, 'prop-entry': C.warn, 'prop-stop': C.dn, 'prop-target': C.up, level: C.warn, wall: C.acc })[role] || (side === 'long' ? C.up : side === 'short' ? C.dn : C.mute); }
+function drawBrain(phase) {
+  const it = brShown(); if (!it.length) return; const pw = plotW(), pp = PN.price, top = pp.y, bot = pp.y + pp.h, T0 = tOf(0), T1 = tOf(pw);
+  if (phase === 0) {
+    cx.font = '10px Inter,system-ui,sans-serif'; cx.textBaseline = 'middle'; cx.textAlign = 'left';
+    for (const i of it) if (i.kind === 'zone') { const y0 = yOf(i.p1), y1 = yOf(i.p0); if (y1 < top || y0 > bot) continue; cx.fillStyle = brCol(i.role, i.side); cx.globalAlpha = .13; cx.fillRect(0, y0, pw, Math.max(2, y1 - y0)); cx.globalAlpha = .75; cx.fillText(i.label + (i.ev ? ' · ' + i.ev : ''), 6, y0 - 6); cx.globalAlpha = 1; }
+    for (const i of it) if (i.kind === 'band') { if (i.t1 < T0 || i.t0 > T1) continue; const x0 = Math.max(0, xOf(i.t0)), x1 = Math.min(pw, xOf(i.t1)); cx.fillStyle = brCol(i.role, i.side); cx.globalAlpha = .07; cx.fillRect(x0, top, Math.max(2, x1 - x0), pp.h); cx.globalAlpha = .9; cx.fillRect(x0, top, Math.max(2, x1 - x0), 3); cx.globalAlpha = .8; cx.fillText(i.label, x0 + 3, top + 11); cx.globalAlpha = 1; }
+    for (const i of it) if (i.kind === 'line') { const y = Math.round(yOf(i.p)) + .5; if (y < top || y > bot) continue; const c = brCol(i.role), prop = /^prop-|wall|level/.test(i.role);
+      cx.strokeStyle = c; cx.lineWidth = i.role === 'entry' ? 1.4 : 1; cx.globalAlpha = prop ? .85 : 1; cx.setLineDash(prop ? [5, 4] : i.role === 'entry' ? [] : [2, 3]); cx.beginPath(); cx.moveTo(0, y); cx.lineTo(pw, y); cx.stroke(); cx.setLineDash([]); cx.lineWidth = 1;
+      cx.fillStyle = c; cx.fillText(i.label + (i.ev ? ' · ' + i.ev : ''), 6, y - 7); cx.globalAlpha = 1; }
+    for (const i of it) if (i.kind === 'mark') { if (i.t < T0 || i.t > T1) continue; const x = xOf(i.t), y = yOf(i.p), up = i.side === 'long', c = up ? C.up : C.dn, r = 6; cx.fillStyle = c; cx.beginPath();
+      if (up) { cx.moveTo(x, y + 8); cx.lineTo(x - r, y + 8 + r * 1.6); cx.lineTo(x + r, y + 8 + r * 1.6); } else { cx.moveTo(x, y - 8); cx.lineTo(x - r, y - 8 - r * 1.6); cx.lineTo(x + r, y - 8 - r * 1.6); } cx.closePath(); cx.fill();
+      cx.fillText(i.label, x + 9, up ? y + 8 + r : y - 8 - r); }
+    return;
+  }
+  /* Preisachse: Schilder für Linien; außerhalb des Bildes ein Pfeil-Schild am Rand */
+  const tags = []; for (const i of it) if (i.kind === 'line') { const y = yOf(i.p); tags.push({ i, y: y < top + 9 ? top + 44 : y > bot - 9 ? bot - 9 : y, out: y < top ? -1 : y > bot ? 1 : 0 }); }   // oben Platz für die OHLC-Zeile
+  tags.sort((a, b) => a.y - b.y); let last = -99; for (const t of tags) { if (t.y - last < 18) t.y = last + 18; last = t.y; }
+  for (const t of tags) { if (t.y > bot) continue; const c = brCol(t.i.role); tag((t.out < 0 ? '↑' : t.out > 0 ? '↓' : '') + nf(t.i.p, t.i.p < 100 ? 3 : t.i.p < 1000 ? 2 : 1), t.y, c, '#06080b');
+    if (t.out) { cx.font = '10px Inter,system-ui,sans-serif'; cx.fillStyle = c; cx.textAlign = 'right'; cx.textBaseline = 'middle'; cx.fillText(t.i.label + (t.out < 0 ? ' ↑' : ' ↓'), pw - 6, t.y); } }
+}
+
+/* ----- Schalter im Indikatoren-Blatt (Reiter „Gehirn“) ----- */
+PTABS.push('Gehirn');
+for (const [g, n, d] of BR_GRP) PIND.push({ id: 'br_' + g, n, d, cat: 'Gehirn', code: 'AI', on: () => brOn(g), set: v => brSet(g, v) });
+PIND.push({ id: 'br_all', n: 'Alle Gehirn-Ebenen', d: 'Zeigt auch Nebensächliches (weit entfernte Zonen und Wände, Gamma-Wechsel). Standard aus: das Gehirn wählt.', cat: 'Gehirn', code: 'ALL', on: brAll, set: v => { ST.brain = Object.assign({}, ST.brain || {}, { all: v ? 1 : 0 }); } });
+
+/* Takt: im Chart einmal je Sekunde neu sammeln */
+if (!window.__ENGINE) setInterval(() => { if (NXV.cur !== 'tape' || document.hidden) return; try { const before = JSON.stringify(BRAIN.layers.items); brainLayers(); if (JSON.stringify(BRAIN.layers.items) !== before) redraw(true); } catch (e) { console.error(e); } }, 1000);
 
 'use strict';
 /* ===== Start ===== */
