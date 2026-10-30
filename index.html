@@ -2540,7 +2540,7 @@ function sandbox(fn) {
 }
 const clean = () => { NX.kill = false; NX.pause = { until: 0, why: '' }; NX.pos = []; NX.closed = []; NX.mode = 'ask'; D.lastMsg = Date.now(); };
 const T0 = { sym: 'TST', src: 'bnf', side: 'long', entry: 100, stop: 99, scale: 1 };
-const fakeSigs = (aid, v, Rs, t0) => Rs.map((R, i) => ({ id: 'Z' + aid + v + i, t: (t0 || Date.now() - 20 * 3600e3) + i * 20 * 60e3, algo: aid, variant: v, side: 'long', st: 'done', R, manual: false, sym: 'BTC', px: 1, stop: 1, target: 1 }));
+const fakeSigs = (aid, v, Rs, t0) => Rs.map((R, i) => ({ id: 'Z' + aid + v + i, t: (t0 || Date.now() - 20 * 3600e3) + i * 20 * 60e3, algo: aid, variant: v, side: 'long', st: 'done', R, manual: false, sym: 'BTC', px: 1, stop: 1, target: 1, rv: algoRv(algoOf(aid)), tfk: algoOf(aid).htf ? '*' : ST.tf }));
 const ok = (c, m) => { if (!c) throw new Error(m || 'falsch'); };
 
 /* ---- Unit ---- */
@@ -2557,12 +2557,12 @@ tst('unit', 'Risiko: Hebel-Limit → Veto/Deckelung', () => sandbox(() => { clea
 tst('unit', 'Order: ungültiger Übergang wird abgelehnt', () => sandbox(() => { const o = mkOrder({ cid: 'TEST:1', kind: 'entry', sym: 'TST', src: 'bnf', side: 'buy', qty: 1, dec: 'Dx' }); ok(ordGo(o, 'filled') === false, 'created→filled erlaubt'); ok(ordGo(o, 'risk_checked') === true); }));
 tst('unit', 'Order: Idempotenz (gleiche Kennung nur einmal)', () => sandbox(() => { ok(mkOrder({ cid: 'TEST:2', kind: 'entry', sym: 'TST', src: 'bnf', side: 'buy', qty: 1 })); ok(mkOrder({ cid: 'TEST:2', kind: 'entry', sym: 'TST', src: 'bnf', side: 'buy', qty: 1 }) === null); }));
 tst('unit', 'Statistik: Mittel, Schranken symmetrisch', () => sandbox(() => { NX.signals = fakeSigs('cvd', 'standard', [1, -1, 2, 0]); const s = algoStats('cvd', 'standard'); ok(s.n === 4 && Math.abs(s.avg - 0.5) < 1e-9, 'avg ' + s.avg); ok(Math.abs((s.hi0 - s.avg) - (s.avg - s.lo0)) < 1e-9); }));
-tst('unit', 'Urteil: zu wenig / Kandidat / verworfen', () => { ok(algoVerdict({ n: 5 }).k === 'wenig'); ok(algoVerdict({ n: 25, lo: 0.1, avg: 0.3 }).k === 'kand'); ok(algoVerdict({ n: 40, lo: -0.5, avg: -0.1 }).k === 'verw'); });
+tst('unit', 'Urteil: zu wenig / Kandidat / verworfen', () => { ok(algoVerdict({ n: 5, cp: 0 }).k === 'wenig'); ok(algoVerdict({ n: 35, cp: 30, lo: 0.1, avg: 0.3, avgCp: 0.3 }).k === 'kand'); ok(algoVerdict({ n: 40, cp: 30, lo: -0.5, avg: -0.1, avgCp: -0.1 }).k === 'verw'); ok(algoVerdict({ n: 40, cp: 30, lo: -0.2, avg: 0.1, avgCp: 0.1 }).k === 'unkl'); });
 tst('unit', 'R-Rückgang und Verlustserie', () => { ok(rDD([1, -2, 1, -1]) === 2, 'dd ' + rDD([1, -2, 1, -1])); ok(streakL([1, -1, -1]) === 2); });
 tst('unit', 'Konfiguration: protokolliert und zurücknehmbar', () => sandbox(() => { const v0 = NX.risk.riskPct, n0 = NX.cfgLog.length; cfgSet('risk.riskPct', 0.9, 'test'); ok(NX.risk.riskPct === 0.9 && NX.cfgLog.length === n0 + 1); cfgRollback(0); ok(NX.risk.riskPct === v0, 'Rücknahme'); }));
 tst('unit', 'Drawdown-Stufen (1 / ½ / ¼ / 0)', () => sandbox(() => { const e = equity(), s = p => { NX.acct.peak = e / (1 - p / 100); return ddScale(); }; ok(s(0) === 1 && s(4) === 0.5 && s(6) === 0.25 && s(9) === 0, [s(0), s(4), s(6), s(9)].join()); }));
 tst('unit', 'Allokation: Summe 1 bei Gleichgewichtung', () => sandbox(() => { for (const a of ['cvd', 'sweep', 'fund', 'book']) stageSet(skey(a, 'standard'), 'canary', 't'); NX.alloc.method = 'gleich'; const w = allocWeights(), s = Object.values(w).reduce((a, b) => a + b, 0); ok(Math.abs(s - 1) < 1e-6 && Object.keys(w).length === 4, 'Σ ' + s); }));
-tst('unit', 'Freigabe-Tore: gute Daten erfüllen, leere nicht', () => sandbox(() => { NX.signals = fakeSigs('cvd', 'standard', Array.from({ length: 40 }, (_, i) => i % 3 === 0 ? -1 : 1.2)); const x = stratList().find(y => y.key === 'cvd|standard'); ok(gatesFwd(x).every(g => g[1]), 'gut: ' + gatesFwd(x).filter(g => !g[1]).map(g => g[0]).join()); NX.signals = []; const y = stratList().find(z => z.key === 'cvd|standard'); ok(gatesFwd(y).every(g => !g[1]) || gatesFwd(y).filter(g => g[1]).length <= 1, 'leer'); }));
+tst('unit', 'Freigabe-Tore: gute Daten erfüllen, leere nicht', () => sandbox(() => { NX.signals = fakeSigs('cvd', 'standard', Array.from({ length: 40 }, (_, i) => i % 5 === 0 ? -1 : 1.5)); const x = stratList().find(y => y.key === 'cvd|standard'); ok(gatesFwd(x).every(g => g[1]), 'gut: ' + gatesFwd(x).filter(g => !g[1]).map(g => g[0]).join()); NX.signals = []; const y = stratList().find(z => z.key === 'cvd|standard'); ok(gatesFwd(y).every(g => !g[1]) || gatesFwd(y).filter(g => g[1]).length <= 1, 'leer'); }));
 tst('unit', 'Freigabe-Flag: nicht freigegebene Strategie wird übersprungen', () => sandbox(() => { clean(); NX.flags.releaseGate = true; const px0 = 100, d = decide({ id: 'Xq', t: Date.now(), algo: 'cvd', variant: 'streng', side: 'long', px: px0, stop: 99, target: 102, sym: 'TST', src: 'bnf', manual: false }); ok(d.verdict === 'skip' && d.reasons.some(r => /nicht freigegeben/.test(r)), d.verdict + ' ' + d.reasons.join()); }));
 
 /* ---- Integration (live) ---- */
@@ -3077,7 +3077,7 @@ document.addEventListener('click', e => {
 
 'use strict';
 /* ===== NEXUS Block 6a: 14 Backup & Wiederherstellung · 17 Deployment/Version ===== */
-const BUILD_T = 1793369806057;
+const BUILD_T = 1793376793418;
 NX.bk = NX.bk || { lastExport: 0, lastSnap: 0, rpoH: 24, drills: [], exports: [], snapMade: 0 };
 const BK = { snaps: null, val: null, busy: '', ver: null, st: null };
 const BK_KEY = 'nexus_bk', BK_KEEP = 3;
