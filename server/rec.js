@@ -61,7 +61,7 @@ const DERIV = {
 function start(DATA, log) {
   const DIR = path.join(DATA, 'rec'); fs.mkdirSync(DIR, { recursive: true });
   const URLS = (() => { try { return JSON.parse(process.env.REC_URLS || '{}'); } catch (e) { return {}; } })(), HFAKE = process.env.REC_HTTP_FAKE || '';
-  const RS = {}, CUR = new Map(), DONE = new Set(), H = new Map(), DV = new Map(); let LQ = [], pending = [], pendLq = [];
+  const RS = {}, CUR = new Map(), DONE = new Set(), H = new Map(), DV = new Map(), RING = new Map(), RING_MS = 4 * 864e5; /* RING: Minuten [m, h, l, c] der letzten 4 Tage (h = null: verbunden, kein Handel) */ let LQ = [], pending = [], pendLq = [];
   const st = { started: Date.now(), rows: 0, loaded: 0, liq: 0, err: '', derivAt: 0, derivErr: {} };
   const hourOf = t => Math.floor(t / HOUR) * HOUR, r2 = x => x == null ? null : Math.round(x * 100) / 100, dayOf = t => new Date(t).toISOString().slice(0, 10);
   const newE = () => ({ bu: 0, se: 0, n: 0, o: null, h: null, l: null, c: null, t0: Infinity, t1: -Infinity, lv: 0, x: new Array(NX).fill(0) });
@@ -72,10 +72,11 @@ function start(DATA, log) {
     e.bu += bu; e.se += se; e.n += n; e.lv += lv; if (x) for (let i = 0; i < NX; i++) e.x[i] += x[i] || 0;
     if (n > 0 && o != null) { if (m < e.t0) { e.t0 = m; e.o = o; } if (m >= e.t1) { e.t1 = m; e.c = c; } e.h = e.h == null ? h : Math.max(e.h, h); e.l = e.l == null ? l : Math.min(e.l, l); }
   }
+  function ringAdd(k, m, h, l, c) { let a = RING.get(k); if (!a) RING.set(k, a = []); if (a.length && a[a.length - 1][0] >= m) return; a.push([m, h, l, c]); if (a.length > 6000 && a[0][0] < Date.now() - RING_MS) { let i = 0; while (i < a.length && a[i][0] < Date.now() - RING_MS) i++; a.splice(0, i); } }
   function closeB(b) {
     const k = b.sym + '|' + b.key; if (CUR.get(k) === b) CUR.delete(k); if (DONE.has(k + '|' + b.m)) return; DONE.add(k + '|' + b.m);
     const x = (b.x || new Array(NX).fill(0)).map(r2), row = [b.m, b.sym, b.key, r2(b.bu), r2(b.se), b.n, b.n ? b.o : null, b.n ? b.h : null, b.n ? b.l : null, b.n ? b.c : null].concat(x);
-    pending.push(row); st.rows++; addHour(b.sym, b.key, b.m, row[3], row[4], row[5], row[6], row[7], row[8], row[9], 1, x);
+    ringAdd(k, row[0], row[7], row[8], row[9]); pending.push(row); st.rows++; addHour(b.sym, b.key, b.m, row[3], row[4], row[5], row[6], row[7], row[8], row[9], 1, x);
   }
   function bucket(key, sym) {
     const m = Math.floor(Date.now() / MIN) * MIN, k = sym + '|' + key; let b = CUR.get(k);
@@ -84,7 +85,7 @@ function start(DATA, log) {
     return b;
   }
   function add(key, sym, buy, px, q) {
-    if (!(px > 0 && q > 0) || !SYMS.includes(sym)) return; const b = bucket(key, sym); if (!b) return;
+    if (!(px > 0 && q > 0) || !SYMS.includes(sym)) return; if (RS[key]) RS[key].lastData = Date.now(); const b = bucket(key, sym); if (!b) return;
     const usd = px * q, sz = usd < 1e4 ? 0 : usd < 1e5 ? 2 : 4; if (buy) { b.bu += usd; b.x[sz] += usd; } else { b.se += usd; b.x[sz + 1] += usd; }
     if (!b.n) { b.o = b.h = b.l = px; } b.n++; b.h = Math.max(b.h, px); b.l = Math.min(b.l, px); b.c = px;
   }
@@ -97,12 +98,12 @@ function start(DATA, log) {
   function conn(key) {
     const V = VEN[key], s = RS[key] = { open: false, last: 0, msgs: 0, recon: 0, err: '', since: 0, url: '' };
     let pingT = null, backoff = 2000, retryT = null;
-    s.live = () => s.open && Date.now() - s.last < 60e3;
+    s.live = () => s.open && Date.now() - (s.lastData || 0) < 120e3;   // lebendig = echte Trades kamen, nicht nur Pings/Abo-Antworten
     function retry(why) { s.open = false; s.err = String(why || ''); clearInterval(pingT); if (retryT) return; s.recon++; retryT = setTimeout(() => { retryT = null; go(); }, backoff); backoff = Math.min(backoff * 2, 60e3); }
     function go() {
       const url = URLS[key] || V.url; s.url = url; let w; try { w = new WebSocket(url); } catch (e) { return retry(e.message); }
       let dead = false; const drop = why => { if (dead) return; dead = true; try { w.close(); } catch (e) { /* weg */ } retry(why); };
-      w.onopen = () => { s.open = true; s.last = Date.now(); s.since = Date.now(); s.err = ''; backoff = 2000; try { for (const m of (V.sub ? V.sub() : [])) w.send(typeof m === 'string' ? m : JSON.stringify(m)); } catch (e) { return drop(e.message); } if (V.ping) pingT = setInterval(() => { try { w.send(V.ping); } catch (e) { /* Wächter */ } }, V.pingMs || 20e3); };
+      w.onopen = () => { s.open = true; s.last = Date.now(); s.since = Date.now(); s.err = ''; s.backoffReset = () => { backoff = 2000; }; try { for (const m of (V.sub ? V.sub() : [])) w.send(typeof m === 'string' ? m : JSON.stringify(m)); } catch (e) { return drop(e.message); } if (V.ping) pingT = setInterval(() => { try { w.send(V.ping); } catch (e) { /* Wächter */ } }, V.pingMs || 20e3); };
       w.onmessage = ev => { s.last = Date.now(); s.msgs++; let j; try { j = JSON.parse(typeof ev.data === 'string' ? ev.data : Buffer.from(ev.data).toString()); } catch (e) { return; } try { V.parse(j, (sym, buy, px, q) => add(key, sym, buy, px, q), (sym, l, px, q) => addLiq(key, sym, l, px, q)); } catch (e) { /* Ausreißer stoppt nicht die Aufnahme */ } };
       w.onerror = e => drop(e && e.message || 'Fehler'); w.onclose = () => drop('geschlossen'); s.kill = () => drop('Wächter');
     }
@@ -119,7 +120,7 @@ function start(DATA, log) {
       for (const key of KEYS) if (RS[key] && RS[key].live() && RS[key].since <= pm + 5e3) for (const sym of SYMS) { const k = sym + '|' + key; if (!DONE.has(k + '|' + pm) && !CUR.has(k)) closeB({ sym, key, m: pm, bu: 0, se: 0, n: 0 }); }
       lastM = m; for (const x of DONE) if (+x.split('|')[2] < m - 5 * MIN) DONE.delete(x);
     }
-    for (const key of KEYS) { const s = RS[key]; if (s && s.open && now - s.last > 90e3 && s.kill) { log('Recorder: ' + key + ' still – neu verbinden'); s.kill(); } }
+    for (const key of KEYS) { const s = RS[key]; if (s && s.open && now - Math.max(s.lastData || 0, s.since) > 180e3 && s.kill) { log('Recorder: ' + key + ' ohne Trades – neu verbinden'); s.kill(); } if (s && s.open && s.lastData && now - s.since > 60e3 && s.backoffReset) s.backoffReset(); }
   }, 1000);
 
   /* ----- Derivate (Funding/OI) alle 15 min ----- */
@@ -151,6 +152,7 @@ function start(DATA, log) {
     try {
       const yest = dayOf(Date.now() - 864e5);
       for (const f of fs.readdirSync(DIR)) {
+        const ol = /^liq-(\d{4}-\d\d-\d\d)\.jsonl$/.exec(f); if (ol && ol[1] < dayOf(Date.now() - 15 * 864e5)) { fs.unlinkSync(path.join(DIR, f)); continue; }
         const mm = /^m-(\d{4}-\d\d-\d\d)\.jsonl$/.exec(f); if (!mm || mm[1] >= yest) continue;
         const agg = new Map();
         for (const r of lines(f)) { const k = r[1] + '|' + r[2] + '|' + hourOf(r[0]); let e = agg.get(k); if (!e) agg.set(k, e = Object.assign(newE(), { s: r[1], key: r[2], hh: hourOf(r[0]) }));
@@ -169,8 +171,8 @@ function start(DATA, log) {
         if (mh) { let a = []; try { a = JSON.parse(fs.readFileSync(path.join(DIR, f), 'utf8')); } catch (e) { log('Recorder: ' + f + ' unlesbar'); } for (const r of a) { addHour(r[1], r[2], r[0], r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[10] || 0, r.slice(11, 11 + NX)); st.loaded++; } }
         else if (mm) {
           if (hs.has(mm[1])) { try { fs.unlinkSync(path.join(DIR, f)); } catch (e) { /* egal */ } continue; }
-          for (const r of lines(f)) { addHour(r[1], r[2], r[0], r[3], r[4], r[5], r[6], r[7], r[8], r[9], 1, r.slice(10, 10 + NX)); DONE.add(r[1] + '|' + r[2] + '|' + r[0]); st.loaded++; }
-        } else if (ml && ml[1] >= cut) LQ.push(...lines(f));
+          for (const r of lines(f)) { if (r[0] >= Date.now() - RING_MS) ringAdd(r[1] + '|' + r[2], r[0], r[7], r[8], r[9]); addHour(r[1], r[2], r[0], r[3], r[4], r[5], r[6], r[7], r[8], r[9], 1, r.slice(10, 10 + NX)); DONE.add(r[1] + '|' + r[2] + '|' + r[0]); st.loaded++; }
+        } else if (ml && ml[1] >= cut) { for (const e of lines(f)) LQ.push(e); }
         else if (md) for (const r of lines(f)) addDv(r[0], r[1], r[2], r[3], r[4], r[5]);
       }
       LQ = LQ.slice(-15000); log('Recorder: ' + st.loaded + ' Zeilen geladen');
@@ -204,6 +206,14 @@ function start(DATA, log) {
     for (const k of KEYS) { const s = RS[k] || {}; o.streams[k] = { name: VEN[k].name, open: !!(s.open && s.live && s.live()), lastMsg: s.last || 0, msgs: s.msgs || 0, recon: s.recon || 0, err: s.err || '' }; }
     return o;
   }
-  return { query, status, stop: flush, flush, SYMS, KEYS };
+  /* Kurse für die Vorwärts-Bilanz: Minuten aus dem Ring, ältere Zeit aus Stunden (gröber, dort zählt bei Stop+Ziel in einer Stunde der Stop) */
+  function bars(sym, key, from, to) {
+    const k = sym + '|' + key, ring = RING.get(k) || [], rs = ring.length ? ring[0][0] : Infinity, out = []; let live = 0;
+    if (from < rs) { const hm = H.get(k); for (let hh = hourOf(from); hh < Math.min(to, rs); hh += HOUR) { const e = hm && hm.get(hh); if (!e || !e.lv) continue; live += e.lv; if (e.h != null) out.push({ t: hh, step: HOUR, h: e.h, l: e.l, c: e.c }); } }
+    for (const r of ring) { if (r[0] < from) continue; if (r[0] >= to) break; live++; if (r[1] != null) out.push({ t: r[0], step: MIN, h: r[1], l: r[2], c: r[3] }); }
+    return { bars: out, live };
+  }
+  function fundAt(sym, v, t) { const m = DV.get(sym + '|' + v); if (!m) return null; for (let k = 0; k <= 9; k++) { const e = m.get(hourOf(t) - k * HOUR); if (e) return e.fr; } return null; }
+  return { query, status, stop: flush, flush, bars, fundAt, SYMS, KEYS };
 }
 module.exports = { start, VEN, SYMS, DERIV };

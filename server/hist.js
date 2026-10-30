@@ -25,10 +25,10 @@ function start(DATA, log) {
   const urlOf = rel => FAKE ? FAKE + '/' + rel : BASE + rel;
   async function getZip(rel) {
     const f = path.join(DIR, rel.replace(/\//g, '_').replace(/\.zip$/, '.json'));
-    if (fs.existsSync(f)) return JSON.parse(fs.readFileSync(f, 'utf8'));
+    if (fs.existsSync(f)) { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) { fs.unlinkSync(f); } }   // kaputte Datei → neu laden
     const m = miss.get(rel); if (m && Date.now() - m < 864e5) return null;
     const r = await fetch(urlOf(rel), { signal: AbortSignal.timeout(60e3) }); if (r.status === 404) { miss.set(rel, Date.now()); st.miss++; return null; } if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + rel);
-    const out = rows(unzip1(Buffer.from(await r.arrayBuffer()))); fs.writeFileSync(f, JSON.stringify(out)); st.files++; st.last = rel; await new Promise(z => setTimeout(z, FAKE ? 0 : 150)); return out;
+    const out = rows(unzip1(Buffer.from(await r.arrayBuffer()))); fs.writeFileSync(f + '.tmp', JSON.stringify(out)); fs.renameSync(f + '.tmp', f); st.files++; st.last = rel; await new Promise(z => setTimeout(z, FAKE ? 0 : 150)); return out;
   }
   const ym = d => d.toISOString().slice(0, 7), ymd = d => d.toISOString().slice(0, 10);
   function plan(sym) {
@@ -40,20 +40,26 @@ function start(DATA, log) {
     for (let i = OI_DAYS; i >= 1; i--) { const d = new Date(Date.now() - i * 864e5); jobs.push(['o', 'futures/um/daily/metrics/' + S + '/' + S + '-metrics-' + ymd(d) + '.zip']); }
     return jobs;
   }
+  /* Monatsdatei fehlt (Binance stellt sie erst einige Tage nach Monatsende bereit) → Tagesdateien desselben Monats */
+  async function monthDaily(k, rel) {
+    const m = /(\d{4})-(\d\d)\.zip$/.exec(rel); if (!m) return null; const y = +m[1], mo = +m[2] - 1, out = []; if (Date.UTC(y, mo, 1) < Date.now() - 62 * 864e5) return null;   // nur der jüngste fertige Monat
+    for (let d = new Date(Date.UTC(y, mo, 1)); d.getUTCMonth() === mo && d < new Date(); d.setUTCDate(d.getUTCDate() + 1)) { const day = rel.replace('/monthly/', '/daily/').replace(/\d{4}-\d\d\.zip$/, ymd(d) + '.zip'); try { const r = await getZip(day); if (r) for (const x of r) out.push(x); } catch (e) { /* einzelner Tag fehlt */ } }
+    return out.length ? out : null;
+  }
   /* Laufende Stundenreihe je Symbol aufbauen */
   async function build(sym) {
     const K = { s: new Map(), p: new Map() }, F = [], O = new Map();
     for (const [k, rel] of plan(sym)) {
-      let r; try { r = await getZip(rel); } catch (e) { st.err = String(e.message || e); log('Historie: ' + st.err); continue; } if (!r) continue;
+      let r; try { r = await getZip(rel); if (!r && (k === 's' || k === 'p' || k === 'f') && /monthly/.test(rel)) r = await monthDaily(k, rel); } catch (e) { st.err = String(e.message || e); log('Historie: ' + st.err); continue; } if (!r) continue;
       if (k === 's' || k === 'p') for (const x of r) { const t = ms(+x[0]); K[k].set(t, [+x[1], +x[4], +x[7], +x[10]]); }        // open, close, quote vol, taker buy quote
       else if (k === 'f') for (const x of r) F.push([ms(+x[0]), +x[2]]);
       else for (const x of r) { const t = Date.parse(String(x[0]).replace(' ', 'T') + 'Z'); if (isFinite(t) && t % H === 0) O.set(t, +x[3]); }  // sum_open_interest_value
     }
     const ts = [...K.p.keys()].filter(t => K.s.has(t)).sort((a, b) => a - b); if (ts.length < 100) { mem.set(sym, null); return; }
     F.sort((a, b) => a[0] - b[0]); const t0 = ts[0], n = Math.round((ts[ts.length - 1] - t0) / H) + 1;
-    const A = { so: [], sc: [], sd: [], po: [], pc: [], pd: [], oi: [], fr: [] }; let fi = 0, fr = null;
+    const A = { so: [], sc: [], sd: [], po: [], pc: [], pd: [], oi: [], fr: [] }; let fi = 0, fr = null, frT = 0;
     for (let i = 0; i < n; i++) {
-      const t = t0 + i * H, s = K.s.get(t), p = K.p.get(t); while (fi < F.length && F[fi][0] <= t) fr = F[fi++][1];
+      const t = t0 + i * H, s = K.s.get(t), p = K.p.get(t); while (fi < F.length && F[fi][0] <= t) { fr = F[fi][1]; frT = F[fi][0]; fi++; } if (fr != null && t - frT > 9 * H) fr = null;   // Funding höchstens 9 h weiterführen
       A.so.push(s ? s[0] : null); A.sc.push(s ? s[1] : null); A.sd.push(s ? Math.round(2 * s[3] - s[2]) : null); A.po.push(p ? p[0] : null); A.pc.push(p ? p[1] : null); A.pd.push(p ? Math.round(2 * p[3] - p[2]) : null);
       A.oi.push(O.has(t) ? Math.round(O.get(t)) : null); A.fr.push(fr);
     }

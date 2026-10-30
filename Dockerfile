@@ -5,7 +5,7 @@ COPY server/package.json ./
 RUN npm install --omit=dev --no-audit --no-fund \
  && npx playwright-core install --with-deps chromium \
  && rm -rf /var/lib/apt/lists/* && chmod -R a+rX /ms-pw
-COPY server/server.js server/rec.js server/hist.js ./
+COPY server/server.js server/rec.js server/hist.js server/ledger.js ./
 COPY index.html ./index.html
 RUN mkdir -p /data && chown node:node /data
 USER node

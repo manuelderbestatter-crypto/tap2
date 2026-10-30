@@ -2,7 +2,7 @@
 /* Tape-Server: schützt die App (Login), lässt die Engine rund um die Uhr in einem Headless-Browser laufen,
    gibt die Steuerung beim Öffnen ans Handy und zurück, sendet Alarme, sichert den Stand.
    Nur Papier-Handel gegen echte Live-Preise. Keine Börsen-Schlüssel, kein echter Handel. */
-const REC = require('./rec.js'), HIST = require('./hist.js');
+const REC = require('./rec.js'), HIST = require('./hist.js'), LEDGER = require('./ledger.js');
 const http = require('http'), fs = require('fs'), path = require('path'), crypto = require('crypto'), zlib = require('zlib');
 let chromium; try { ({ chromium } = require('playwright-core')); } catch (e) { ({ chromium } = require('playwright')); }
 
@@ -233,6 +233,11 @@ const server = http.createServer(async (req, res) => {
       const sym = (url.searchParams.get('sym') || 'BTC').toUpperCase(); if (!recorder.SYMS.includes(sym)) return json(res, 404, { err: 'unbekanntes Symbol' });
       return json(res, 200, Object.assign({ ok: true }, recorder.query(sym, +url.searchParams.get('h') || 720)));
     }
+    if (p === '/api/ledger' && (authed(req) || eq(url.searchParams.get('k') || '', EKEY))) {
+      if (!ledger) return json(res, 503, { ok: false, err: 'Bilanz aus' });
+      if (req.method === 'POST') { let o; try { o = JSON.parse((await readBody(req, 2e6)).toString()); } catch (e) { return json(res, 400, { ok: false, err: 'kein JSON' }); } return json(res, 200, { ok: true, added: ledger.add(o.signals) }); }
+      return json(res, 200, { ok: true, at: Date.now(), status: ledger.status(), stats: ledger.stats(), cp: LEDGER.CP });
+    }
     if (p === '/api/hist' && (authed(req) || eq(url.searchParams.get('k') || '', EKEY))) {
       if (!history) return json(res, 503, { ok: false, err: 'Historie aus' });
       if (url.searchParams.get('status')) return json(res, 200, Object.assign({ ok: true }, history.status()));
@@ -276,7 +281,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (p === '/api/status') {
       return json(res, 200, { version: VERSION, uptime: Math.round(process.uptime()), owner: S.owner, haveState: !!S.nx, stateAt: S.at, stateBy: S.by, beatAgo: S.owner === 'phone' ? Date.now() - S.beat : null,
-        engine: { up: E.up, since: E.since, restarts: E.restarts, health: E.health }, rec: recorder ? recorder.status() : null, hist: history ? history.status() : null, notify: { ntfy: !!NT.topic, telegram: !!(NT.tg && NT.chat), healthcheck: !!ENV.HC_URL }, backups: fs.readdirSync(path.join(DATA, 'backups')).length, log: logs.slice(-30) });
+        engine: { up: E.up, since: E.since, restarts: E.restarts, health: E.health }, rec: recorder ? recorder.status() : null, hist: history ? history.status() : null, ledger: ledger ? ledger.status() : null, notify: { ntfy: !!NT.topic, telegram: !!(NT.tg && NT.chat), healthcheck: !!ENV.HC_URL }, backups: fs.readdirSync(path.join(DATA, 'backups')).length, log: logs.slice(-30) });
     }
     if (p === '/api/export') { if (S.owner === 'server') await lock(engineGrab); return send(res, 200, JSON.stringify({ app: 'server', at: new Date().toISOString(), state: S.nx }, null, 1), 'application/json', { 'content-disposition': 'attachment; filename="nexus-server-' + new Date().toISOString().slice(0, 10) + '.json"' }); }
     return send(res, 404, 'nicht gefunden');
@@ -285,6 +290,7 @@ const server = http.createServer(async (req, res) => {
 server.headersTimeout = 20e3; server.requestTimeout = 60e3;
 let history = null; if (ENV.HIST !== '0') { try { history = HIST.start(DATA, log); } catch (e) { log('Historie-Start fehlgeschlagen:', e.message); } }
 let recorder = null; if (ENV.REC !== '0') { try { recorder = REC.start(DATA, log); } catch (e) { log('Recorder-Start fehlgeschlagen:', e.message); } }
+let ledger = null; try { ledger = LEDGER.start(DATA, log, recorder); } catch (e) { log('Bilanz-Start fehlgeschlagen:', e.message); }
 server.listen(PORT, ENV.BIND || '0.0.0.0', () => { log('Server auf Port', PORT); if (S.nx) lock(() => engineStart('Start')); });
 
 async function bye() { log('Beende …'); try { await lock(async () => { if (S.owner === 'server') await engineGrab(); await saveState(); await engineKillAll(); }); } catch (e) { /* egal */ } try { if (recorder) recorder.stop(); } catch (e) { /* egal */ } process.exit(0); }

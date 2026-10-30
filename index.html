@@ -1053,23 +1053,28 @@ const ALGOS = [
 const algoOf = id => ALGOS.find(a => a.id === id);
 const algoName = id => id === 'manual' ? 'Manuell' : (algoOf(id) || { name: id }).name;
 function algoCfg(id) { return NX.algos[id] || (NX.algos[id] = { on: true, trade: true, tv: 'standard' }); }
-const RUN = { ct: {}, cool: {}, bk: [], lastBk: 0, last60: 0, lastBkRun: 0 };
+const RUN = { ct: {}, cool: {}, bk: [], lastBk: 0, last60: 0, lastBkRun: 0, skipCost: {} };
+/* Regel-Version: Prüfsumme über Parameter und Regel-Code. Ändert sich eine Regel, beginnt ihre Bilanz neu (alte Signale zählen nicht mit). */
+const algoRv = a => a._rv || (a._rv = fnv(JSON.stringify(a.params || {}) + String(a.run) + String(a.hold || '') + String(a.cool || '') + (a.rvSrc ? a.rvSrc() : '')).slice(0, 8));
 
 function mkSignal(a, vn, r, ctx, manual) {
   const px = D.last.p, side = r.side, dir = sgn(side), buf = manual ? 0 : (a.id === 'fund' || a.htf ? 0 : 0.3 * ctx.atr);
   let stop = r.ext - dir * buf; const dist = Math.abs(px - stop); if (!manual && (dist < 0.25 * ctx.atr || dist > (a.maxAtr || 6) * ctx.atr)) return null; if (dist <= 0) return null;
   let target = r.tgt != null && (r.tgt - px) * dir >= dist ? r.tgt : px + dir * dist * 1.5;
-  return { id: nid('S'), t: Date.now(), k: nxKey(), sym: ST.sym, src: ST.src, tf: ST.tf, algo: a.id, variant: vn, side, px, stop, target, rr: Math.abs(target - px) / dist, atr: ctx.atr || 0, why: r.why || [], reg: ctx.regime || '', st: 'open', h: {}, out: '', R: null, mfe: 0, mae: 0, last: Date.now(), manual: !!manual };
+  const costR = costBpOf(ST.src) / 1e4 * px / dist; if (!manual && costR > 0.3) { RUN.skipCost[a.id] = (RUN.skipCost[a.id] || 0) + 1; return null; }   // Kosten fressen > 0,3 R → kein Signal
+  return { hold: a.hold || 60 * 60e3, costBp: costBpOf(ST.src), rv: algoRv(a), tfk: a.htf ? '*' : ST.tf, id: nid('S'), t: Date.now(), k: nxKey(), sym: ST.sym, src: ST.src, tf: ST.tf, algo: a.id, variant: vn, side, px, stop, target, rr: Math.abs(target - px) / dist, atr: ctx.atr || 0, why: r.why || [], reg: ctx.regime || '', st: 'open', h: {}, out: '', R: null, mfe: 0, mae: 0, last: Date.now(), manual: !!manual };
 }
 function fireSignal(sig) {
+  if (typeof ledgerPush === 'function') ledgerPush(sig);
   NX.signals.unshift(sig); if (NX.signals.length > 600) NX.signals.length = 600; emit('signal.created', { id: sig.id, algo: sig.algo, v: sig.variant, side: sig.side, px: sig.px, k: sig.k }, sig.id);
   nxOnSignal(sig);
 }
 function algoTick() {
   if (NX.flags.signals === false) return; if (!D.last || !D.candles.length) return; const now = Date.now(), ctx = marketCtx(); if (D.lastMsg && now - D.lastMsg > 20000) return; const C = closedC(); if (C.length < 30 || ctx.atr == null) return;
   const run = (a, vn) => { const cfg = algoCfg(a.id); if (!cfg.on) return; const ck = a.id + '|' + vn + '|' + nxKey(); const r = a.run(C, a.params[vn], ctx); if (!r) return;
-    const cd = RUN.cool[ck + '|' + r.side] || 0, wait = a.kind === 'candle' ? a.cool * D.tfMs : a.cool; if (now - cd < wait) return;
-    const sig = mkSignal(a, vn, r, ctx, false); if (!sig) return; RUN.cool[ck + '|' + r.side] = now; fireSignal(sig); };
+    const CL = NX.cool || (NX.cool = {}), cd = CL[ck + '|' + r.side] || 0, wait = a.kind === 'candle' ? a.cool * D.tfMs : a.cool; if (now - cd < wait) return;
+    if (a.htf && NX.signals.some(s => s.st === 'open' && s.algo === a.id && s.variant === vn && s.k === nxKey())) return;
+    const sig = mkSignal(a, vn, r, ctx, false); if (!sig) return; CL[ck + '|' + r.side] = now; fireSignal(sig); };
   const lastC = C[C.length - 1], key = nxKey() + '|' + ST.tf;
   if (RUN.ct[key] === undefined) RUN.ct[key] = lastC.t;                  // erster Durchlauf nur Markierung – keine Signale aus alten Kerzen
   else if (lastC.t > RUN.ct[key]) { RUN.ct[key] = lastC.t; ALGOS.filter(a => a.kind === 'candle').forEach(a => VARS.forEach(v => run(a, v))); }
@@ -1092,19 +1097,42 @@ function trackSignals() {
       if (hitS) { s.out = 'S'; s.R = netR(s, s.stop); } else if (hitT) { s.out = 'T'; s.R = netR(s, s.target); } }
     for (const [hk, m] of [['m5', 5], ['m15', 15], ['m60', 60]]) if (s.h[hk] == null && age >= m * 60e3 && age < (m + 3) * 60e3) s.h[hk] = (dir * (p / s.px - 1)) * 1e4 - costBpOf(s.src);
     if (!s.out && age >= hold) { s.out = 'Z'; s.R = netR(s, p); }
-    if (s.out) { s.st = 'done'; emit('signal.evaluated', { id: s.id, out: s.out, R: +s.R.toFixed(2) }, s.id); }
+    if (s.out) { s.st = 'done'; s.exitT = now; emit('signal.evaluated', { id: s.id, out: s.out, R: +s.R.toFixed(2) }, s.id); }
   }
 }
+/* ===== Statistik der Vorwärts-Auswertung =====
+   Quelle: die Server-Bilanz (vollständig, unabhängig vom Chart) – ohne Server die lokalen Signale (unvollständig).
+   Gezählt wird je Algorithmus · Variante · Zeitrahmen (Kerzen-Algos) · Regel-Version, nicht überlappend je Symbol.
+   Urteil nur an festen Prüfpunkten (n = 30, 60, 100, …) mit Mehrfachtest-Korrektur über alle Varianten × 5 Prüfpunkte. */
+const ST_CP = [30, 60, 100, 150, 250, 400, 600, 1000, 1500, 2500, 4000];
+function invNormU(p) {   // z mit P(Z > z) = p (Acklam-Näherung)
+  const a = [-39.69683028665376, 220.9460984245205, -275.9285104469687, 138.357751867269, -30.66479806614716, 2.506628277459239], b = [-54.47609879822406, 161.5858368580409, -155.6989798598866, 66.80131188771972, -13.28068155288572], c = [-0.007784894002430293, -0.3223964580411365, -2.400758277161838, -2.549732539343734, 4.374664141464968, 2.938163982698783], d = [0.007784695709041462, 0.3224671290700398, 2.445134137142996, 3.754408661907416];
+  const q0 = 1 - p; let q, r; if (q0 < 0.02425) { q = Math.sqrt(-2 * Math.log(q0)); return -((((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)); }
+  if (q0 > 1 - 0.02425) { q = Math.sqrt(-2 * Math.log(1 - q0)); return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1); }
+  q = q0 - 0.5; r = q * q; return (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5]) * q / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1);
+}
+const statTests = () => Math.max(1, ALGOS.length * VARS.length * 5);
+const statZ = () => invNormU(0.05 / statTests());
+function statShape(g, src) {
+  g = g || {}; const n = g.n || 0, avg = n ? g.avg : 0, se = g.se || 0, z = statZ(), cp = g.cp || 0;
+  return { n, w: g.w || 0, win: n ? (g.w || 0) / n : 0, avg, se, lo0: avg - 1.28 * se, hi0: avg + 1.28 * se, lo: cp ? g.avgCp - z * g.seCp : null, cp, avgCp: g.avgCp, z, sum: g.sum || 0, open: g.open || 0, tot: g.tot || 0, T: g.T || 0, S: g.S || 0, Z: g.Z || 0, void: g.void || 0, skip: g.skip || 0, src };
+}
+function localStats(aid, vn, tf, rv) {
+  const arr = NX.signals.filter(s => s.algo === aid && s.variant === vn && !s.manual && s.rv === rv && (s.tfk || '') === tf).sort((a, b) => a.t - b.t), last = {}, R = []; let open = 0, vo = 0, skip = 0, T = 0, S = 0, Z = 0;
+  for (const s of arr) { if (s.st === 'open') { open++; continue; } if (s.st !== 'done') { vo++; continue; } if (last[s.sym] && s.t < last[s.sym]) { skip++; continue; } last[s.sym] = s.exitT || s.t; R.push(s.R); if (s.out === 'T') T++; else if (s.out === 'S') S++; else Z++; }
+  const m = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0, se = a => a.length > 1 ? sd(a) / Math.sqrt(a.length) : 0, cp = ST_CP.filter(c => c <= R.length).pop() || 0, Rc = R.slice(0, cp);
+  return { n: R.length, avg: m(R), se: se(R), w: R.filter(x => x > 0).length, sum: R.reduce((x, y) => x + y, 0), cp, avgCp: cp ? m(Rc) : null, seCp: cp ? se(Rc) : null, open, void: vo, skip, tot: arr.length, T, S, Z };
+}
 function algoStats(aid, vn) {
-  const a = NX.signals.filter(s => s.algo === aid && s.variant === vn && s.st === 'done' && !s.manual), n = a.length, R = a.map(s => s.R), w = R.filter(x => x > 0).length, avg = mean(R), se = n > 1 ? sd(R) / Math.sqrt(n) : 0;
-  const open = NX.signals.filter(s => s.algo === aid && s.variant === vn && s.st === 'open').length, tot = NX.signals.filter(s => s.algo === aid && s.variant === vn && !s.manual).length;
-  return { n, w, win: n ? w / n : 0, avg, se, lo0: avg - 1.28 * se, hi0: avg + 1.28 * se, lo: n > 1 ? avg - 1.28 * se : null, sum: R.reduce((x, y) => x + y, 0), open, tot, T: a.filter(s => s.out === 'T').length, S: a.filter(s => s.out === 'S').length, Z: a.filter(s => s.out === 'Z').length };
+  const a = algoOf(aid); if (!a) return statShape(null, 'lokal'); const tf = a.htf ? '*' : ST.tf, rv = algoRv(a);
+  if (typeof LEDG !== 'undefined' && LEDG.ok) return statShape(LEDG.st[aid + '|' + vn + '|' + tf + '|' + rv], 'server');
+  return statShape(localStats(aid, vn, tf, rv), 'lokal');
 }
 function algoVerdict(st) {
-  if (st.n < 20) return { k: 'wenig', t: 'Zu wenig Daten (' + st.n + '/20)', c: 'warn' };
-  if (st.lo > 0) return { k: 'kand', t: 'Kandidat – Vorteil vorläufig belegt', c: 'up' };
-  if (st.avg <= 0 && st.n >= 30) return { k: 'verw', t: 'Verworfen – kein Vorteil', c: 'dn' };
-  return { k: 'unkl', t: 'Unklar', c: 'warn' };
+  if (!st.cp) return { k: 'wenig', t: 'Zu wenig Daten (' + st.n + '/30)', c: 'warn' };
+  if (st.lo > 0) return { k: 'kand', t: 'Kandidat – Vorteil jenseits des Zufalls (Prüfpunkt n=' + st.cp + ')', c: 'up' };
+  if (st.avgCp <= 0) return { k: 'verw', t: 'Verworfen – kein Vorteil (Prüfpunkt n=' + st.cp + ')', c: 'dn' };
+  return { k: 'unkl', t: 'Unklar (Prüfpunkt n=' + st.cp + ')', c: 'warn' };
 }
 
 /* ===== Risiko-Engine (deterministisch, unabhängig, nicht übersteuerbar) ===== */
@@ -1142,9 +1170,11 @@ function decide(sig) {
   const chk = (n, ok, d) => dec.checks.push({ n, ok, d: d || '' });
   chk('Modus', NX.mode !== 'off', NX.mode === 'auto' ? 'Papier automatisch' : 'Vorschlag + Freigabe'); chk('Kill-Switch aus', !NX.kill); chk('Datenfrische', !!D.lastMsg && Date.now() - D.lastMsg < R.staleMs);
   /* Nutzen: Vorwärts-Statistik dieser Variante, konservativ (untere Schranke) */
-  if (st.n >= R.minN) { dec.ev = { n: st.n, avg: st.avg, lo: st.lo }; if (st.avg <= 0 || st.lo < -0.3) { dec.reasons.push('Keine belegte Erwartung: Ø ' + nf(st.avg, 2) + ' R, konservativ ' + nf(st.lo, 2) + ' R (n=' + st.n + ')'); } else dec.scale = 1; }
-  else { dec.ev = { n: st.n, avg: null, lo: null }; dec.scale = R.probe; dec.challenge.push('Statistik fehlt (n=' + st.n + ' < ' + R.minN + ') → nur Probe-Größe ' + Math.round(R.probe * 100) + ' %'); }
-  chk('Erwartung', !dec.reasons.length, st.n >= R.minN ? 'Ø ' + nf(st.avg, 2) + ' R' : 'Exploration (n=' + st.n + ')');
+  const vd = algoVerdict(st); dec.ev = { n: st.n, avg: st.n ? st.avg : null, lo: st.lo, cp: st.cp, k: vd.k };
+  if (vd.k === 'kand') dec.scale = 1;
+  else if (vd.k === 'verw') dec.reasons.push('Verworfen: Ø ' + nf(st.avgCp, 2) + ' R am Prüfpunkt n=' + st.cp + ' – Regel handelt nicht mehr');
+  else { dec.scale = R.probe; dec.challenge.push('Kein belegter Vorteil (' + vd.t + ') → nur Probe-Größe ' + Math.round(R.probe * 100) + ' %, Papier'); }
+  chk('Erwartung', !dec.reasons.length, vd.k === 'kand' ? 'Kandidat: untere Grenze ' + nf(st.lo, 2) + ' R' : vd.t);
   if (typeof decideHooks === 'function') decideHooks(sig, dec, chk);
   /* Gegenprüfung (adversarial): was spricht gegen den Trade? */
   if ((ctx.trend === 'auf' && dir < 0) || (ctx.trend === 'ab' && dir > 0)) dec.challenge.push('Trend (' + ctx.trend + ') läuft gegen die Richtung');
@@ -3031,7 +3061,7 @@ document.addEventListener('click', e => {
 
 'use strict';
 /* ===== NEXUS Block 6a: 14 Backup & Wiederherstellung · 17 Deployment/Version ===== */
-const BUILD_T = 1793354645529;
+const BUILD_T = 1793368343172;
 NX.bk = NX.bk || { lastExport: 0, lastSnap: 0, rpoH: 24, drills: [], exports: [], snapMade: 0 };
 const BK = { snaps: null, val: null, busy: '', ver: null, st: null };
 const BK_KEY = 'nexus_bk', BK_KEEP = 3;
@@ -3963,9 +3993,9 @@ const HSRC = [
   { id: 'flow', n: 'Spot gegen Perp (Binance)', grp: 'Orderflow', ttl: 600e3, sym: true, kind: 'direkt', hosts: ['api.binance.com', 'fapi.binance.com'], note: 'Käufer-Anteil je Stunde aus den Binance-Kerzen (Taker-Volumen), 1000 Stunden Verlauf. Frei, ohne Schlüssel.', count: d => d.length,
     async get() {
       const S = ST.sym + 'USDT', [a, b] = await Promise.all([jget('https://api.binance.com/api/v3/klines?symbol=' + S + '&interval=1h&limit=1000'), jget('https://fapi.binance.com/fapi/v1/klines?symbol=' + S + '&interval=1h&limit=1000')]);
-      const mk = r => new Map(r.map(k => [+k[0], { c: +k[4], dq: 2 * +k[10] - +k[7] }])), A = mk(a), B = mk(b), ts = [...A.keys()].filter(t => B.has(t)).sort((x, y) => x - y);
+      const now = Date.now(), mk = r => new Map(r.map(k => [+k[0], { c: +k[4], h: +k[2], l: +k[3], dq: 2 * +k[10] - +k[7] }])), A = mk(a), B = mk(b), ts = [...A.keys()].filter(t => B.has(t) && t + 3600e3 <= now).sort((x, y) => x - y);   // laufende Stunde nie
       if (ts.length < 50) throw new Error('zu wenig gemeinsame Kerzen (Spot und Perp)');
-      return ts.map(t => ({ t, sc: A.get(t).c, pc: B.get(t).c, sd: A.get(t).dq, pd: B.get(t).dq }));
+      return ts.map(t => ({ t, sc: A.get(t).c, pc: B.get(t).c, ph: B.get(t).h, pl: B.get(t).l, sd: A.get(t).dq, pd: B.get(t).dq }));
     } },
   { id: 'beh', n: 'Händlerverhalten (OI × Preis)', grp: 'Positionierung', ttl: 600e3, sym: true, kind: 'direkt', hosts: ['fapi.binance.com'], note: 'Aus Open-Interest-Änderung und Preisänderung je Stunde abgeleitet (Binance Perp). Das ist eine Ableitung, keine Börsen-Meldung.', count: d => d.length,
     async get() {
@@ -4010,6 +4040,10 @@ function hubInit() { if (hubTimer) return; setTimeout(hubTick, 5000); hubTimer =
 /* ----- Merkmale + Evidenz-Check ----- */
 const hStd = a => { const m = mean(a); return Math.sqrt(mean(a.map(x => (x - m) * (x - m)))) || 1e-9; };
 const hRoll = (a, w) => a.map((_, i) => i < w - 1 ? null : a.slice(i - w + 1, i + 1).reduce((x, y) => x + y, 0));
+/* Lücken: g[i] zählt Sprünge ≠ 1 h bis i. Ein Fenster a..b ist lückenlos, wenn g[b] − g[a] = 0. */
+function hGap(rows) { const g = new Array(rows.length).fill(0); for (let i = 1; i < rows.length; i++) g[i] = g[i - 1] + (rows[i].t - rows[i - 1].t === 3600e3 ? 0 : 1); return g; }
+const hCont = (g, a, b) => a >= 0 && b < g.length && g[b] - g[a] === 0;
+function hRollT(vals, w, g) { const out = new Array(vals.length).fill(null); let s = 0; for (let i = 0; i < vals.length; i++) { s += vals[i]; if (i >= w) s -= vals[i - w]; if (i >= w - 1 && hCont(g, i - w + 1, i)) out[i] = s; } return out; }
 function hPear(x, y) { const n = x.length; if (n < 5) return null; const mx = mean(x), my = mean(y); let sxy = 0, sxx = 0, syy = 0; for (let i = 0; i < n; i++) { sxy += (x[i] - mx) * (y[i] - my); sxx += (x[i] - mx) ** 2; syy += (y[i] - my) ** 2; } return sxx > 0 && syy > 0 ? sxy / Math.sqrt(sxx * syy) : null; }
 function hEv(id, name, xs, ys, horizon, ntests) {   // xs: Merkmal zum Zeitpunkt, ys: Rendite danach; nicht überlappende Stichproben
   const n = xs.length, r = hPear(xs, ys), h = n >> 1, r1 = hPear(xs.slice(0, h), ys.slice(0, h)), r2 = hPear(xs.slice(h), ys.slice(h)), z = HEV_Z;
@@ -4020,15 +4054,16 @@ function hEv(id, name, xs, ys, horizon, ntests) {   // xs: Merkmal zum Zeitpunkt
 function hubDerive() {
   const f = {}, S = HUB.s, fl = hubFlowLong(), be = hubBehLong(), ls = S.ls && S.ls.d, ev = [];
   if (fl && fl.length > 60) {
-    const sd = fl.map(x => x.sd), pd = fl.map(x => x.pd), rs = hRoll(sd, HEV_W), rp = hRoll(pd, HEV_W), a = rs.filter(x => x != null), b = rp.filter(x => x != null), n = fl.length;
-    f.spot12 = rs[n - 1]; f.perp12 = rp[n - 1]; f.zSpot = f.spot12 / hStd(a); f.zPerp = f.perp12 / hStd(b);
+    const g = hGap(fl), sd = fl.map(x => x.sd), pd = fl.map(x => x.pd), rs = hRollT(sd, HEV_W, g), rp = hRollT(pd, HEV_W, g), a = rs.filter(x => x != null), b = rp.filter(x => x != null), n = fl.length;
+    f.spot12 = rs[n - 1]; f.perp12 = rp[n - 1]; f.lastT = fl[n - 1].t; f.d3 = hCont(g, n - 3, n - 1) ? sd[n - 1] + sd[n - 2] + sd[n - 3] + pd[n - 1] + pd[n - 2] + pd[n - 3] : null;
+    { let tr = 0, k = 0; for (let i = n - 14; i < n; i++) if (i > 0 && fl[i].ph && hCont(g, i - 1, i)) { tr += Math.max(fl[i].ph - fl[i].pl, Math.abs(fl[i].ph - fl[i - 1].pc), Math.abs(fl[i].pl - fl[i - 1].pc)); k++; } f.atrH = k >= 10 ? tr / k : null; }   // echte Stunden-ATR (Perp, 14 h) f.zSpot = f.spot12 / hStd(a); f.zPerp = f.perp12 / hStd(b);
     const bas = fl.map(x => (x.pc / x.sc - 1) * 100); f.basis = bas[n - 1]; f.basisZ = (f.basis - mean(bas)) / hStd(bas);
     const zs = f.zSpot, zp = f.zPerp, T = .5; f.lead = zs > T && zp > T ? 'Spot und Perp kaufen' : zs < -T && zp < -T ? 'Spot und Perp verkaufen' : zs > T ? 'Spot führt (Käufe)' : zp > T ? 'Perp getrieben (Hebel kauft)' : zs < -T ? 'Spot verkauft' : zp < -T ? 'Perp verkauft' : 'ausgeglichen';
     f.leadDir = zs > T && zp > T ? 1 : zs < -T && zp < -T ? -1 : zs > T ? 1 : zs < -T ? -1 : 0;
-    const X = { spot: [], perp: [], basis: [], pos: [], ls: [] }, Y = []; const pos = new Map(); if (be) { const sg = be.map(r => r.dOI * Math.sign(r.dP) / r.oi), ro = hRoll(sg, HEV_W); be.forEach((r, i) => { if (ro[i] != null) pos.set(r.t, ro[i]); }); }
+    const X = { spot: [], perp: [], basis: [], pos: [], ls: [] }, Y = []; const pos = new Map(); if (be) { const sg = be.map(r => r.dOI * Math.sign(r.dP) / r.oi), ro = hRollT(sg, HEV_W, hGap(be)); be.forEach((r, i) => { if (ro[i] != null) pos.set(r.t, ro[i]); }); }
     const lmap = (arr) => new Map(arr.map(p => [Math.floor(p[0] / 3600e3) * 3600e3, p[1]])), G = ls ? lmap(ls.g) : null, TP = ls ? lmap(ls.top) : null;
     for (let i = HEV_W; i + HEV_H < n; i += HEV_H) {
-      const t = fl[i].t, y = Math.log(fl[i + HEV_H].pc / fl[i].pc); if (!isFinite(y) || rs[i] == null) continue;
+      if (!hCont(g, i, i + HEV_H)) continue; const t = fl[i].t, y = Math.log(fl[i + HEV_H].pc / fl[i].pc); if (!isFinite(y) || rs[i] == null) continue;   // Ziel genau 4 h später
       const ps = pos.get(t), gv = G && G.get(t), tv = TP && TP.get(t);
       X.spot.push([rs[i], y]); X.perp.push([rp[i], y]); X.basis.push([bas[i], y]); if (ps != null) X.pos.push([ps, y]); if (gv != null && tv != null) X.ls.push([tv - gv, y]);
     }
@@ -4041,7 +4076,7 @@ function hubDerive() {
   const ch = S.chain && S.chain.d; if (ch) { const l = ch[ch.length - 1]; f.mvrv = l.mvrv; f.rp = l.rp; f.vsRp = (l.p / l.rp - 1) * 100; }
   const st = S.stable && S.stable.d; if (st && st.length > 31) f.stable30 = (st[st.length - 1][1] / st[st.length - 31][1] - 1) * 100;
   const mc = S.macro && S.macro.d; if (mc) {
-    const g = k => mc.series[k] && mc.series[k].pts; const sp = g('spx'); if (sp && sp.length > 130) { const v = sp.map(p => p[1]), ma = mean(v.slice(-125)); f.spx = v[v.length - 1]; f.spxMa = ma; f.spxVs = (f.spx / ma - 1) * 100; }
+    const g = k => { const p = mc.series[k] && mc.series[k].pts; return p && p.length && Date.now() - p[p.length - 1][0] < (k === 'usd' ? 12 : 5) * 864e5 ? p : null; }; const sp = g('spx'); /* FRED: älter als 5 Tage (Dollar 12) = nicht aktuell */ if (sp && sp.length > 130) { const v = sp.map(p => p[1]), ma = mean(v.slice(-125)); f.spx = v[v.length - 1]; f.spxMa = ma; f.spxVs = (f.spx / ma - 1) * 100; }
     const vx = g('vix'); if (vx) f.vix = vx[vx.length - 1][1]; const y = g('y10'); if (y) f.y10 = y[y.length - 1][1]; const us = g('usd'); if (us) f.usd = us[us.length - 1][1];
   }
   const cn = S.cnn && S.cnn.d; if (cn && cn.now) f.cnn = cn.now.score;
@@ -4369,14 +4404,16 @@ function fDerive() {
   if (fl && fl.length > FABS_W + 50) {
     const n = fl[fl.length - 1].t + 3600e3 > Date.now() ? fl.length - 1 : fl.length;   // laufende Stunde nie werten
     const n0 = fl.length, d = fl.map(x => x.sd + x.pd), r = fl.map((x, i) => i ? Math.log(x.pc / fl[i - 1].pc) : 0), A = new Array(n0).fill(0), ev = [];
+    const gp = hGap(fl);   // Fenster und Rendite nur über lückenlose Stunden
     let s1 = 0, s2 = 0, q1 = 0, q2 = 0; for (let k = 0; k < FABS_W; k++) { s1 += d[k]; s2 += d[k] * d[k]; q1 += r[k]; q2 += r[k] * r[k]; }   // gleitende Summen statt Neuberechnung
     for (let i = FABS_W; i < n; i++) {
       if (i > FABS_W) { const o = i - FABS_W - 1, nw = i - 1; s1 += d[nw] - d[o]; s2 += d[nw] * d[nw] - d[o] * d[o]; q1 += r[nw] - r[o]; q2 += r[nw] * r[nw] - r[o] * r[o]; }
+      if (!hCont(gp, i - FABS_W - 1, i)) continue;
       const md = s1 / FABS_W, sd = Math.sqrt(Math.max(s2 / FABS_W - md * md, 0)) || 1e-9, mr = q1 / FABS_W, sr = Math.sqrt(Math.max(q2 / FABS_W - mr * mr, 0)) || 1e-9, zd = (d[i] - md) / sd, zr = r[i] / sr;
       A[i] = zd < -FABS_Z && zr > -FABS_R ? 1 : zd > FABS_Z && zr < FABS_R ? -1 : 0; if (A[i]) ev.push({ t: fl[i].t, a: A[i], zd, zr, p: fl[i].pc, i });
     }
     FF.abs = A; FF.absEv = ev; FF.absMap = new Map(fl.map((x, i) => [x.t, A[i]])); let s6 = 0; for (let i = n - 6; i < n; i++) s6 += A[i]; f.absorb = s6; f.absLast = ev.length ? ev[ev.length - 1] : null;
-    const xs = [], ys = []; let next = 0; for (const e of ev) { if (e.i < next || e.i + HEV_H >= n) continue; xs.push(e.a); ys.push(Math.log(fl[e.i + HEV_H].pc / fl[e.i].pc)); next = e.i + HEV_H; }
+    const xs = [], ys = []; let next = 0; for (const e of ev) { if (e.i < next || e.i + HEV_H >= n || !hCont(gp, e.i, e.i + HEV_H)) continue; xs.push(e.a); ys.push(Math.log(fl[e.i + HEV_H].pc / fl[e.i].pc)); next = e.i + HEV_H; }
     HUB.ev.push(hEv('absorb', 'Absorption (Ereignis)', xs, ys, HEV_H + ' h', HEV_NT));
   }
   { const hd = hubHist(); if (hd && hd.fr) { const xs = [], ys = []; for (let i = 0; i + HEV_H < hd.n; i += HEV_H) { const a = hd.fr[i], p0 = hd.pc[i], p1 = hd.pc[i + HEV_H]; if (a == null || !p0 || !p1) continue; xs.push(a * 100); ys.push(Math.log(p1 / p0)); } if (xs.length >= 40) { HUB.ev.push(hEv('fund', 'Funding Binance (Historie)', xs, ys, HEV_H + ' h', HEV_NT)); FF.fundHist = true; } } }
@@ -4464,6 +4501,30 @@ function pGex() {
 HPAN.push(['gex', pGex, null]);
 
 'use strict';
+/* ===== Vorwärts-Bilanz (Client) =====
+   Jedes neue Signal geht an die Server-Bilanz; der Server wertet es selbst mit seinen mitgeschnittenen Kursen aus.
+   Die Statistik (algoStats) kommt dann vom Server – vollständig, auch für Signale, deren Markt gerade nicht im Chart ist. */
+const LEDG = { q: [], ok: false, st: {}, at: 0, err: '', status: null, busy: false };
+function ledgerPush(sig) { if (!hubHasSrv() || sig.manual) return; const o = {}; for (const k of ['id', 't', 'sym', 'src', 'algo', 'variant', 'side', 'px', 'stop', 'target', 'hold', 'costBp', 'rv']) o[k] = sig[k]; o.tf = sig.tfk || sig.tf; LEDG.q.push(o); if (LEDG.q.length > 2000) LEDG.q.splice(0, LEDG.q.length - 2000); }
+const ledgerUrl = () => '/api/ledger' + (window.__HK ? '?k=' + encodeURIComponent(window.__HK) : '');
+async function ledgerSync() {
+  if (!hubHasSrv() || LEDG.busy) return; LEDG.busy = true;
+  try {
+    if (LEDG.q.length) { const batch = LEDG.q.slice(0, 300), r = await fetch(ledgerUrl(), { method: 'POST', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ signals: batch }) }); if (r.ok) LEDG.q.splice(0, batch.length); else throw new Error('Senden HTTP ' + r.status); }
+    const r = await fetch(ledgerUrl(), { credentials: 'same-origin' }), j = await r.json().catch(() => ({})); if (!r.ok || !j.ok) throw new Error(j.err || 'HTTP ' + r.status);
+    LEDG.st = j.stats || {}; LEDG.status = j.status; LEDG.at = Date.now(); LEDG.ok = true; LEDG.err = '';
+  } catch (e) { LEDG.err = String(e.message || e); if (Date.now() - LEDG.at > 10 * 60e3) LEDG.ok = false; }   // > 10 min ohne Server-Stand → lokale (unvollständige) Statistik
+  LEDG.busy = false;
+}
+setTimeout(ledgerSync, 4000); setInterval(ledgerSync, 30e3);
+function ledgerCard() {
+  const s = LEDG.status, src = LEDG.ok ? 'Server-Bilanz' : 'lokal (unvollständig – ohne Server zählen nur Signale des offenen Markts)';
+  return card('Vorwärts-Bilanz', '<div class="two">' + kv('Quelle', src, LEDG.ok ? 'up' : 'warn') + kv('Stand', LEDG.at ? ago(LEDG.at) : '–') + (s ? kv('Signale gesamt', s.signals) + kv('Offen', s.open) + kv('Ausgewertet', s.done) + kv('Unbewertbar', s.void) : '') + kv('Warten auf Senden', LEDG.q.length) + kv('Wegen Kosten verworfen', Object.values(RUN.skipCost).reduce((a, b) => a + b, 0)) + '</div>' + (LEDG.err ? '<p class="warn sm">' + E(LEDG.err) + '</p>' : '') +
+    '<p class="mut sm">Der Server wertet jedes Signal selbst aus (Stop, Ziel oder Zeitablauf) – mit seinen eigenen Kursen, nach Gebühren, Slippage und Funding, egal welcher Markt gerade im Chart ist. Fehlen Kurse (Aufnahme-Lücke) oder gibt es für das Symbol keine Eigenaufnahme, zählt das Signal als unbewertbar statt still zu verschwinden. Gezählt wird je Regel-Version: ändert sich eine Regel, beginnt ihre Bilanz neu.</p>' +
+    '<p class="mut sm">Urteil nur an Prüfpunkten (n = ' + ST_CP.slice(0, 5).join(', ') + ' …). „Kandidat“ heißt: untere Grenze &gt; 0 R bei z = ' + nf(statZ(), 2) + ' – korrigiert für ' + statTests() + ' Prüfungen (' + ALGOS.length + ' Algorithmen × 3 Varianten × 5 Prüfpunkte). Überlappende Signale desselben Symbols zählen einmal.</p>');
+}
+
+'use strict';
 /* ===== Setups aus Order-Flow + Kontext (Decision Engine) und Lagebild =====
    Aufbau wie ein Order-Flow-Desk: TRIGGER → FILTER (Orderflow-Bestätigung) → REGIME (Makro, On-Chain) → RISIKO (Funding/OI).
    Die drei Varianten sind genau diese Stufen: locker = nur Trigger · standard = + Orderflow-Bestätigung · streng = + Regime + Risiko.
@@ -4471,15 +4532,15 @@ HPAN.push(['gex', pGex, null]);
    jedes Signal wird vorwärts auf echten Kursen ausgewertet; gehandelt wird nur über die bestehenden Freigabe- und Risiko-Stufen. */
 const HS_FUND = 0.05;      // % je 8 h: ab hier gilt Funding als überhitzt (Risiko-Stufe)
 const HS_OI24 = 8;         // %: OI-Anstieg in 24 h, ab dem keine neue Position eröffnet wird (Risiko-Stufe)
-const hsAtrH = ctx => ctx.atr && D.tfMs ? ctx.atr * Math.sqrt(3600e3 / D.tfMs) : null;   // Näherung Stunden-ATR aus dem Chart-Zeitrahmen
-const hsFresh = id => { const st = HUB.s[id]; return !!(st && st.d && (!HSRC.find(s => s.id === id).sym || st.key === ST.sym)); };
-const hsFund = (f, ctx) => f.fundW != null ? f.fundW * 100 : ctx.fund;   // % je 8 h, OI-gewichtet über Börsen, sonst Binance
+const hsAtrH = () => (HUB.f && HUB.f.atrH) || null;   // echte Stunden-ATR aus geschlossenen 1-h-Kerzen (unabhängig vom Chart-Zeitrahmen)
+const hsFresh = id => { const st = HUB.s[id], S = HSRC.find(s => s.id === id); return !!(st && st.d && st.ok && Date.now() - st.ok < 2 * S.ttl + 5 * 60e3 && (!S.sym || st.key === ST.sym)); };   // passendes Symbol UND nicht veraltet
+const hsFund = (f, ctx) => ctx.fund;   // % je 8 h, Binance – dasselbe Merkmal, das der Evidenz-Check (Historie) prüft
 /* Filter je Stufe. Gibt Liste der Blockaden zurück (leer = frei) und Notizen. */
 function hsFilter(side, lvl, f, ctx) {
   const L = side === 'long', bl = [], ok = [];
   if (lvl >= 1) {
     if (f.zSpot != null) { if (L ? f.zSpot < -0.5 : f.zSpot > 0.5) bl.push('Spot-Fluss dagegen (z ' + nf(f.zSpot, 1) + ')'); else ok.push('Spot-Fluss nicht dagegen'); }
-    if (ctx.cvd12 != null) { if (L ? ctx.cvd12 < 0 : ctx.cvd12 > 0) bl.push('CVD im Chart dreht nicht'); else ok.push('CVD im Chart bestätigt'); }
+    if (f.d3 != null) { if (L ? f.d3 < 0 : f.d3 > 0) bl.push('Orderflow 3 h dagegen'); else ok.push('Orderflow 3 h bestätigt'); }
   }
   if (lvl >= 2) {
     if (f.spxVs != null && f.vix != null && L && f.spxVs < 0 && f.vix > 25) bl.push('Makro risk-off (S&P unter 125-Tage-Schnitt, VIX ' + nf(f.vix, 0) + ')');
@@ -4495,7 +4556,7 @@ const HSET = {
     name: 'Absorption-Umkehr', hz: 'Intraday', hold: 4 * 3600e3, cool: 240 * 60e3,
     hyp: 'Starker aggressiver Druck, den der Preis nicht umsetzt (Absorption), zeigt passive Gegenseite: der Preis dreht danach eher in deren Richtung.',
     trig(f, ctx) {
-      if (!hsFresh('flow') || !HUB.ff || !HUB.ff.absEv) return { none: 'Orderflow-Daten fehlen' }; const e = f.absLast, fl = HUB.s.flow.d, lastClosed = fl[fl.length - 1].t + 3600e3 > Date.now() ? fl[fl.length - 2].t : fl[fl.length - 1].t;
+      if (!hsFresh('flow') || !HUB.ff || !HUB.ff.absEv) return { none: 'Orderflow-Daten fehlen' }; const e = f.absLast, fl = HUB.s.flow.d, lastClosed = fl[fl.length - 1].t; if (Date.now() - lastClosed > 2 * 3600e3) return { none: 'Orderflow-Daten älter als 2 h' };
       if (!e || e.t !== lastClosed) return { none: 'keine Absorption in der letzten vollen Stunde' + (e ? ' (letzte ' + ago(e.t + 3600e3) + ')' : '') };
       return { side: e.a > 0 ? 'long' : 'short', why: [(e.a > 0 ? 'Verkaufsdruck' : 'Kaufdruck') + ' ' + nf(Math.abs(e.zd), 1) + 'σ, Preis nur ' + nf(e.zr, 1) + 'σ bewegt → aufgefangen'] };
     } },
@@ -4514,6 +4575,7 @@ const HSET = {
     hyp: 'Steigt der Preis nur durch Perp-Käufe, während Spot verkauft, fehlt echte Nachfrage – die Bewegung läuft eher zurück (umgekehrt beim Fallen).',
     trig(f, ctx) {
       if (!hsFresh('flow')) return { none: 'Orderflow-Daten fehlen' }; const fl = HUB.s.flow.d, n = fl.length - (fl[fl.length - 1].t + 3600e3 > Date.now() ? 1 : 0); if (n < 13) return { none: 'zu wenig Verlauf' };
+      if (fl[n - 1].t - fl[n - 13].t !== 12 * 3600e3) return { none: 'Lücke in den letzten 12 h' };
       const mv = (fl[n - 1].pc / fl[n - 13].pc - 1) * 100, atrP = (hsAtrH(ctx) || 0) / ctx.px * 100 * Math.sqrt(12);
       if (!atrP) return { none: 'ATR fehlt' };
       if (mv > atrP && f.zPerp > 0.5 && f.zSpot < -0.5) return { side: 'short', why: ['12 h +' + nf(mv, 2) + ' % (> ' + nf(atrP, 2) + ' % übliche Bewegung)', 'Perp kauft (z ' + nf(f.zPerp, 1) + '), Spot verkauft (z ' + nf(f.zSpot, 1) + ')'] };
@@ -4521,10 +4583,11 @@ const HSET = {
       return { none: 'Bewegung ' + pn(mv, 2) + ' % in 12 h, nicht einseitig über Hebel' };
     } },
   h_sth: {
-    name: 'STH-Kostenbasis Rückeroberung', hz: 'Swing', hold: 72 * 3600e3, cool: 24 * 3600e3, btc: true,
+    name: 'STH-Kostenbasis Rückeroberung', hz: 'Swing', hold: 72 * 3600e3, cool: 72 * 3600e3, btc: true,
     hyp: 'Erobert Bitcoin die Kostenbasis der kurzfristigen Halter zurück (nach Tagesschluss darunter), wechseln diese von Verlust zu Gewinn – Verkaufsdruck lässt nach (umgekehrt beim Verlust der Linie).',
     trig(f, ctx) {
       if (ST.sym !== 'BTC') return { none: 'nur Bitcoin' }; const bg = HUB.s.bg && HUB.s.bg.d, ch = HUB.s.chain && HUB.s.chain.d; if (!bg || !ch || !f.sthRp) return { none: 'On-Chain-Daten fehlen (Server)' };
+      const rpp = bg.series.sthrp && bg.series.sthrp.pts, dLast = Math.floor(ch[ch.length - 1].t / 864e5); if (!rpp || Math.floor(rpp[rpp.length - 1][0] / 864e5) !== dLast) return { none: 'Tagesdaten nicht vom selben Tag (Preis/Kostenbasis)' }; if (Date.now() - ch[ch.length - 1].t > 3 * 864e5) return { none: 'Tagesdaten veraltet' };
       const prev = ch[ch.length - 1].p, rp = f.sthRp, p = ctx.px;
       if (prev < rp && p > rp * 1.003) return { side: 'long', ext: rp * 0.985, why: ['Tagesschluss ' + fusd(prev) + ' unter STH-Kostenbasis ' + fusd(rp) + ', jetzt ' + fusd(p) + ' darüber'] };
       if (prev > rp && p < rp * 0.997) return { side: 'short', ext: rp * 1.015, why: ['Tagesschluss ' + fusd(prev) + ' über STH-Kostenbasis ' + fusd(rp) + ', jetzt ' + fusd(p) + ' darunter'] };
@@ -4534,12 +4597,12 @@ const HSET = {
 /* Bewertung je Stufe – für Engine und Lagebild gleich */
 function hsEval(id, lvl, ctx) {
   const S = HSET[id], f = HUB.f || {}; if (!ctx || ctx.px == null || ctx.atr == null) return { none: 'Markt-Daten fehlen' };
-  const t = S.trig(f, ctx); if (!t.side) return t; const fl = hsFilter(t.side, lvl, f, ctx), atrH = hsAtrH(ctx), dir = sgn(t.side);
+  const t = S.trig(f, ctx); if (!t.side) return t; const fl = hsFilter(t.side, lvl, f, ctx), atrH = hsAtrH(ctx), dir = sgn(t.side); if (t.ext == null && !atrH) return { none: 'Stunden-ATR fehlt (zu wenig lückenlose 1-h-Kerzen)' };
   const ext = t.ext != null ? t.ext : ctx.px - dir * 1.5 * atrH, dist = Math.abs(ctx.px - ext);
   return Object.assign({}, t, { ext, tgt: ctx.px + dir * 2 * dist, blocked: fl.bl, conf: fl.ok, why: t.why.concat(fl.ok.length ? ['Filter: ' + fl.ok.join(', ')] : []) });
 }
 for (const [id, S] of Object.entries(HSET)) ALGOS.push({
-  id, name: S.name, kind: 'timer60', cool: S.cool, hold: S.hold, htf: true, maxAtr: Infinity, hz: S.hz, hub: true, hyp: S.hyp,
+  id, name: S.name, kind: 'timer60', cool: S.cool, hold: S.hold, htf: true, rvSrc: () => String(S.trig) + String(hsFilter) + String(hsEval) + HS_FUND + HS_OI24 + String(hsAtrH), maxAtr: Infinity, hz: S.hz, hub: true, hyp: S.hyp,
   falsif: 'Verworfen, wenn nach ≥ 30 ausgewerteten Signalen die Netto-Erwartung ≤ 0 R ist. Haltedauer ' + dur(S.hold) + '.',
   params: { locker: { lvl: 0 }, standard: { lvl: 1 }, streng: { lvl: 2 } }, pdesc: p => ['nur Auslöser', 'Auslöser + Orderflow-Bestätigung', 'Auslöser + Orderflow + Regime/On-Chain + Risiko (Funding/OI)'][p.lvl],
   run(C, p, ctx) { const r = hsEval(id, p.lvl, ctx); return r.side && !r.blocked.length ? r : null; },
@@ -4549,8 +4612,8 @@ for (const [id, S] of Object.entries(HSET)) ALGOS.push({
 function lageBest() {
   const kand = []; for (const a of ALGOS) for (const v of VARS) { const st = algoStats(a.id, v), vd = algoVerdict(st); if (vd.k === 'kand') kand.push({ a, v, st }); }
   kand.sort((x, y) => y.st.lo - x.st.lo);
-  return kand.length ? kand.slice(0, 4).map(k => kv(E(k.a.name) + ' · ' + k.v + ' <span class="mut">(' + HZ_OF(k.a) + ')</span>', 'Ø ' + pn(k.st.avg, 2) + ' R · konservativ ' + pn(k.st.lo, 2) + ' R · n ' + k.st.n, 'up')).join('') :
-    '<div class="best"><b class="warn">Noch kein Setup mit belegtem Vorteil</b><div class="mut sm">Alle Setups laufen im Vorwärtstest auf Papier. Gehandelt wird erst, wenn eines seinen Vorteil an echten Folgekursen gezeigt hat (≥ 20 Signale, untere Grenze &gt; 0 R) – und dann nur über deine Freigabe-Stufe.</div></div>';
+  return kand.length ? kand.slice(0, 4).map(k => kv(E(k.a.name) + ' · ' + k.v + ' <span class="mut">(' + HZ_OF(k.a) + ')</span>', 'Prüfpunkt n ' + k.st.cp + ': Ø ' + pn(k.st.avgCp, 2) + ' R · untere Grenze ' + pn(k.st.lo, 2) + ' R', 'up')).join('') :
+    '<div class="best"><b class="warn">Noch kein Setup mit belegtem Vorteil</b><div class="mut sm">Alle Setups laufen im Vorwärtstest auf Papier. Volle Größe erst, wenn eines am Prüfpunkt (ab 30 Signalen) eine untere Grenze &gt; 0 R hat – korrigiert für alle Prüfungen. Bis dahin nur Probe-Größe auf Papier.</div></div>';
 }
 const HZ_OF = a => a.hz || (a.kind === 'timer60' ? 'Intraday' : 'Scalping');
 function lageFacts() {
@@ -4578,7 +4641,7 @@ function lageHeadline() {
   for (const a of ALGOS) for (const v of VARS) { const st = algoStats(a.id, v); if (algoVerdict(st).k === 'kand') kand.push(a); }
   if (NX.kill) return ['Kill-Switch aktiv', 'Keine neuen Orders, bis du ihn löst.', 'dn'];
   if (w) return ['Freigabe wartet: ' + (w.side === 'long' ? 'Long' : 'Short') + ' ' + algoName(w.algo), w.sym + ' · entscheide im Trader.', 'warn'];
-  if (fired.length) return [fired.map(r => r.a.name + ' → ' + (r.side === 'long' ? 'Long' : 'Short')).join(' · '), fired.every(r => r.top === 2) ? 'Alle Filter frei – läuft als Papier-Signal im Vorwärtstest.' : 'Ausgelöst, aber Filter blockieren: ' + E(fired.map(r => r.blocked[0]).filter(Boolean).join('; ') || 'noch keine Bestätigung.'), fired.every(r => r.top === 2) ? 'up' : 'warn'];
+  if (fired.length) { const k = fired.some(r => r.top === 2 && r.vd.k === 'kand'); return [(k ? '' : 'Auslöser ohne Beleg: ') + fired.map(r => r.a.name + ' → ' + (r.side === 'long' ? 'Long' : 'Short')).join(' · '), (fired.every(r => r.top === 2) ? 'Alle Filter frei.' : 'Filter blockieren: ' + E(fired.map(r => r.blocked[0]).filter(Boolean).join('; ') || 'noch keine Bestätigung.')) + (k ? ' Setup ist Kandidat (Vorteil jenseits des Zufalls).' : ' Läuft als Papier-Signal im Vorwärtstest (n ' + fired.map(r => r.st.n).join('/') + ').'), k ? 'up' : 'warn']; }
   if (kand.length) return ['Kein Setup aktiv', kand.length + ' Setup(s) mit belegtem Vorteil warten auf ihren Auslöser.', ''];
   return ['Kein belegtes Setup', ctx.regime ? E(ST.sym) + ' ' + E(ctx.regime) + '. Das System beobachtet und prüft weiter.' : 'Warte auf Marktdaten.', ''];
 }
@@ -4590,7 +4653,7 @@ function lageHeadline() {
    Die 31 Module bleiben vollständig erreichbar (Menü → System); sie sind das Fundament, nicht die Oberfläche. */
 const VIEWS = {
   lage: { n: 'Lage', s: ['Jetzt', 'Markt'], r: { 'Jetzt': () => vLageJetzt(), 'Markt': () => pMarket() + hubMacroCard() + vWatch() } },
-  labor: { n: 'Labor', s: ['Evidenz', 'Setups im Test', 'Algorithmen', 'Quellen'], r: { 'Evidenz': () => vHubView(), 'Setups im Test': () => PANELS['02']['Validation'](), 'Algorithmen': () => PANELS['02']['Algorithm Lab Overview']() + PANELS['02']['Algorithms'](), 'Quellen': () => vHubReg() } },
+  labor: { n: 'Labor', s: ['Evidenz', 'Setups im Test', 'Algorithmen', 'Quellen'], r: { 'Evidenz': () => vHubView(), 'Setups im Test': () => ledgerCard() + PANELS['02']['Validation'](), 'Algorithmen': () => PANELS['02']['Algorithm Lab Overview']() + PANELS['02']['Algorithms'](), 'Quellen': () => vHubReg() } },
 };
 const AREAS = ['tape', 'lage', '03', 'labor'];
 const tile = (label, val, chipH, cls) => '<div class="tile"><small>' + label + '</small><b class="' + (cls || '') + '">' + val + '</b>' + (chipH || '') + '</div>';
@@ -4601,7 +4664,7 @@ function vLageJetzt() {
   h += '<div class="lgSec">Setups<span>Auslöser → Orderflow → Regime → Risiko</span></div><div class="lgList">' + rows.map(r => '<div class="lgRow"><div class="lgL"><b>' + E(r.a.name) + '</b><small>' + E(HZ_OF(r.a)) + ' · ' + E(r.vd.t.split(' (')[0]) + (r.st.n ? ' · n ' + r.st.n : '') + '</small></div><div class="lgR">' + (r.top < 0 ? '<span class="mut">' + E(r.none) + '</span>' : '<b class="' + (r.side === 'long' ? 'up' : 'dn') + '">' + (r.side === 'long' ? 'Long' : 'Short') + '</b> <span>' + E(r.stage) + '</span>' + (r.top < 2 && r.blocked.length ? '<small>' + E(r.blocked.join(' · ')) + '</small>' : '')) + '</div></div>').join('') + '</div>';
   const w = NX.decisions.filter(d => d.state === 'wartet'); if (w.length) h += '<div class="lgSec">Freigaben</div>' + card('', w.map(decRow).join(''));
   if (NX.pos.length) h += '<div class="lgSec">Positionen</div>' + pPositions();
-  h += '<div class="lgSec">Belegt<span>Vorwärtstest, ≥ 20 Signale, untere Grenze &gt; 0 R</span></div>' + card('', lageBest());
+  h += '<div class="lgSec">Belegt<span>' + (LEDG.ok ? 'Server-Bilanz' : 'lokal, unvollständig') + ' · korrigiert für ' + statTests() + ' Prüfungen</span></div>' + card('', lageBest());
   return h + '<p class="mut sm lgFoot">Nur gemessene Werte. Chips zeigen, ob ein Merkmal die Kursrichtung danach in der Vergangenheit vorhergesagt hat (Labor → Evidenz). Papier-Handel gegen echte Live-Kurse.</p>';
 }
 function viewRender() {
@@ -4842,7 +4905,7 @@ const BR_GRP = [['setup', 'Setups, Stops, Ziele', 'Offene Positionen, wartende F
 const brOn = g => !ST.brain || ST.brain[g] !== 0;
 const brAll = () => !!(ST.brain && ST.brain.all);
 const brSet = (g, v) => { ST.brain = Object.assign({}, ST.brain || {}); ST.brain[g] = v ? 1 : 0; };
-const brEvOk = id => { const e = typeof hEvOf === 'function' ? hEvOf(id) : null; return e && (e.lab === 'Beleg' || e.lab === 'Hinweis'); };
+const brEvOk = id => { const e = typeof hEvOf === 'function' ? hEvOf(id) : null; return e && e.lab === 'Beleg'; };   // nur ein Beleg (korrigiert) darf die Darstellung steuern
 const brEvLab = id => { const e = typeof hEvOf === 'function' ? hEvOf(id) : null; return e ? e.lab : null; };
 
 function brainLayers() {

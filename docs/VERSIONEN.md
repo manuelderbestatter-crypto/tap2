@@ -7,3 +7,4 @@ Zurückschalten: `git checkout <Commit>` bzw. auf dem Server den Commit in updat
 | v1.0-vier-bereiche | fb19ab9 | Vier Bereiche Chart/Lage/Trader/Labor, Lage-Seite, System-Menü |
 | v1.1-gehirn-chart | (dieser Commit) | Brücke Gehirn → Chart: Ebenen-Schnittstelle, Vorschläge gestrichelt |
 | v1.2-chart-erklaerung | (dieser Commit) | Mini-Chart mit Gehirn-Ebenen, Antippen erklärt Ebene, Beschriftungen überlappen nicht |
+| v1.3-ehrliche-bilanz | (dieser Commit) | Server-Bilanz, korrigiertes Kandidat-Urteil, Zeitfehler behoben |
