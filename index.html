@@ -982,6 +982,7 @@ function marketCtx() {
   o.fund = D.stats.fund8; o.basis = D.stats.index && D.stats.mark ? (D.stats.mark / D.stats.index - 1) * 100 : null;
   const oi = D.oi; if (oi.length > 3) { const tgt = now - 3600e3; let b = oi[0]; for (const x of oi) { if (x.t <= tgt) b = x; else break; } o.oi1h = b.t <= tgt + 600e3 && b.v ? (oi[oi.length - 1].v / b.v - 1) * 100 : null; }
   const bs = bookStats(0.0025); if (bs) { o.imb = bs.a > 0 ? bs.b / bs.a : null; o.spreadBp = bs.spreadBp; }
+  if (typeof hubFeat === 'function') { const h = hubFeat(); if (h && h.lead) o.hub = { lead: h.lead, fng: h.fng, spxVs: h.spxVs, basisZ: h.basisZ }; }
   o.regime = o.trend + ' / ' + o.vol; ctxC = { t: now, v: o }; return o;
 }
 
@@ -1119,7 +1120,7 @@ function nxOnSignal(sig) {
   if (dec.verdict === 'auto') nxExecute(dec); else if (dec.verdict === 'ask') { toast('Freigabe nötig: ' + algoName(dec.algo) + ' ' + (dec.side === 'long' ? 'Long' : 'Short') + ' ' + dec.sym, 6000); }
 }
 function decide(sig) {
-  const ctx = marketCtx(), st = algoStats(sig.algo, sig.variant), dir = sgn(sig.side), R = NX.risk, dec = { id: nid('D'), t: Date.now(), sig: sig.id, algo: sig.algo, variant: sig.variant, sym: sig.sym, src: sig.src, side: sig.side, px: sig.px, stop: sig.stop, target: sig.target, ctx: { regime: ctx.regime, fund: ctx.fund, imb: ctx.imb, oi1h: ctx.oi1h, atrPct: ctx.atrPct, volPct: ctx.volPct }, checks: [], challenge: [], reasons: [], verdict: '', scale: 1, ev: null, state: 'neu' };
+  const ctx = marketCtx(), st = algoStats(sig.algo, sig.variant), dir = sgn(sig.side), R = NX.risk, dec = { id: nid('D'), t: Date.now(), sig: sig.id, algo: sig.algo, variant: sig.variant, sym: sig.sym, src: sig.src, side: sig.side, px: sig.px, stop: sig.stop, target: sig.target, ctx: { regime: ctx.regime, fund: ctx.fund, imb: ctx.imb, oi1h: ctx.oi1h, atrPct: ctx.atrPct, volPct: ctx.volPct, hub: ctx.hub || null }, checks: [], challenge: [], reasons: [], verdict: '', scale: 1, ev: null, state: 'neu' };
   const chk = (n, ok, d) => dec.checks.push({ n, ok, d: d || '' });
   chk('Modus', NX.mode !== 'off', NX.mode === 'auto' ? 'Papier automatisch' : 'Vorschlag + Freigabe'); chk('Kill-Switch aus', !NX.kill); chk('Datenfrische', !!D.lastMsg && Date.now() - D.lastMsg < R.staleMs);
   /* Nutzen: Vorwärts-Statistik dieser Variante, konservativ (untere Schranke) */
@@ -1275,8 +1276,8 @@ class NCh {
     g.pill = (txt, y, bg, fg) => { cx.font = MONO2; cx.fillStyle = bg; cx.fillRect(g.pw, y - 9, NAX, 18); cx.fillStyle = fg || '#06080b'; cx.textAlign = 'left'; cx.textBaseline = 'middle'; cx.fillText(txt, g.pw + 6, y); };
     g.hgrid = (top, bot, lo, hi, fmt, Y) => { const st = niceStep((hi - lo) / Math.max(2, (bot - top) / 46)); cx.font = MONO; cx.textBaseline = 'middle'; cx.lineWidth = 1;
       for (let p = Math.ceil(lo / st) * st; p < hi; p += st) { const y = Math.round(Y(p)) + .5; if (y < top + 4 || y > bot - 4) continue; cx.strokeStyle = C.grid; cx.beginPath(); cx.moveTo(0, y); cx.lineTo(g.pw, y); cx.stroke(); cx.fillStyle = C.mute; cx.textAlign = 'left'; cx.fillText(fmt(p), g.pw + 6, y); } };
-    g.tgrid = (t0, t1, X, yTop, yBot) => { const steps = [1, 5, 15, 30, 60, 120, 240, 360, 720, 1440, 2880, 10080, 43200], need = 78 / Math.max(1e-9, g.pw / (t1 - t0)) / 60e3; let step = 60e3 * (steps.find(m => m >= need) || 43200); const tz = new Date().getTimezoneOffset() * 60e3; cx.font = MONO; cx.textBaseline = 'middle'; cx.textAlign = 'center';
-      for (let t = Math.ceil((t0 - tz) / step) * step + tz; t < t1; t += step) { const x = Math.round(X(t)) + .5; if (x < 20 || x > g.pw - 14) continue; const d = new Date(t), mid = (t - tz) % 864e5 === 0; cx.strokeStyle = C.grid; cx.beginPath(); cx.moveTo(x, yTop); cx.lineTo(x, yBot); cx.stroke(); cx.fillStyle = mid ? C.fg : C.mute; cx.fillText(mid || step >= 864e5 ? d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) : d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }), x, yBot + NTH / 2); } };
+    g.tgrid = (t0, t1, X, yTop, yBot) => { const steps = [1, 5, 15, 30, 60, 120, 240, 360, 720, 1440, 2880, 10080, 43200, 129600, 262800, 525600], need = 78 / Math.max(1e-9, g.pw / (t1 - t0)) / 60e3; let step = 60e3 * (steps.find(m => m >= need) || 525600); const tz = new Date().getTimezoneOffset() * 60e3; cx.font = MONO; cx.textBaseline = 'middle'; cx.textAlign = 'center';
+      for (let t = Math.ceil((t0 - tz) / step) * step + tz; t < t1; t += step) { const x = Math.round(X(t)) + .5; if (x < 20 || x > g.pw - 14) continue; const d = new Date(t), mid = (t - tz) % 864e5 === 0; cx.strokeStyle = C.grid; cx.beginPath(); cx.moveTo(x, yTop); cx.lineTo(x, yBot); cx.stroke(); cx.fillStyle = mid ? C.fg : C.mute; cx.fillText(step >= 129600 * 60e3 ? d.toLocaleDateString('de-DE', { month: '2-digit', year: '2-digit' }) : mid || step >= 864e5 ? d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) : d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }), x, yBot + NTH / 2); } };
     g.label = (txt, x, y, col, align) => { cx.font = '10px Inter,system-ui,sans-serif'; cx.fillStyle = col || C.faint; cx.textAlign = align || 'left'; cx.textBaseline = 'middle'; cx.fillText(txt, x, y); };
     g.msg = t => { cx.fillStyle = C.mute; cx.font = '12px Inter,system-ui,sans-serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(t, this.w / 2, this.h / 2); };
     g.hline = (y, col, dash, lw) => { cx.strokeStyle = col; cx.lineWidth = lw || 1; cx.setLineDash(dash || []); cx.beginPath(); cx.moveTo(0, Math.round(y) + .5); cx.lineTo(g.pw, Math.round(y) + .5); cx.stroke(); cx.setLineDash([]); cx.lineWidth = 1; };
@@ -1601,7 +1602,7 @@ function decRow(d) {
     (o ? '<div class="det"><div class="h4">Prüfungen</div>' + d.checks.map(c => '<div>' + (c.ok ? '<span class="up">✓</span>' : '<span class="dn">✗</span>') + ' ' + E(c.n) + (c.d ? ' <span class="mut">– ' + E(c.d) + '</span>' : '') + '</div>').join('') +
       '<div class="h4">Gegenargumente</div>' + (d.challenge.length ? d.challenge.map(c => '<div>• ' + E(c) + '</div>').join('') : '<div class="mut">keine gefunden</div>') +
       '<div class="h4">Nutzen</div><div class="mut">' + (d.ev && d.ev.avg != null ? 'Vorwärts-Statistik n=' + d.ev.n + ', Ø ' + nf(d.ev.avg, 2) + ' R, konservativ ' + nf(d.ev.lo, 2) + ' R' : 'Keine belastbare Statistik (n=' + (d.ev ? d.ev.n : 0) + ') → Exploration mit ' + Math.round(d.scale * 100) + ' % Größe') + '</div>' +
-      '<div class="mut sm">Kontext: ' + E(d.ctx.regime || '–') + ' · Funding ' + (d.ctx.fund != null ? nf(d.ctx.fund, 4) : '–') + ' · Bid/Ask ' + (d.ctx.imb != null ? nf(d.ctx.imb, 2) : '–') + ' · Signal ' + d.sig + ' · Entscheidung ' + d.id + (d.order ? ' · Order ' + d.order : '') + '</div></div>' : '') + '</div>';
+      '<div class="mut sm">Kontext: ' + E(d.ctx.regime || '–') + ' · Funding ' + (d.ctx.fund != null ? nf(d.ctx.fund, 4) : '–') + ' · Bid/Ask ' + (d.ctx.imb != null ? nf(d.ctx.imb, 2) : '–') + (d.ctx.hub ? ' · Hub: ' + E(d.ctx.hub.lead) + (d.ctx.hub.fng != null ? ' · F&G ' + nf(d.ctx.hub.fng, 0) : '') : '') + ' · Signal ' + d.sig + ' · Entscheidung ' + d.id + (d.order ? ' · Order ' + d.order : '') + '</div></div>' : '') + '</div>';
 }
 function posRow(p) {
   const pxn = pxOf(p.sym, p.src), u = unreal(p), R = p.riskUsd ? (u - p.fees) / p.riskUsd : 0;
@@ -3011,7 +3012,7 @@ document.addEventListener('click', e => {
 
 'use strict';
 /* ===== NEXUS Block 6a: 14 Backup & Wiederherstellung · 17 Deployment/Version ===== */
-const BUILD_T = 1793344814979;
+const BUILD_T = 1793346034508;
 NX.bk = NX.bk || { lastExport: 0, lastSnap: 0, rpoH: 24, drills: [], exports: [], snapMade: 0 };
 const BK = { snaps: null, val: null, busy: '', ver: null, st: null };
 const BK_KEY = 'nexus_bk', BK_KEEP = 3;
@@ -3563,7 +3564,7 @@ function vRgLiq() {
 function vRgMacro() {
   regNeed(); const R = REGM.map(s => REG.res[s]).filter(Boolean);
   const cor = (a, b) => { const x = a.C.slice(-169).map((c, i, A) => i ? Math.log(c.c / A[i - 1].c) : 0).slice(1), y = b.C.slice(-169).map((c, i, A) => i ? Math.log(c.c / A[i - 1].c) : 0).slice(1), n = Math.min(x.length, y.length); if (n < 20) return null; const mx = mean(x.slice(-n)), my = mean(y.slice(-n)); let sxy = 0, sxx = 0, syy = 0; for (let i = 0; i < n; i++) { const dx = x[x.length - n + i] - mx, dy = y[y.length - n + i] - my; sxy += dx * dy; sxx += dx * dx; syy += dy * dy; } return sxx > 0 && syy > 0 ? sxy / Math.sqrt(sxx * syy) : null; };
-  return card('Makro-Druck', '<div class="best"><b class="warn">Nicht verfügbar</b><div class="mut sm">Es sind keine Makro-, Zins-, Nachrichten- oder On-Chain-Daten angebunden. Dafür gibt es hier bewusst keinen erfundenen Wert.</div></div>') +
+  return (typeof hubMacroCard === 'function' ? hubMacroCard() : '') +
     card('Cross-Asset (Näherung aus Kursen)', R.length > 1 ? '<div class="tw"><table class="tbl"><tr><th>Markt</th><th>24 h</th><th>7 Tage</th><th>Korr. zu BTC (7 d)</th></tr>' + R.map(r => { const s = REGM[REGM.findIndex(x => REG.res[x] === r)], c = REG.res.BTC && r !== REG.res.BTC ? cor(r, REG.res.BTC) : null; return '<tr><td>' + s + '</td><td class="' + (r.ret24 >= 0 ? 'up' : 'dn') + '">' + pn(r.ret24 * 100, 1) + ' %</td><td class="' + (r.ret7 >= 0 ? 'up' : 'dn') + '">' + pn(r.ret7 * 100, 1) + ' %</td><td>' + (c != null ? nf(c, 2) : '–') + '</td></tr>'; }).join('') + '</table></div><p class="mut sm">Hohe Korrelation = die Märkte bewegen sich gemeinsam; Streuung hilft dann kaum.</p>' : empty('Erst Regime laden.'));
 }
 function vRgTrans() {
@@ -3921,6 +3922,260 @@ document.addEventListener('click', e => {
 });
 
 'use strict';
+/* ===== Daten-Hub (Modul 06): Quellen-Register · Beweis-Grafiken · Evidenz-Check · Merkmale für die Analyse =====
+   Nur öffentliche Quellen, nur lesen, keine Schlüssel. Was ein Browser nicht direkt lesen darf, holt der eigene Server (feste Liste).
+   Das System bewertet jede Quelle selbst an den eigenen Daten (Evidenz-Check) und sortiert danach. Nichts wird geschätzt oder erfunden:
+   fehlt eine Quelle, steht der Grund da. */
+Object.assign(HOSTS, {
+  'api.alternative.me': ['Alternative.me', 'Fear & Greed Index (Krypto)'], 'community-api.coinmetrics.io': ['Coin Metrics Community', 'On-Chain: MVRV, Realized Cap, Angebot'],
+  'stablecoins.llama.fi': ['DefiLlama Stablecoins', 'Umlauf aller Stablecoins'],
+});
+const HUB = { s: {}, f: {}, ev: [], evSig: '', t0: Date.now() };
+const HEV_H = 4, HEV_W = 12;                       // vorab festgelegt: Vorhersage-Horizont 4 h, Fenster 12 h (stündliche Daten)
+const hubSrv = async id => {
+  const r = await fetch('/api/hub?id=' + id + (window.__HK ? '&k=' + encodeURIComponent(window.__HK) : ''), { credentials: 'same-origin' });
+  if (r.status === 401) throw new Error('nicht angemeldet'); const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.ok === false) throw new Error(j.err || 'HTTP ' + r.status); return j;
+};
+const hubHasSrv = () => SRV.on || SRV.eng;
+const hubDay = n => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
+const HSRC = [
+  { id: 'flow', n: 'Spot gegen Perp (Binance)', grp: 'Orderflow', ttl: 600e3, sym: true, kind: 'direkt', hosts: ['api.binance.com', 'fapi.binance.com'], note: 'Käufer-Anteil je Stunde aus den Binance-Kerzen (Taker-Volumen), 1000 Stunden Verlauf. Frei, ohne Schlüssel.', count: d => d.length,
+    async get() {
+      const S = ST.sym + 'USDT', [a, b] = await Promise.all([jget('https://api.binance.com/api/v3/klines?symbol=' + S + '&interval=1h&limit=1000'), jget('https://fapi.binance.com/fapi/v1/klines?symbol=' + S + '&interval=1h&limit=1000')]);
+      const mk = r => new Map(r.map(k => [+k[0], { c: +k[4], dq: 2 * +k[10] - +k[7] }])), A = mk(a), B = mk(b), ts = [...A.keys()].filter(t => B.has(t)).sort((x, y) => x - y);
+      if (ts.length < 50) throw new Error('zu wenig gemeinsame Kerzen (Spot und Perp)');
+      return ts.map(t => ({ t, sc: A.get(t).c, pc: B.get(t).c, sd: A.get(t).dq, pd: B.get(t).dq }));
+    } },
+  { id: 'beh', n: 'Händlerverhalten (OI × Preis)', grp: 'Positionierung', ttl: 600e3, sym: true, kind: 'direkt', hosts: ['fapi.binance.com'], note: 'Aus Open-Interest-Änderung und Preisänderung je Stunde abgeleitet (Binance Perp). Das ist eine Ableitung, keine Börsen-Meldung.', count: d => d.length,
+    async get() {
+      const S = ST.sym + 'USDT', [oi, k] = await Promise.all([jget('https://fapi.binance.com/futures/data/openInterestHist?symbol=' + S + '&period=1h&limit=500'), jget('https://fapi.binance.com/fapi/v1/klines?symbol=' + S + '&interval=1h&limit=500')]);
+      const P = new Map(k.map(x => [+x[0], +x[1]])), rows = []; let pv = null;      // Preis = Eröffnungskurs zur vollen Stunde (gleicher Zeitpunkt wie der OI-Schnappschuss)
+      for (const x of oi) { const t = Math.floor(+x.timestamp / 3600e3) * 3600e3, p = P.get(t), v = +x.sumOpenInterestValue; if (p == null || !isFinite(v)) continue; if (pv) { const dOI = v - pv.oi, dP = p - pv.p; rows.push({ t, oi: v, p, dOI, dP, cls: dOI >= 0 ? (dP >= 0 ? 'LO' : 'SO') : (dP < 0 ? 'LC' : 'SC') }); } pv = { oi: v, p }; }
+      if (rows.length < 30) throw new Error('zu wenig Open-Interest-Verlauf'); return rows;
+    } },
+  { id: 'ls', n: 'Long/Short: Konten gegen Top-Trader', grp: 'Positionierung', ttl: 600e3, sym: true, kind: 'direkt', hosts: ['fapi.binance.com'], note: 'Binance Perp: Verhältnis Long- zu Short-Konten (alle) und Long- zu Short-Positionen der Top-Trader.', count: d => d.g.length,
+    async get() {
+      const S = ST.sym + 'USDT', q = p => jget('https://fapi.binance.com/futures/data/' + p + '?symbol=' + S + '&period=1h&limit=500'), [g, t] = await Promise.all([q('globalLongShortAccountRatio'), q('topLongShortPositionRatio')]);
+      const m = r => r.map(x => [+x.timestamp, +x.longShortRatio]).filter(p => isFinite(p[1])); const o = { g: m(g), top: m(t) }; if (o.g.length < 30) throw new Error('zu wenig Verlauf'); return o;
+    } },
+  { id: 'fng', n: 'Fear & Greed (Krypto)', grp: 'Stimmung', ttl: 3600e3, kind: 'direkt', hosts: ['api.alternative.me'], note: 'Alternative.me Krypto-Index, täglich, 0 = extreme Angst, 100 = extreme Gier. Browser-Zugriff (CORS) ungeprüft.', count: d => d.length,
+    async get() { const j = await jget('https://api.alternative.me/fng/?limit=400'); const a = (j.data || []).map(x => [+x.timestamp * 1000, +x.value]).filter(p => isFinite(p[1])).sort((x, y) => x[0] - y[0]); if (a.length < 20) throw new Error('keine Daten'); return a; } },
+  { id: 'chain', n: 'On-Chain BTC (MVRV, Realized Price)', grp: 'On-Chain', ttl: 3 * 3600e3, kind: 'direkt', hosts: ['community-api.coinmetrics.io'], note: 'Coin Metrics Community (frei): Gesamt-Realized-Price und MVRV für Bitcoin. Die Varianten der Short-Term-Holder aus den Bildern sind kostenpflichtig.', count: d => d.length,
+    async get() {
+      const j = await jget('https://community-api.coinmetrics.io/v4/timeseries/asset-metrics?assets=btc&metrics=PriceUSD,CapMVRVCur,CapRealUSD,SplyCur&frequency=1d&start_time=' + hubDay(1200) + '&page_size=1300');
+      const a = (j.data || []).map(x => ({ t: Date.parse(x.time), p: +x.PriceUSD, mvrv: +x.CapMVRVCur, rp: +x.CapRealUSD / +x.SplyCur })).filter(x => isFinite(x.p) && isFinite(x.mvrv)); if (a.length < 60) throw new Error('keine Daten'); return a;
+    } },
+  { id: 'stable', n: 'Stablecoin-Umlauf', grp: 'Liquidität', ttl: 3 * 3600e3, kind: 'direkt', hosts: ['stablecoins.llama.fi'], note: 'DefiLlama: Summe aller Stablecoins in USD, täglich. Wachsender Umlauf = frisches Geld im Krypto-Markt.', count: d => d.length,
+    async get() { const j = await jget('https://stablecoins.llama.fi/stablecoincharts/all'); const a = (Array.isArray(j) ? j : []).map(x => [+x.date * 1000, x.totalCirculatingUSD && +x.totalCirculatingUSD.peggedUSD]).filter(p => isFinite(p[1]) && p[1] > 0).slice(-500); if (a.length < 30) throw new Error('keine Daten'); return a; } },
+  { id: 'macro', n: 'Makro: S&P 500, VIX, 10-Jahres-Zins, US-Dollar', grp: 'Makro', ttl: 3600e3, kind: 'Server', server: true, hosts: ['fred.stlouisfed.org'], note: 'FRED (US-Notenbank St. Louis), täglich. Ein Browser darf die Seite nicht direkt lesen; der eigene Server holt sie (feste Liste, nur lesen).', count: d => Object.values(d.series).reduce((n, x) => n + (x.pts ? x.pts.length : 0), 0),
+    async get() { const j = await hubSrv('macro'); if (!Object.values(j.series || {}).some(x => x.pts)) throw new Error(Object.values(j.series || {}).map(x => x.err).filter(Boolean)[0] || 'keine Daten'); return j; } },
+  { id: 'cnn', n: 'CNN Fear & Greed (Aktien)', grp: 'Stimmung', ttl: 3600e3, kind: 'Server · inoffiziell', server: true, hosts: ['production.dataviz.cnn.io'], note: 'Inoffizielle CNN-Schnittstelle (kein Vertrag). Kann jederzeit ausfallen oder das Format ändern; dann steht hier der Fehler.', count: d => d.pts.length, get: () => hubSrv('cnn') },
+];
+const HSTATE = id => { const S = HSRC.find(x => x.id === id), st = HUB.s[id]; if (!st) return ['mute', 'nicht geladen']; if (st.busy && !st.ok) return ['mute', 'lädt …']; if (st.nosrv) return ['warn', 'braucht den eigenen Server']; if (st.err) return [st.ok ? 'warn' : 'bad', st.err]; return ['ok', 'aktuell ' + ago(st.ok)]; };
+
+async function hubLoad(id, force) {
+  const S = HSRC.find(x => x.id === id); if (!S || NX.flags.rest === false) return; const st = HUB.s[id] || (HUB.s[id] = { t: 0, err: '', busy: false, d: null, n: 0, ms: 0, ok: 0 }), want = S.sym ? ST.sym : '';
+  if (st.busy) return; if (!force && Date.now() - st.t < S.ttl && st.key === want) return;
+  if (S.server && !hubHasSrv()) { st.nosrv = true; st.t = Date.now(); st.key = want; return; } st.nosrv = false;
+  st.busy = true; const t0 = performance.now();
+  try { const d = await S.get(); if (S.sym && ST.sym + '' !== want) { st.busy = false; return; } st.d = d; st.t = Date.now(); st.ok = st.t; st.err = ''; st.ms = Math.round(performance.now() - t0); st.n = S.count(d); st.key = want; }
+  catch (e) { st.err = String(e && e.message || e).replace(/^https?:\/\/[^ ]+ → /, ''); st.t = Date.now() - S.ttl + 60e3; st.key = want; }
+  st.busy = false; try { hubDerive(); } catch (e) { console.error(e); } if (NXV.cur === '06' || NXV.cur === '28') renderNx();
+}
+let hubTimer = 0;
+function hubTick() { if (document.hidden && !window.__ENGINE) return; HSRC.forEach((S, i) => setTimeout(() => hubLoad(S.id), i * 1200)); }
+function hubInit() { if (hubTimer) return; setTimeout(hubTick, 5000); hubTimer = setInterval(hubTick, 60e3); }
+
+/* ----- Merkmale + Evidenz-Check ----- */
+const hStd = a => { const m = mean(a); return Math.sqrt(mean(a.map(x => (x - m) * (x - m)))) || 1e-9; };
+const hRoll = (a, w) => a.map((_, i) => i < w - 1 ? null : a.slice(i - w + 1, i + 1).reduce((x, y) => x + y, 0));
+function hPear(x, y) { const n = x.length; if (n < 5) return null; const mx = mean(x), my = mean(y); let sxy = 0, sxx = 0, syy = 0; for (let i = 0; i < n; i++) { sxy += (x[i] - mx) * (y[i] - my); sxx += (x[i] - mx) ** 2; syy += (y[i] - my) ** 2; } return sxx > 0 && syy > 0 ? sxy / Math.sqrt(sxx * syy) : null; }
+function hEv(id, name, xs, ys, horizon, ntests) {   // xs: Merkmal zum Zeitpunkt, ys: Rendite danach; nicht überlappende Stichproben
+  const n = xs.length, r = hPear(xs, ys), h = n >> 1, r1 = hPear(xs.slice(0, h), ys.slice(0, h)), r2 = hPear(xs.slice(h), ys.slice(h)), z = [0, 1.96, 2.24, 2.5, 2.64, 2.8][Math.min(5, Math.max(1, ntests || 1))] || 2.8;
+  const rnd = 1.96 / Math.sqrt(Math.max(1, n)), crit = z / Math.sqrt(Math.max(1, n)); let lab = 'zu wenig Daten';
+  if (n >= 40 && r != null) { const same = r1 != null && r2 != null && Math.sign(r1) === Math.sign(r) && Math.sign(r2) === Math.sign(r); lab = Math.abs(r) > crit && same ? 'Beleg' : Math.abs(r) > rnd && same ? 'Hinweis' : 'kein Beleg'; }
+  return { id, name, r, r1, r2, n, rnd, crit, lab, h: horizon };
+}
+function hubDerive() {
+  const f = {}, S = HUB.s, fl = S.flow && S.flow.d, be = S.beh && S.beh.d, ls = S.ls && S.ls.d, ev = [];
+  if (fl && fl.length > 60) {
+    const sd = fl.map(x => x.sd), pd = fl.map(x => x.pd), rs = hRoll(sd, HEV_W), rp = hRoll(pd, HEV_W), a = rs.filter(x => x != null), b = rp.filter(x => x != null), n = fl.length;
+    f.spot12 = rs[n - 1]; f.perp12 = rp[n - 1]; f.zSpot = f.spot12 / hStd(a); f.zPerp = f.perp12 / hStd(b);
+    const bas = fl.map(x => (x.pc / x.sc - 1) * 100); f.basis = bas[n - 1]; f.basisZ = (f.basis - mean(bas)) / hStd(bas);
+    const zs = f.zSpot, zp = f.zPerp, T = .5; f.lead = zs > T && zp > T ? 'Spot und Perp kaufen' : zs < -T && zp < -T ? 'Spot und Perp verkaufen' : zs > T ? 'Spot führt (Käufe)' : zp > T ? 'Perp getrieben (Hebel kauft)' : zs < -T ? 'Spot verkauft' : zp < -T ? 'Perp verkauft' : 'ausgeglichen';
+    f.leadDir = zs > T && zp > T ? 1 : zs < -T && zp < -T ? -1 : zs > T ? 1 : zs < -T ? -1 : 0;
+    const X = { spot: [], perp: [], basis: [], pos: [], ls: [] }, Y = []; const pos = new Map(); if (be) { const sg = be.map(r => r.dOI * Math.sign(r.dP) / r.oi), ro = hRoll(sg, HEV_W); be.forEach((r, i) => { if (ro[i] != null) pos.set(r.t, ro[i]); }); }
+    const lmap = (arr) => new Map(arr.map(p => [Math.floor(p[0] / 3600e3) * 3600e3, p[1]])), G = ls ? lmap(ls.g) : null, TP = ls ? lmap(ls.top) : null;
+    for (let i = HEV_W; i + HEV_H < n; i += HEV_H) {
+      const t = fl[i].t, y = Math.log(fl[i + HEV_H].pc / fl[i].pc); if (!isFinite(y) || rs[i] == null) continue;
+      const ps = pos.get(t), gv = G && G.get(t), tv = TP && TP.get(t);
+      X.spot.push([rs[i], y]); X.perp.push([rp[i], y]); X.basis.push([bas[i], y]); if (ps != null) X.pos.push([ps, y]); if (gv != null && tv != null) X.ls.push([tv - gv, y]);
+    }
+    const nt = 5, add = (id, nm, k) => ev.push(hEv(id, nm, X[k].map(p => p[0]), X[k].map(p => p[1]), HEV_H + ' h', 5));
+    add('spot', 'Spot-Käufe (12 h)', 'spot'); add('perp', 'Perp-Käufe (12 h)', 'perp'); add('basis', 'Basis Perp/Spot', 'basis'); add('pos', 'Positionierung (OI × Preis)', 'pos'); add('ls', 'Top-Trader minus Konten', 'ls');
+  }
+  if (be && be.length > 24) { const day = be.filter(r => r.t > be[be.length - 1].t - 864e5), sum = {}; for (const r of day) sum[r.cls] = (sum[r.cls] || 0) + Math.abs(r.dOI); f.beh = sum; const top = Object.entries(sum).sort((x, y) => y[1] - x[1])[0]; f.behTop = top ? top[0] : null; }
+  if (ls) { f.lsG = ls.g[ls.g.length - 1][1]; f.lsT = ls.top.length ? ls.top[ls.top.length - 1][1] : null; }
+  const fg = S.fng && S.fng.d; if (fg) { f.fng = fg[fg.length - 1][1]; f.fng30 = fg.length > 30 ? f.fng - fg[fg.length - 31][1] : null; f.fngCls = f.fng < 25 ? 'extreme Angst' : f.fng < 45 ? 'Angst' : f.fng <= 55 ? 'neutral' : f.fng <= 75 ? 'Gier' : 'extreme Gier'; }
+  const ch = S.chain && S.chain.d; if (ch) { const l = ch[ch.length - 1]; f.mvrv = l.mvrv; f.rp = l.rp; f.vsRp = (l.p / l.rp - 1) * 100; }
+  const st = S.stable && S.stable.d; if (st && st.length > 31) f.stable30 = (st[st.length - 1][1] / st[st.length - 31][1] - 1) * 100;
+  const mc = S.macro && S.macro.d; if (mc) {
+    const g = k => mc.series[k] && mc.series[k].pts; const sp = g('spx'); if (sp && sp.length > 130) { const v = sp.map(p => p[1]), ma = mean(v.slice(-125)); f.spx = v[v.length - 1]; f.spxMa = ma; f.spxVs = (f.spx / ma - 1) * 100; }
+    const vx = g('vix'); if (vx) f.vix = vx[vx.length - 1][1]; const y = g('y10'); if (y) f.y10 = y[y.length - 1][1]; const us = g('usd'); if (us) f.usd = us[us.length - 1][1];
+  }
+  const cn = S.cnn && S.cnn.d; if (cn && cn.now) f.cnn = cn.now.score;
+  // tägliche Merkmale gegen BTC-Tagesrendite (Preis aus Coin Metrics): Horizont vorab 7 Tage (MVRV 30 Tage)
+  if (ch && ch.length > 100) {
+    const px = new Map(ch.map(x => [Math.floor(x.t / 864e5), x.p])), seq = (arr, hz, fn) => { const xs = [], ys = []; for (let i = 31; i < arr.length; i += hz) { const k = Math.floor(arr[i][0] / 864e5), p0 = px.get(k), p1 = px.get(k + hz); if (p0 == null || p1 == null) continue; const x = fn(i); if (x == null || !isFinite(x)) continue; xs.push(x); ys.push(Math.log(p1 / p0)); } return [xs, ys]; };
+    if (fg && fg.length > 100) { const [x, y] = seq(fg, 7, i => fg[i][1]); ev.push(hEv('fng', 'Fear & Greed (Stand)', x, y, '7 d', 5)); }
+    if (st && st.length > 100) { const [x, y] = seq(st, 7, i => st[i][1] / st[i - 30][1] - 1); ev.push(hEv('stable', 'Stablecoin-Wachstum (30 d)', x, y, '7 d', 5)); }
+    { const arr = ch.map(c => [c.t]); const [x, y] = seq(arr, 30, i => ch[i].mvrv); ev.push(hEv('mvrv', 'MVRV (Stand)', x, y, '30 d', 5)); }
+  }
+  HUB.f = f; HUB.ev = ev;
+}
+const hubFeat = () => HUB.f;
+const hEvOf = id => HUB.ev.find(e => e.id === id);
+const hEvBest = ids => { const rank = { Beleg: 3, Hinweis: 2, 'kein Beleg': 1, 'zu wenig Daten': 0 }; return ids.map(hEvOf).filter(Boolean).sort((a, b) => rank[b.lab] - rank[a.lab])[0] || null; };
+const hEvChip = e => !e ? chip2('ohne Prüfung', '') : chip2('Prüfung: ' + e.lab, e.lab === 'Beleg' ? 'up' : e.lab === 'Hinweis' ? 'warn' : '');
+const hEvRank = ids => { const e = hEvBest(ids); return e ? { Beleg: 3, Hinweis: 2, 'kein Beleg': 1, 'zu wenig Daten': 0 }[e.lab] : -1; };
+
+/* ----- Diagramme ----- */
+function specMulti(o) {   // o: {lines:[{n,pts,col,bars}], base, fmt}
+  return ch => {
+    const L = (o.lines || []).filter(l => l.pts && l.pts.length > 1); if (!L.length) return { draw: g => g.msg('Noch keine Daten') };
+    const x0 = Math.min(...L.map(l => l.pts[0][0])), x1 = Math.max(...L.map(l => l.pts[l.pts.length - 1][0])); let lo0 = Infinity, hi0 = -Infinity;
+    for (const l of L) for (const p of l.pts) { if (p[1] < lo0) lo0 = p[1]; if (p[1] > hi0) hi0 = p[1]; } if (o.base != null) { lo0 = Math.min(lo0, o.base); hi0 = Math.max(hi0, o.base); }
+    const pd = (hi0 - lo0) * 0.12 || Math.abs(hi0) * 0.01 || 1, lo = lo0 - pd, hi = hi0 + pd, top = 8, bot = ch.h - NTH, pw = ch.w - NAX, X = t => 4 + (t - x0) / (x1 - x0 || 1) * (pw - 10), Y = v => top + (hi - v) / (hi - lo) * (bot - top), fmt = o.fmt || pFmtAx(lo, hi);
+    const near = (pts, t) => { let a = 0, b = pts.length - 1; while (b - a > 1) { const m = (a + b) >> 1; pts[m][0] < t ? a = m : b = m; } return Math.abs(pts[a][0] - t) < Math.abs(pts[b][0] - t) ? pts[a] : pts[b]; };
+    return {
+      draw(g) {
+        const cx = g.cx; cx.fillStyle = C.pn; cx.fillRect(0, 0, g.pw, bot); g.hgrid(top, bot, lo, hi, fmt, Y); g.tgrid(x0, x1, X, 0, bot); cx.strokeStyle = C.line; cx.beginPath(); cx.moveTo(g.pw + .5, 0); cx.lineTo(g.pw + .5, bot); cx.moveTo(0, bot + .5); cx.lineTo(g.w, bot + .5); cx.stroke();
+        if (o.base != null) g.hline(Y(o.base), C.faint, [3, 4]); cx.save(); cx.beginPath(); cx.rect(0, top - 6, g.pw, bot - top + 6); cx.clip();
+        for (const l of L) { const col = l.col || C.acc; if (l.bars) { const bw = Math.max(1, (pw - 10) / l.pts.length * 0.7); for (const p of l.pts) { cx.fillStyle = p[1] >= (o.base || 0) ? C.up : C.dn; cx.globalAlpha = .75; const y0 = Y(o.base || 0), y1 = Y(p[1]); cx.fillRect(X(p[0]) - bw / 2, Math.min(y0, y1), bw, Math.max(1, Math.abs(y1 - y0))); } cx.globalAlpha = 1; }
+          else { cx.beginPath(); l.pts.forEach((p, i) => { const x = X(p[0]), y = Y(p[1]); i ? cx.lineTo(x, y) : cx.moveTo(x, y); }); cx.strokeStyle = col; cx.lineWidth = l.w || 1.5; cx.stroke(); cx.lineWidth = 1; } }
+        cx.restore(); let lx = 8; for (const l of L) { g.label(l.n, lx, 11, l.col || C.acc); cx.font = '10px Inter,system-ui,sans-serif'; lx += cx.measureText(l.n).width + 14; }
+        let last = -99; for (const l of L.slice().sort((a, b) => Y(a.pts[a.pts.length - 1][1]) - Y(b.pts[b.pts.length - 1][1]))) { const v = l.pts[l.pts.length - 1][1]; let y = clamp(Y(v), top + 9, bot - 9); if (y - last < 19) y = last + 19; last = y; g.pill(fmt(v), y, l.col || C.acc); }
+      },
+      hover(g, mx, my) { const t = x0 + (mx - 4) / (pw - 10) * (x1 - x0), parts = []; let tt = null; for (const l of L) { const p = near(l.pts, t); parts.push([l.n, fmt(p[1]), l.col || C.acc]); tt = p[0]; } ncCross(g, X(tt), my, top, bot, null); ncTimePill(g, X(tt), new Date(tt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }), bot); ncReadout(g, parts, ch.h - 8); },
+    };
+  };
+}
+const HCLS = { LO: ['Longs eröffnet', () => C.up], SO: ['Shorts eröffnet', () => C.dn], LC: ['Longs geschlossen / liquidiert', () => C.warn], SC: ['Shorts eingedeckt', () => C.acc] };
+function specBeh(rows) {   // Preis + Punkte je Verhaltens-Klasse (Größe = Betrag der OI-Änderung)
+  return ch => {
+    if (!rows || rows.length < 5) return { draw: g => g.msg('Noch keine Daten') };
+    const x0 = rows[0].t, x1 = rows[rows.length - 1].t, vals = rows.map(r => r.p), lo0 = Math.min(...vals), hi0 = Math.max(...vals), pd = (hi0 - lo0) * 0.1 || 1, lo = lo0 - pd, hi = hi0 + pd, top = 8, bot = ch.h - NTH, pw = ch.w - NAX, X = t => 4 + (t - x0) / (x1 - x0 || 1) * (pw - 10), Y = v => top + (hi - v) / (hi - lo) * (bot - top), fmt = pFmtAx(lo, hi);
+    const mx = pctl(rows.map(r => Math.abs(r.dOI)), 0.95) || 1;
+    return {
+      draw(g) {
+        const cx = g.cx; cx.fillStyle = C.pn; cx.fillRect(0, 0, g.pw, bot); g.hgrid(top, bot, lo, hi, fmt, Y); g.tgrid(x0, x1, X, 0, bot); cx.strokeStyle = C.line; cx.beginPath(); cx.moveTo(g.pw + .5, 0); cx.lineTo(g.pw + .5, bot); cx.moveTo(0, bot + .5); cx.lineTo(g.w, bot + .5); cx.stroke();
+        cx.save(); cx.beginPath(); cx.rect(0, top - 6, g.pw, bot - top + 6); cx.clip(); cx.beginPath(); rows.forEach((r, i) => { const x = X(r.t), y = Y(r.p); i ? cx.lineTo(x, y) : cx.moveTo(x, y); }); cx.strokeStyle = C.mute; cx.globalAlpha = .6; cx.lineWidth = 1; cx.stroke(); cx.globalAlpha = 1;
+        for (const r of rows) { cx.fillStyle = HCLS[r.cls][1](); cx.globalAlpha = .85; cx.beginPath(); cx.arc(X(r.t), Y(r.p), 1.4 + Math.min(1, Math.abs(r.dOI) / mx) * 3.2, 0, 6.2832); cx.fill(); } cx.globalAlpha = 1; cx.restore();
+        let lx = 8; cx.font = '10px Inter,system-ui,sans-serif'; for (const k of Object.keys(HCLS)) { cx.fillStyle = HCLS[k][1](); cx.beginPath(); cx.arc(lx, 11, 3, 0, 6.2832); cx.fill(); cx.fillStyle = C.faint; cx.textAlign = 'left'; cx.textBaseline = 'middle'; cx.fillText(HCLS[k][0], lx + 7, 11); lx += cx.measureText(HCLS[k][0]).width + 18; if (lx > g.pw - 60) break; }
+        g.pill(fmt(rows[rows.length - 1].p), clamp(Y(rows[rows.length - 1].p), top + 9, bot - 9), C.mute);
+      },
+      hover(g, mx2, my) { const t = x0 + (mx2 - 4) / (pw - 10) * (x1 - x0); let bi = 0, bd = 1e18; rows.forEach((r, i) => { const d = Math.abs(r.t - t); if (d < bd) { bd = d; bi = i; } }); const r = rows[bi]; ncCross(g, X(r.t), my, top, bot, null); ncTimePill(g, X(r.t), new Date(r.t).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit' }), bot); ncReadout(g, [[HCLS[r.cls][0], fusd(Math.abs(r.dOI)), HCLS[r.cls][1]()], ['Preis', fmt(r.p), C.fg]], ch.h - 8); },
+    };
+  };
+}
+
+/* ----- Ansichten ----- */
+const hLast = (arr, n) => arr.slice(-n);
+const hFmtD = (v, d) => nf(v, d == null ? 1 : d);
+function hPanel(key, title, S, evIds, body, foot) {
+  const e = evIds && evIds.length ? hEvBest(evIds) : null, ss = S.map(id => HSTATE(id)), bad = ss.find(x => x[0] === 'bad' || x[0] === 'warn');
+  const head = title + ' ' + (evIds ? hEvChip(e) : '') + (bad ? chip2(bad[1].length > 34 ? 'Quelle gestört' : bad[1], bad[0] === 'bad' ? 'dn' : 'warn') : '');
+  return card(head, body + '<p class="mut sm" style="margin-top:6px">' + foot + '</p>');
+}
+const hNeed = (id, why) => { const st = HUB.s[id]; return (st && st.d) ? '' : '<div class="empty">' + E(st ? (st.nosrv ? 'Braucht den eigenen Server (Quelle ist für den Browser gesperrt).' : st.busy ? 'Lädt …' : st.err || 'Noch nicht geladen') : 'Noch nicht geladen') + ' <button class="btn sm" data-a="hub_load:' + id + '">Jetzt laden</button></div>'; };
+function hEvLine(ids) { return ids.map(hEvOf).filter(Boolean).map(e => '<div class="kv"><span>' + E(e.name) + ' → Rendite in ' + e.h + '</span><b class="' + (e.lab === 'Beleg' ? 'up' : e.lab === 'Hinweis' ? 'warn' : '') + '">r ' + (e.r == null ? '–' : pn(e.r, 2)) + ' · n ' + e.n + ' · ' + e.lab + '</b></div>').join(''); }
+function pFlow() {
+  const d = HUB.s.flow && HUB.s.flow.d, f = HUB.f; if (!d) return hPanel('flow', 'Spot gegen Perp · ' + ST.sym, ['flow'], ['spot', 'perp', 'basis'], hNeed('flow'), HSRC[0].note);
+  const w = hLast(d, 336); let cs = 0, cp = 0; const sp = w.map(x => [x.t, cs += x.sd]), pf = w.map(x => [x.t, cp += x.pd]), bas = w.map(x => [x.t, (x.pc / x.sc - 1) * 100]);
+  return hPanel('flow', 'Spot gegen Perp · ' + ST.sym, ['flow'], ['spot', 'perp', 'basis'],
+    ncHTML('h_flow', 190, specMulti({ lines: [{ n: 'Spot-CVD', pts: sp, col: C.acc }, { n: 'Perp-CVD', pts: pf, col: C.warn }], base: 0, fmt: v => fusd(v) })) +
+    ncHTML('h_basis', 110, specMulti({ lines: [{ n: 'Basis Perp − Spot (%)', pts: bas, col: C.mute }], base: 0, fmt: v => nf(v, 3) })) +
+    '<div class="best"><b>' + E(f.lead || '–') + '</b><div class="mut sm">Letzte 12 h: Spot ' + fusd(f.spot12) + ' · Perp ' + fusd(f.perp12) + ' (Taker-Käufe minus Taker-Verkäufe). Basis jetzt ' + nf(f.basis, 3) + ' % (' + (f.basisZ > 1 ? 'hoch' : f.basisZ < -1 ? 'niedrig' : 'normal') + ' im Vergleich zu den letzten 42 Tagen).</div></div>' + hEvLine(['spot', 'perp', 'basis']),
+    'Letzte 14 Tage, Summe ab Fensterbeginn. Binance Spot und Perp, ' + ST.sym + 'USDT. Andere Börsen (Coinbase, Bybit) folgen.');
+}
+function pBeh() {
+  const d = HUB.s.beh && HUB.s.beh.d, f = HUB.f; if (!d) return hPanel('beh', 'Händlerverhalten · ' + ST.sym, ['beh'], ['pos'], hNeed('beh'), HSRC[1].note);
+  const b = f.beh || {}, row = k => kv(HCLS[k][0], fusd(b[k] || 0), k === 'LO' || k === 'SC' ? 'up' : 'dn');
+  return hPanel('beh', 'Händlerverhalten · ' + ST.sym, ['beh'], ['pos'],
+    ncHTML('h_beh', 190, specBeh(hLast(d, 336))) + '<div class="two">' + ['LO', 'SO', 'LC', 'SC'].map(row).join('') + '</div><div class="mut sm">Summe der Open-Interest-Änderung der letzten 24 h je Verhalten. Vorherrschend: <b>' + (f.behTop ? E(HCLS[f.behTop][0]) : '–') + '</b>.</div>' + hEvLine(['pos']),
+    'Regel: OI steigt + Preis steigt = Longs eröffnet · OI steigt + Preis fällt = Shorts eröffnet · OI fällt + Preis fällt = Longs geschlossen/liquidiert · OI fällt + Preis steigt = Shorts eingedeckt. Das ist eine Näherung aus Stundenwerten.');
+}
+function pLS() {
+  const d = HUB.s.ls && HUB.s.ls.d, f = HUB.f; if (!d) return hPanel('ls', 'Long/Short · ' + ST.sym, ['ls'], ['ls'], hNeed('ls'), HSRC[2].note);
+  return hPanel('ls', 'Long/Short · ' + ST.sym, ['ls'], ['ls'], ncHTML('h_ls', 150, specMulti({ lines: [{ n: 'Alle Konten', pts: hLast(d.g, 336), col: C.mute }, { n: 'Top-Trader (Positionen)', pts: hLast(d.top, 336), col: C.acc }], base: 1, fmt: v => nf(v, 2) })) +
+    '<div class="two">' + kv('Alle Konten (Long/Short)', nf(f.lsG, 2)) + kv('Top-Trader (Long/Short)', nf(f.lsT, 2)) + '</div>' + hEvLine(['ls']), 'Werte über 1 = mehr Long als Short. Binance Perp, stündlich.');
+}
+function pFng() {
+  const d = HUB.s.fng && HUB.s.fng.d, f = HUB.f, cn = HUB.s.cnn && HUB.s.cnn.d; if (!d) return hPanel('fng', 'Fear & Greed', ['fng', 'cnn'], ['fng'], hNeed('fng'), HSRC[3].note);
+  const lines = [{ n: 'Krypto', pts: hLast(d, 180), col: C.acc }]; if (cn && cn.pts) lines.push({ n: 'Aktien (CNN)', pts: cn.pts.slice(-180), col: C.warn });
+  return hPanel('fng', 'Fear & Greed', ['fng', 'cnn'], ['fng'], ncHTML('h_fng', 150, specMulti({ lines, base: 50, fmt: v => nf(v, 0) })) + '<div class="two">' + kv('Krypto jetzt', nf(f.fng, 0) + ' · ' + f.fngCls) + kv('Änderung 30 Tage', f.fng30 == null ? '–' : pn(f.fng30, 0)) + (cn && cn.now ? kv('Aktien (CNN)', nf(cn.now.score, 0) + ' · ' + E(cn.now.rating)) : '') + '</div>' + hEvLine(['fng']), 'Letzte 180 Tage. Stimmungswerte sind Meinungsumfragen aus Preis, Volumen und Co., kein Marktdatum.');
+}
+function pMacro() {
+  const m = HUB.s.macro && HUB.s.macro.d, f = HUB.f; if (!m) return hPanel('macro', 'Makro', ['macro'], null, hNeed('macro'), HSRC[6].note);
+  const one = (k, nm, col, fm) => { const s = m.series[k]; return s && s.pts ? '<div class="h4">' + nm + '</div>' + ncHTML('h_m_' + k, 100, specMulti({ lines: [{ n: nm, pts: s.pts.slice(-260), col: col || C.acc }], fmt: fm })) : '<div class="mut sm">' + nm + ': ' + E(s && s.err || 'keine Daten') + '</div>'; };
+  const sp = m.series.spx && m.series.spx.pts, ma = sp ? sp.map((p, i) => i < 124 ? null : [p[0], mean(sp.slice(i - 124, i + 1).map(x => x[1]))]).filter(Boolean) : null;
+  return hPanel('macro', 'Makro (täglich)', ['macro'], null, (sp ? '<div class="h4">S&amp;P 500 und 125-Tage-Schnitt</div>' + ncHTML('h_m_spx', 150, specMulti({ lines: [{ n: 'S&P 500', pts: sp.slice(-300), col: C.acc }, { n: '125-Tage-Schnitt', pts: ma.slice(-300), col: C.warn }], fmt: v => nf(v, 0) })) : '<div class="mut sm">S&amp;P 500: ' + E(m.series.spx && m.series.spx.err || 'keine Daten') + '</div>') +
+    one('vix', 'VIX (Angst-Index Aktien)', C.dn, v => nf(v, 1)) + one('y10', 'US 10-Jahres-Zins (%)', C.mute, v => nf(v, 2)) + one('usd', 'US-Dollar (breiter Index)', C.mute, v => nf(v, 1)),
+    'FRED, tägliche Schlusswerte, ein Handelstag Verzögerung. Hier wird nur angezeigt und als Merkmal geführt; ein Handelssignal daraus gibt es erst nach Evidenz.');
+}
+function pChain() {
+  const d = HUB.s.chain && HUB.s.chain.d, f = HUB.f; if (!d) return hPanel('chain', 'On-Chain Bitcoin', ['chain'], ['mvrv'], hNeed('chain'), HSRC[4].note);
+  const w = d.slice(-500);
+  return hPanel('chain', 'On-Chain Bitcoin', ['chain'], ['mvrv'], ncHTML('h_chain', 170, specMulti({ lines: [{ n: 'Preis', pts: w.map(x => [x.t, x.p]), col: C.fg }, { n: 'Realized Price', pts: w.map(x => [x.t, x.rp]), col: C.warn }], fmt: v => fusd(v) })) + ncHTML('h_mvrv', 100, specMulti({ lines: [{ n: 'MVRV', pts: w.map(x => [x.t, x.mvrv]), col: C.acc }], base: 1, fmt: v => nf(v, 2) })) +
+    '<div class="two">' + kv('MVRV', nf(f.mvrv, 2)) + kv('Preis gegen Realized Price', pn(f.vsRp, 1) + ' %', cl(f.vsRp)) + '</div>' + hEvLine(['mvrv']), 'Realized Price = Marktwert aller Coins zum Preis ihrer letzten Bewegung (Gesamt, nicht nur Short-Term-Holder). MVRV 1 = Markt gleich Realized.');
+}
+function pStable() {
+  const d = HUB.s.stable && HUB.s.stable.d, f = HUB.f; if (!d) return hPanel('stable', 'Stablecoin-Umlauf', ['stable'], ['stable'], hNeed('stable'), HSRC[5].note);
+  return hPanel('stable', 'Stablecoin-Umlauf', ['stable'], ['stable'], ncHTML('h_stable', 130, specMulti({ lines: [{ n: 'Umlauf (USD)', pts: d.slice(-365), col: C.up }], fmt: v => fusd(v) })) + '<div class="two">' + kv('Umlauf', fusd(d[d.length - 1][1])) + kv('Änderung 30 Tage', pn(f.stable30, 2) + ' %', cl(f.stable30)) + '</div>' + hEvLine(['stable']), 'DefiLlama, alle Stablecoins zusammen.');
+}
+function vHubView() {
+  const live = HSRC.filter(s => HSTATE(s.id)[0] === 'ok').length, srv = HSRC.filter(s => s.server).length, nosrv = !hubHasSrv() ? HSRC.filter(s => s.server).length : 0;
+  const panels = [['flow', pFlow, ['spot', 'perp', 'basis']], ['beh', pBeh, ['pos']], ['ls', pLS, ['ls']], ['fng', pFng, ['fng']], ['chain', pChain, ['mvrv']], ['stable', pStable, ['stable']], ['macro', pMacro, null]];
+  panels.forEach(p => { p.r = p[2] ? hEvRank(p[2]) : -1; }); panels.sort((a, b) => b.r - a.r);
+  const strong = HUB.ev.filter(e => e.lab === 'Beleg').length, hint = HUB.ev.filter(e => e.lab === 'Hinweis').length;
+  return PAPER + card('Daten-Hub', '<div class="two">' + kv('Quellen aktuell', live + ' / ' + HSRC.length, live === HSRC.length ? 'up' : live ? 'warn' : 'dn') + kv('Evidenz-Check', strong + ' Beleg · ' + hint + ' Hinweis · ' + (HUB.ev.length - strong - hint) + ' ohne') + '</div>' +
+    '<p class="mut sm">Alle Quellen sind frei und öffentlich, nur lesen. Das System prüft jedes Merkmal an den eigenen Daten gegen die Kursentwicklung danach (vorab festgelegter Horizont, ' + (HUB.ev[0] ? HUB.ev.length : 8) + ' Tests, Zufallsbereich eingerechnet) und sortiert die Grafiken danach. <b>Beleg</b> heißt: gemessen, in beiden Hälften gleiche Richtung, jenseits des Zufalls. Das ist keine Garantie, und Merkmale ohne Beleg beeinflussen keine Entscheidung.</p>' +
+    (nosrv ? '<p class="warn sm">' + nosrv + ' Quelle(n) (Makro, CNN) brauchen den eigenen Server – dort holt er sie für dich.</p>' : '') + '<div class="row">' + btnA('hub_all', 'Alle jetzt laden', 'upb') + '</div>') + panels.map(p => p[1]()).join('') + hubNot();
+}
+function hubNot() {
+  return card('Nicht angebunden (ehrlich)', '<div class="li"><b>Short-/Long-Term-Holder-Kostenbasis, Unrealized-Profit-Margin</b><div class="mut sm">CryptoQuant, Glassnode und checkonchain bieten das nur bezahlt oder ohne öffentliche Schnittstelle. Ihre Seiten auszulesen verstößt gegen deren Nutzungsbedingungen und liefert Bilder statt Zahlen. Frei gibt es nur die Gesamt-Variante (siehe On-Chain).</div></div>' +
+    '<div class="li"><b>Fondsflüsse (Goldman/EPFR)</b><div class="mut sm">Bezahlte Forschungsdaten, keine öffentliche Quelle.</div></div>' +
+    '<div class="li"><b>CVD je Börse (Coinbase, Bybit, Bitfinex)</b><div class="mut sm">Öffentliche Streams existieren. Das System müsste sie laufend mitschneiden, weil es dort keinen Stunden-Verlauf mit Käufer/Verkäufer-Trennung gibt. Nächster Ausbau; läuft dann vor allem auf dem eigenen Server.</div></div>' +
+    '<div class="li"><b>Bitcoin-ETF-Flüsse, Nachrichten</b><div class="mut sm">Nur über Scraping fragiler Webseiten. Noch nicht gebaut.</div></div>');
+}
+function vHubReg() {
+  const rows = HSRC.map(s => { const st = HUB.s[s.id] || {}, a = HSTATE(s.id), e = ({ flow: ['spot', 'perp', 'basis'], beh: ['pos'], ls: ['ls'], fng: ['fng'], chain: ['mvrv'], stable: ['stable'] })[s.id]; return '<div class="li"><div class="r1">' + dot(a[0]) + '<b>' + E(s.n) + '</b><span class="sp"></span>' + (e ? hEvChip(hEvBest(e)) : '') + '</div>' +
+    '<div class="mut sm">' + E(s.grp) + ' · ' + E(s.kind) + ' · ' + s.hosts.map(h => E(hostName(h))).join(', ') + '</div><div class="mut sm">' + E(s.note) + '</div>' +
+    '<div class="mut sm">' + (a[0] === 'ok' ? 'Stand ' + ago(st.ok) + ' · ' + st.n + ' Punkte · ' + st.ms + ' ms · neu laden nach ' + dur(s.ttl) : '<span class="' + (a[0] === 'bad' ? 'dn' : 'warn') + '">' + E(a[1]) + '</span>') + ' ' + btnA('hub_load:' + s.id, 'Neu laden') + '</div></div>'; }).join('');
+  return card('Quellen', rows) + card('Tests (Evidenz-Check)', HUB.ev.length ? '<div class="tw"><table class="tbl"><tr><th>Merkmal</th><th>Horizont</th><th>r</th><th>1. / 2. Hälfte</th><th>n</th><th>Zufall ±</th><th>Urteil</th></tr>' + HUB.ev.map(e => '<tr><td>' + E(e.name) + '</td><td>' + e.h + '</td><td>' + (e.r == null ? '–' : pn(e.r, 2)) + '</td><td>' + (e.r1 == null ? '–' : pn(e.r1, 2)) + ' / ' + (e.r2 == null ? '–' : pn(e.r2, 2)) + '</td><td>' + e.n + '</td><td>' + nf(e.rnd, 2) + '</td><td class="' + (e.lab === 'Beleg' ? 'up' : e.lab === 'Hinweis' ? 'warn' : '') + '">' + e.lab + '</td></tr>').join('') + '</table></div>' +
+    '<p class="mut sm">r = Korrelation des Merkmals mit der Kursänderung danach (nicht überlappende Stichproben). Beleg: |r| über der Schwelle für ' + HUB.ev.length + ' Tests und gleiche Richtung in beiden Hälften. Hinweis: nur über dem Zufallsbereich. Die Daten reichen je nach Quelle nur ca. 20–40 Tage (stündlich) bzw. 3 Jahre (täglich): mit mehr Verlauf wird das Urteil belastbarer. Alles gemessen im selben Datensatz, ohne Test an neuen Daten.</p>' : empty('Noch nicht genug geladen.')) +
+    card('Regeln', '<p class="mut sm">Nur öffentliche Lese-Schnittstellen. Keine Schlüssel, keine Anmeldedaten Dritter, kein Auslesen von Seiten, die das verbieten. Fällt eine Quelle aus, gilt der letzte Stand mit Altersangabe; erfunden oder geglättet wird nichts. Server-Quellen laufen über eine feste Liste auf deinem Server (kein offener Proxy).</p>');
+}
+function hubMacroCard() {
+  const f = HUB.f, m = HUB.s.macro, rows = [];
+  if (f.spxVs != null) rows.push(kv('S&P 500 gegen 125-Tage-Schnitt', pn(f.spxVs, 1) + ' % · ' + (f.spxVs > 0 ? 'darüber' : 'darunter'), cl(f.spxVs)));
+  if (f.vix != null) rows.push(kv('VIX', nf(f.vix, 1) + (f.vix > 25 ? ' · erhöht' : f.vix < 15 ? ' · niedrig' : ' · normal'), f.vix > 25 ? 'warn' : ''));
+  if (f.y10 != null) rows.push(kv('US 10-Jahres-Zins', nf(f.y10, 2) + ' %')); if (f.usd != null) rows.push(kv('US-Dollar (breiter Index)', nf(f.usd, 1)));
+  if (f.fng != null) rows.push(kv('Fear & Greed Krypto', nf(f.fng, 0) + ' · ' + f.fngCls)); if (f.cnn != null) rows.push(kv('Fear & Greed Aktien (CNN)', nf(f.cnn, 0)));
+  if (f.stable30 != null) rows.push(kv('Stablecoin-Umlauf, 30 Tage', pn(f.stable30, 2) + ' %', cl(f.stable30))); if (f.mvrv != null) rows.push(kv('Bitcoin MVRV', nf(f.mvrv, 2)));
+  if (!rows.length) return card('Makro-Druck', '<div class="best"><b class="warn">Noch keine Daten</b><div class="mut sm">' + (!hubHasSrv() ? 'Makro und CNN braucht den eigenen Server (Quelle für den Browser gesperrt). ' : '') + 'Quellen und Status: Modul 06 → Evidence Hub. Es wird kein Wert erfunden.</div><button class="btn sm" data-a="go:06">Zum Daten-Hub</button></div>');
+  return card('Makro-Druck (gemessene Werte, ohne Gesamtnote)', rows.join('') + '<p class="mut sm">Es gibt bewusst keine zusammengerechnete Makro-Note: Eine solche Gewichtung wäre erfunden. Diese Werte laufen als Merkmale mit; sie beeinflussen Entscheidungen erst, wenn der Evidenz-Check (Modul 06) einen Beleg zeigt.</p>' + (m && m.err ? '<p class="warn sm">Makro: ' + E(m.err) + '</p>' : ''));
+}
+
+/* ----- Einbau in Modul 06 ----- */
+(() => { const m = modOf('06'); if (!m || m.s.includes('Evidence Hub')) return; m.s.unshift('Evidence Hub', 'Source Registry'); PANELS['06']['Evidence Hub'] = vHubView; PANELS['06']['Source Registry'] = vHubReg; IMPL['06'].unshift('Evidence Hub', 'Source Registry'); })();
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-a]'); if (!t || !/^hub_/.test(t.dataset.a)) return; e.preventDefault(); const [a, arg] = t.dataset.a.split(':');
+  if (a === 'hub_all') HSRC.forEach((s, i) => setTimeout(() => hubLoad(s.id, true), i * 300)); if (a === 'hub_load') hubLoad(arg, true); renderNx(true);
+});
+
+'use strict';
 /* ===== Pro-Oberfläche (umschaltbar gegen „Klassisch“) =====
    Bedienmuster nach dem Vorbild moderner Trading-Web-Apps: 5-Tab-Leiste, Menü, kompakte Chart-Leiste, Auswahl-Sheets,
    Indikator-Manager mit Einstellungen, Statusleiste. Zeigt nur, was es wirklich gibt. */
@@ -3928,7 +4183,7 @@ const PRO = { sheets: [], tm: null };
 const proOn = () => ST.ui !== 'classic';
 const PI = {
   menu: '<path d="M4 7h16M4 12h16M4 17h16"/>', ind: '<path d="M3 17l5-6 4 3 6-9"/><path d="M3 21h18"/>', more: '<circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/>',
-  chart: '<path d="M3 17l5-6 4 3 6-9"/>', wl: '<path d="M6 3h12v18l-6-4-6 4z"/>', trader: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', alarm: '<path d="M18 16V11a6 6 0 10-12 0v5l-2 2h16z"/><path d="M10 21h4"/>',
+  chart: '<path d="M3 17l5-6 4 3 6-9"/>', db: '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/>', wl: '<path d="M6 3h12v18l-6-4-6 4z"/>', trader: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', alarm: '<path d="M18 16V11a6 6 0 10-12 0v5l-2 2h16z"/><path d="M10 21h4"/>',
   star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>', gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>', check: '<path d="M5 12l4 4 10-10"/>',
 };
 const pSvg = (p, c) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="' + (c || '') + '">' + p + '</svg>';
@@ -4100,12 +4355,12 @@ function proMount(on) {
   else { $('#sideBtn').before($('#stats')); $('#top').append($('#dot')); }
 }
 function proNav() {
-  const T = [['tape', 'Chart', PI.chart], ['p:wl', 'Watchlist', PI.wl], ['03', 'Trader', PI.trader], ['10', 'Alarme', PI.alarm], ['p:menu', 'Menü', PI.menu]];
+  const T = [['tape', 'Chart', PI.chart], ['06', 'Daten', PI.db], ['03', 'Trader', PI.trader], ['10', 'Alarme', PI.alarm], ['p:menu', 'Menü', PI.menu]];
   $('#nav').innerHTML = T.map(([id, l, svg]) => '<button ' + (id.startsWith('p:') ? 'data-pro="' + id.slice(2) + '"' : 'data-go="' + id + '"') + '>' + pSvg(svg) + '<span>' + l + '</span><i></i></button>').join('');
   $('#nav').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.go) go(b.dataset.go); else if (b.dataset.pro === 'wl') proSymSheet(); else if (b.dataset.pro === 'menu') proMenu(); };
   proMark(NXV.cur); try { nxBadge(); } catch (e) { /* */ }
 }
-function proMark(id) { if (!proOn()) return; $$('#nav button').forEach(b => b.classList.toggle('on', !!b.dataset.go && b.dataset.go === id)); const m = $('#nav [data-pro="menu"]'); if (m) m.classList.toggle('on', id !== 'tape' && id !== '03' && id !== '10'); }
+function proMark(id) { if (!proOn()) return; $$('#nav button').forEach(b => b.classList.toggle('on', !!b.dataset.go && b.dataset.go === id)); const m = $('#nav [data-pro="menu"]'); if (m) m.classList.toggle('on', id !== 'tape' && id !== '03' && id !== '10' && id !== '06'); }
 function proSync() {
   if (!$('#ptb')) return; const s = $('#pSym'); if (!s) return;
   s.textContent = ST.sym; $('#pSrc').textContent = ({ bnf: 'Perp', hl: 'HL', bns: 'Spot' })[ST.src] || ''; $('#pTf').textContent = ST.tf; $('#pCt').textContent = ST.mode === 'fp' ? 'Footprint' : 'Kerzen';
@@ -4130,6 +4385,6 @@ function proInit() {
 
 'use strict';
 /* ===== Start ===== */
-(async () => { try { await srvTake(); } catch (e) { console.error(e); } try { await nxLoad(); } catch (e) { /* ohne gespeicherten Zustand */ } try { discInit(); } catch (e) { console.error(e); } init(); nxInit(); try { proInit(); } catch (e) { console.error(e); } })();
+(async () => { try { await srvTake(); } catch (e) { console.error(e); } try { await nxLoad(); } catch (e) { /* ohne gespeicherten Zustand */ } try { discInit(); } catch (e) { console.error(e); } init(); nxInit(); try { proInit(); } catch (e) { console.error(e); } try { hubInit(); } catch (e) { console.error(e); } })();
 
 </script></body></html>

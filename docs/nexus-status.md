@@ -9,7 +9,7 @@ Alles Papier-Handel gegen echte Live-Kurse. `LIVE_TRADING = false`. Keine Zugang
 | Modul | gebaut | offen (Spezifikation) |
 |---|---|---|
 | 01 Market Intelligence | 11/12 | News & Macro Context |
-| 06 Data Intelligence | 6/6 | – |
+| 06 Data Intelligence | 8/8 | – (neu: Evidence Hub, Source Registry) |
 | 20 Autonomous Research & Intelligence Orchestration | 15/15 | – |
 | 28 Market Regime & Macro Intelligence | 8/8 | – |
 
@@ -81,3 +81,7 @@ Alles Papier-Handel gegen echte Live-Kurse. `LIVE_TRADING = false`. Keine Zugang
 - Algorithmen, Entdeckung, Research und Supervisor können weder Limits ändern noch den Kill-Switch aufheben noch Strategien befördern (Modul 11/31, per Selbsttest geprüft).
 - Jede Beförderung ist eine manuelle Entscheidung; automatische Beförderung/Modellfreigabe ist deaktiviert.
 - Ereignisprotokoll ist hash-verkettet (Manipulationserkennung, keine Kryptografie).
+
+## Daten-Hub (Modul 06)
+
+Freie, öffentliche Quellen (Binance Spot/Perp, Fear & Greed, Coin Metrics, DefiLlama; über den eigenen Server: FRED-Makro, CNN). Jedes Merkmal wird gegen die Kursentwicklung danach geprüft (Evidenz-Check, vorab festgelegter Horizont, Mehrfachtest-Korrektur); ohne Beleg beeinflusst es keine Entscheidung. Nicht angebunden (ehrlich): bezahlte On-Chain-Varianten, Fondsflüsse, CVD je Fremdbörse, ETF-Flüsse, Nachrichten.

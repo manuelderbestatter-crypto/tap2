@@ -144,9 +144,33 @@ const LOGIN = err => `<!doctype html><html lang="de"><head><meta charset="utf-8"
 
 /* ---------- HTTP ---------- */
 let cache = { m: 0, html: '' };
-function appHtml(flag) {
+function appHtml(flag, extra) {
   const st = fs.statSync(INDEX); if (st.mtimeMs !== cache.m) cache = { m: st.mtimeMs, html: fs.readFileSync(INDEX, 'utf8') };
-  return cache.html.replace(/<head[^>]*>/, m => m + '<script>window.' + flag + '=1</script>');
+  return cache.html.replace(/<head[^>]*>/, m => m + '<script>window.' + flag + '=1;' + (extra || '') + '</script>');
+}
+
+/* ---------- Daten-Hub: öffentliche Quellen, die der Browser nicht direkt lesen darf (CORS / Kennung) ----------
+   Feste Liste, kein offener Proxy. Nur lesen, keine Schlüssel. Zwischenspeicher 30 min; bei Fehler gilt der letzte Stand bis 24 h (als „alt“ markiert). */
+const FRED = { spx: 'SP500', vix: 'VIXCLS', y10: 'DGS10', usd: 'DTWEXBGS' }, HUBC = new Map(), FAKE = ENV.HUB_FAKE || '';
+async function hubText(url, headers) { const r = await fetch(url, { headers: Object.assign({ 'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36', accept: '*/*' }, headers || {}), signal: AbortSignal.timeout(20e3) }); if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); }
+function fredPts(csv) { const out = []; for (const ln of csv.split(/\r?\n/).slice(1)) { const [d, v] = ln.split(','); const t = Date.parse(d + 'T00:00:00Z'), x = parseFloat(v); if (isFinite(t) && isFinite(x)) out.push([t, x]); } return out.slice(-700); }
+async function hubBuild(id) {
+  if (id === 'macro') {
+    const o = {}, ks = Object.keys(FRED);
+    await Promise.all(ks.map(async k => { try { const pts = fredPts(await hubText(FAKE ? FAKE + '/fred?id=' + FRED[k] : 'https://fred.stlouisfed.org/graph/fredgraph.csv?id=' + FRED[k])); if (pts.length < 5) throw new Error('keine Daten'); o[k] = { pts, src: 'FRED ' + FRED[k] }; } catch (e) { o[k] = { err: String(e.message || e) }; } }));
+    return { series: o };
+  }
+  if (id === 'cnn') {
+    const j = JSON.parse(await hubText(FAKE ? FAKE + '/cnn' : 'https://production.dataviz.cnn.io/index/fearandgreed/graphdata', { origin: 'https://edition.cnn.com', referer: 'https://edition.cnn.com/' }));
+    const h = j.fear_and_greed_historical && j.fear_and_greed_historical.data; if (!Array.isArray(h) || h.length < 5) throw new Error('Format weicht ab');
+    return { now: j.fear_and_greed ? { score: +j.fear_and_greed.score, rating: j.fear_and_greed.rating } : null, pts: h.slice(-400).map(x => [+x.x, +x.y]), src: 'CNN (inoffiziell)' };
+  }
+  throw new Error('unbekannt');
+}
+async function hubGet(id) {
+  const c = HUBC.get(id), now = Date.now(); if (c && now - c.t < 30 * 60e3) return Object.assign({}, c.v, { cached: true });
+  try { const v = await hubBuild(id); HUBC.set(id, { t: now, v }); return v; }
+  catch (e) { if (c && now - c.t < 864e5) return Object.assign({}, c.v, { stale: true, err: String(e.message || e) }); throw e; }
 }
 function readBody(req, max) { return new Promise((res, rej) => { const c = []; let n = 0; req.on('data', d => { n += d.length; if (n > max) { rej(new Error('zu groß')); req.destroy(); } else c.push(d); }); req.on('end', () => res(Buffer.concat(c))); req.on('error', rej); }); }
 const send = (res, code, body, type, extra) => { res.writeHead(code, Object.assign({ 'content-type': type || 'text/plain; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'x-frame-options': 'DENY' }, extra || {})); res.end(body); };
@@ -158,7 +182,11 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, 'http://x'), p = url.pathname;
     if (p === '/healthz') return send(res, 200, 'ok');
-    if ((p === '/engine' || p === '/boot') && eq(url.searchParams.get('k') || '', EKEY)) return send(res, 200, p === '/engine' ? appHtml('__ENGINE') : '<!doctype html><title>boot</title>', 'text/html; charset=utf-8');
+    if ((p === '/engine' || p === '/boot') && eq(url.searchParams.get('k') || '', EKEY)) return send(res, 200, p === '/engine' ? appHtml('__ENGINE', 'window.__HK=' + JSON.stringify(EKEY)) : '<!doctype html><title>boot</title>', 'text/html; charset=utf-8');
+    if (p === '/api/hub' && (authed(req) || eq(url.searchParams.get('k') || '', EKEY))) {
+      const id = url.searchParams.get('id') || ''; if (!['macro', 'cnn'].includes(id)) return json(res, 404, { err: 'unbekannt' });
+      try { return json(res, 200, Object.assign({ ok: true, id, at: Date.now() }, await hubGet(id))); } catch (e) { return json(res, 502, { ok: false, err: String(e.message || e) }); }
+    }
     if (p === '/login') {
       if (req.method === 'POST') {
         const ip = ipOf(req); if (blocked(ip)) return send(res, 429, LOGIN('Zu viele Versuche – bitte später erneut.'), 'text/html; charset=utf-8');
