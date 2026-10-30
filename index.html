@@ -773,6 +773,7 @@ function drawOverlay() {
     const d = deltaOf(c), vv = volsOf(c); const parts = [['O', nf(c.o, c.o < 100 ? 3 : 1)], ['H', nf(c.h, c.h < 100 ? 3 : 1)], ['T', nf(c.l, c.l < 100 ? 3 : 1)], ['S', nf(c.c, c.c < 100 ? 3 : 1)], ['Vol', fq(c.v)], ['Δ', d == null ? '–' : (d > 0 ? '+' : '') + fq(d)]];
     $('#ro').innerHTML = parts.map(([k, v]) => '<span><i>' + k + '</i>' + v + '</span>').join('');
   }
+  if (typeof brHit === 'function') try { brHit(ox, V.mx, V.my); } catch (e) { /* Erklärung ist Zusatz */ }
 }
 
 /* ---------- Bedienung (Maus + Touch) ---------- */
@@ -1398,12 +1399,13 @@ function specMini(n, opts) {
     const A = D.candles, N = n || 80, cs = A.slice(Math.max(0, A.length - N)), tf = D.tfMs; if (cs.length < 3) return { draw: g => g.msg('Warte auf Kerzen …') };
     const e = (per) => { const out = []; let v = A.length ? A[Math.max(0, A.length - N - per * 2)].c : 0; const a = 2 / (per + 1); for (let i = Math.max(0, A.length - N - per * 2); i < A.length; i++) { v = A[i].c * a + v * (1 - a); out.push([A[i].t, v]); } return out.filter(p => p[0] >= cs[0].t); }, e20 = e(20), e50 = e(50);
     const mine = NX.pos.filter(p => p.sym === ST.sym && p.src === ST.src), wait = NX.decisions.filter(d => d.state === 'wartet' && d.sym === ST.sym && d.src === ST.src), sigs = NX.signals.filter(s => s.k === nxKey() && s.t >= cs[0].t && !s.manual);
-    let lo0 = Math.min(...cs.map(c => c.l)), hi0 = Math.max(...cs.map(c => c.h)); for (const p of mine.concat(wait)) { lo0 = Math.min(lo0, p.stop); hi0 = Math.max(hi0, p.target); } const lev = (opts.levels || []).filter(l => l.p > lo0 - (hi0 - lo0) * 0.6 && l.p < hi0 + (hi0 - lo0) * 0.6); for (const l of lev) { lo0 = Math.min(lo0, l.p); hi0 = Math.max(hi0, l.p); } const pd = (hi0 - lo0) * 0.07 || 1, lo = lo0 - pd, hi = hi0 + pd, top = 6, bot = ch.h - NTH, pw = ch.w - NAX, t0 = cs[0].t - tf * 0.5, t1 = cs[cs.length - 1].t + tf * 6, X = t => 6 + (t - t0) / (t1 - t0) * (pw - 10), Y = v => top + (hi - v) / (hi - lo) * (bot - top), cw = Math.max(1.5, (pw - 10) / ((t1 - t0) / tf) * 0.7);
+    let lo0 = Math.min(...cs.map(c => c.l)), hi0 = Math.max(...cs.map(c => c.h)); for (const p of mine.concat(wait)) { lo0 = Math.min(lo0, p.stop); hi0 = Math.max(hi0, p.target); } const BRX = /^(e|s|t|de|ds|dt):/, bri = !opts.levels && typeof brShown === 'function' ? brShown().filter(i => !BRX.test(i.id)) : [], bz = bri.filter(i => i.kind === 'zone'); const lev = (opts.levels || bri.filter(i => i.kind === 'line').map(i => ({ p: i.p, label: i.label, col: brCol(i.role), dash: /^prop-|wall|level/.test(i.role) ? [5, 4] : [2, 3] }))).filter(l => l.p > lo0 - (hi0 - lo0) * 0.6 && l.p < hi0 + (hi0 - lo0) * 0.6); for (const l of lev) { lo0 = Math.min(lo0, l.p); hi0 = Math.max(hi0, l.p); } const pd = (hi0 - lo0) * 0.07 || 1, lo = lo0 - pd, hi = hi0 + pd, top = 6, bot = ch.h - NTH, pw = ch.w - NAX, t0 = cs[0].t - tf * 0.5, t1 = cs[cs.length - 1].t + tf * 6, X = t => 6 + (t - t0) / (t1 - t0) * (pw - 10), Y = v => top + (hi - v) / (hi - lo) * (bot - top), cw = Math.max(1.5, (pw - 10) / ((t1 - t0) / tf) * 0.7);
     return {
       draw(g) {
         const cx = g.cx; cx.fillStyle = C.pn; cx.fillRect(0, 0, g.pw, bot); g.hgrid(top, bot, lo, hi, pFmtAx(lo, hi), Y); g.tgrid(t0, t1, X, 0, bot); cx.strokeStyle = C.line; cx.beginPath(); cx.moveTo(g.pw + .5, 0); cx.lineTo(g.pw + .5, bot); cx.moveTo(0, bot + .5); cx.lineTo(g.w, bot + .5); cx.stroke();
         cx.save(); cx.beginPath(); cx.rect(0, top - 6, g.pw, bot - top + 6); cx.clip();
         for (const [arr, col] of [[e50, C.warn], [e20, C.acc]]) { cx.beginPath(); arr.forEach((p, i) => { const x = X(p[0] + tf / 2), y = Y(p[1]); i ? cx.lineTo(x, y) : cx.moveTo(x, y); }); cx.strokeStyle = col; cx.globalAlpha = .75; cx.lineWidth = 1.2; cx.stroke(); cx.globalAlpha = 1; cx.lineWidth = 1; }
+        for (const z of bz) { const y0 = Y(z.p1), y1 = Y(z.p0); cx.fillStyle = brCol(z.role, z.side); cx.globalAlpha = .13; cx.fillRect(0, y0, g.pw, Math.max(2, y1 - y0)); cx.globalAlpha = 1; }
         for (const l of lev) { g.hline(Y(l.p), l.col || C.mute, l.dash || [6, 4]); g.label(l.label, 6, Y(l.p) - 6, l.col || C.mute); g.pill(pFmt(l.p), clamp(Y(l.p), 9, bot - 9), l.col || C.line, l.fg || '#06080b'); }
         for (const c of cs) ncCandle(cx, X(c.t + tf / 2), cw, c.o, c.h, c.l, c.c, Y);
         for (const s of sigs) { const x = X(s.t), y = Y(s.px), r = 5, up = s.side === 'long'; cx.fillStyle = up ? C.up : C.dn; cx.globalAlpha = .9; cx.beginPath(); if (up) { cx.moveTo(x, y + 6); cx.lineTo(x - r, y + 6 + r * 1.6); cx.lineTo(x + r, y + 6 + r * 1.6); } else { cx.moveTo(x, y - 6); cx.lineTo(x - r, y - 6 - r * 1.6); cx.lineTo(x + r, y - 6 - r * 1.6); } cx.closePath(); cx.fill(); cx.globalAlpha = 1; }
@@ -3029,7 +3031,7 @@ document.addEventListener('click', e => {
 
 'use strict';
 /* ===== NEXUS Block 6a: 14 Backup & Wiederherstellung · 17 Deployment/Version ===== */
-const BUILD_T = 1793354168929;
+const BUILD_T = 1793354645529;
 NX.bk = NX.bk || { lastExport: 0, lastSnap: 0, rpoH: 24, drills: [], exports: [], snapMade: 0 };
 const BK = { snaps: null, val: null, busy: '', ver: null, st: null };
 const BK_KEY = 'nexus_bk', BK_KEEP = 3;
@@ -4883,12 +4885,13 @@ function brCol(role, side) { return ({ entry: C.fg, stop: C.dn, target: C.up, 'p
 function drawBrain(phase) {
   const it = brShown(); if (!it.length) return; const pw = plotW(), pp = PN.price, top = pp.y, bot = pp.y + pp.h, T0 = tOf(0), T1 = tOf(pw);
   if (phase === 0) {
-    cx.font = '10px Inter,system-ui,sans-serif'; cx.textBaseline = 'middle'; cx.textAlign = 'left';
-    for (const i of it) if (i.kind === 'zone') { const y0 = yOf(i.p1), y1 = yOf(i.p0); if (y1 < top || y0 > bot) continue; cx.fillStyle = brCol(i.role, i.side); cx.globalAlpha = .13; cx.fillRect(0, y0, pw, Math.max(2, y1 - y0)); cx.globalAlpha = .75; cx.fillText(i.label + (i.ev ? ' · ' + i.ev : ''), 6, y0 - 6); cx.globalAlpha = 1; }
+    cx.font = '10px Inter,system-ui,sans-serif'; cx.textBaseline = 'middle'; cx.textAlign = 'left'; const used0 = [];
+    for (const i of it) if (i.kind === 'zone') { const y0 = yOf(i.p1), y1 = yOf(i.p0); if (y1 < top || y0 > bot) continue; cx.fillStyle = brCol(i.role, i.side); cx.globalAlpha = .13; cx.fillRect(0, y0, pw, Math.max(2, y1 - y0)); cx.globalAlpha = .75; cx.fillText(i.label + (i.ev ? ' · ' + i.ev : ''), 6, y0 - 6); used0.push(y0 - 6); cx.globalAlpha = 1; }
     for (const i of it) if (i.kind === 'band') { if (i.t1 < T0 || i.t0 > T1) continue; const x0 = Math.max(0, xOf(i.t0)), x1 = Math.min(pw, xOf(i.t1)); cx.fillStyle = brCol(i.role, i.side); cx.globalAlpha = .07; cx.fillRect(x0, top, Math.max(2, x1 - x0), pp.h); cx.globalAlpha = .9; cx.fillRect(x0, top, Math.max(2, x1 - x0), 3); cx.globalAlpha = .8; cx.fillText(i.label, x0 + 3, top + 11); cx.globalAlpha = 1; }
+    const used = used0; const free = y => { if (used.some(u => Math.abs(u - y) < 12)) return false; used.push(y); return true; };   // Beschriftungen überlappen nicht; Details per Antippen
     for (const i of it) if (i.kind === 'line') { const y = Math.round(yOf(i.p)) + .5; if (y < top || y > bot) continue; const c = brCol(i.role), prop = /^prop-|wall|level/.test(i.role);
       cx.strokeStyle = c; cx.lineWidth = i.role === 'entry' ? 1.4 : 1; cx.globalAlpha = prop ? .85 : 1; cx.setLineDash(prop ? [5, 4] : i.role === 'entry' ? [] : [2, 3]); cx.beginPath(); cx.moveTo(0, y); cx.lineTo(pw, y); cx.stroke(); cx.setLineDash([]); cx.lineWidth = 1;
-      cx.fillStyle = c; cx.fillText(i.label + (i.ev ? ' · ' + i.ev : ''), 6, y - 7); cx.globalAlpha = 1; }
+      cx.fillStyle = c; if (free(y - 7)) cx.fillText(i.label + (i.ev ? ' · ' + i.ev : ''), 6, y - 7); cx.globalAlpha = 1; }
     for (const i of it) if (i.kind === 'mark') { if (i.t < T0 || i.t > T1) continue; const x = xOf(i.t), y = yOf(i.p), up = i.side === 'long', c = up ? C.up : C.dn, r = 6; cx.fillStyle = c; cx.beginPath();
       if (up) { cx.moveTo(x, y + 8); cx.lineTo(x - r, y + 8 + r * 1.6); cx.lineTo(x + r, y + 8 + r * 1.6); } else { cx.moveTo(x, y - 8); cx.lineTo(x - r, y - 8 - r * 1.6); cx.lineTo(x + r, y - 8 - r * 1.6); } cx.closePath(); cx.fill();
       cx.fillText(i.label, x + 9, up ? y + 8 + r : y - 8 - r); }
@@ -4907,7 +4910,18 @@ for (const [g, n, d] of BR_GRP) PIND.push({ id: 'br_' + g, n, d, cat: 'Gehirn', 
 PIND.push({ id: 'br_all', n: 'Alle Gehirn-Ebenen', d: 'Zeigt auch Nebensächliches (weit entfernte Zonen und Wände, Gamma-Wechsel). Standard aus: das Gehirn wählt.', cat: 'Gehirn', code: 'ALL', on: brAll, set: v => { ST.brain = Object.assign({}, ST.brain || {}, { all: v ? 1 : 0 }); } });
 
 /* Takt: im Chart einmal je Sekunde neu sammeln */
-if (!window.__ENGINE) setInterval(() => { if (NXV.cur !== 'tape' || document.hidden) return; try { const before = JSON.stringify(BRAIN.layers.items); brainLayers(); if (JSON.stringify(BRAIN.layers.items) !== before) redraw(true); } catch (e) { console.error(e); } }, 1000);
+if (!window.__ENGINE) setInterval(() => { if (!['tape', 'lage', '03'].includes(NXV.cur) || document.hidden) return; try { const before = JSON.stringify(BRAIN.layers.items); brainLayers(); if (JSON.stringify(BRAIN.layers.items) !== before && NXV.cur === 'tape') redraw(true); } catch (e) { console.error(e); } }, 1000);
+
+/* Antippen / Fadenkreuz auf einer Ebene → Erklärung (Label, Evidenz, Herkunft) */
+const BR_SRC = { setup: 'Setup / Konto', zone: 'Gemessen: Liquidationen 7 Tage', level: 'Gemessen: On-Chain (täglich)', wall: 'Modell: Optionen-Gamma (Deribit)', event: 'Gemessen: Absorption (Stunde)' };
+function brHit(ox, mx, my) {
+  const it = brShown(), pp = PN.price; if (!it.length || my < pp.y || my > pp.y + pp.h) return; let best = null, bd = 9;
+  for (const i of it) { let d = 99; if (i.kind === 'line') d = Math.abs(yOf(i.p) - my); else if (i.kind === 'zone') d = my >= yOf(i.p1) - 4 && my <= yOf(i.p0) + 4 ? 0 : 99; else if (i.kind === 'mark') d = Math.hypot(xOf(i.t) - mx, yOf(i.p) - my) / 2; else if (i.kind === 'band') d = mx >= xOf(i.t0) && mx <= xOf(i.t1) ? 8 : 99; if (d < bd) { bd = d; best = i; } }
+  if (!best) return; const l1 = best.label + (best.p != null ? ' · ' + nf(best.p, best.p < 100 ? 3 : 1) : ''), l2 = BR_SRC[best.src] + (best.ev ? ' · Prüfung: ' + best.ev : best.src === 'zone' || best.src === 'level' || best.src === 'event' ? ' · ungeprüft' : '');
+  ox.font = '11px Inter,system-ui,sans-serif'; const w = Math.max(ox.measureText(l1).width, ox.measureText(l2).width) + 16, x = clamp(mx + 12, 4, plotW() - w - 4), y = clamp(my - 44, pp.y + 40, pp.y + pp.h - 40);
+  ox.fillStyle = C.bg; ox.globalAlpha = .94; ox.fillRect(x, y, w, 36); ox.globalAlpha = 1; ox.strokeStyle = brCol(best.role, best.side); ox.strokeRect(x + .5, y + .5, w - 1, 35);
+  ox.textAlign = 'left'; ox.textBaseline = 'middle'; ox.fillStyle = C.fg; ox.fillText(l1, x + 8, y + 12); ox.fillStyle = C.mute; ox.font = '10px Inter,system-ui,sans-serif'; ox.fillText(l2, x + 8, y + 26);
+}
 
 'use strict';
 /* ===== Start ===== */
