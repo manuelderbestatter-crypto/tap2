@@ -1471,7 +1471,7 @@ document.addEventListener('change', e => {
   const t = e.target; if (!$('#nxView').contains(t) && t.id !== 'impf') return;
   if (t.id === 'impf') { const f = t.files[0]; if (f) f.text().then(nxImport).catch(x => toast('Einspielen fehlgeschlagen: ' + x.message, 6000)); return; }
   if (t.dataset.cfg) { const f = CFG.find(x => x.path === t.dataset.cfg); let v = parseFloat(String(t.value).replace(',', '.')); if (!isFinite(v) || !f) { renderNx(true); return; } v = clamp(v, f.min, f.max); cfgSet(t.dataset.cfg, v, 'manuell'); renderNx(true); }
-  if (t.dataset.form) { NXV.form[t.dataset.form] = t.value; if (t.dataset.rr) renderNx(true); }
+  if (t.dataset.form) { NXV.form[t.dataset.form] = t.value; if (t.dataset.rr) setTimeout(() => renderNx(true), 0); }
 });
 document.addEventListener('input', e => { const t = e.target; if (t.dataset && t.dataset.form) NXV.form[t.dataset.form] = t.value; });
 
@@ -1900,7 +1900,7 @@ function vDIHistory() {
 }
 async function invLoad() {
   OPS.inv = { rows: [], usage: null, quota: null }; try {
-    const db = await idbOpen(), rows = []; await new Promise(res => { const q = db.transaction('s').objectStore('s').openCursor(); q.onsuccess = () => { const c = q.result; if (!c) return res(); const v = c.value || {}; rows.push({ k: String(c.key), at: v.at || null, tr: v.tr && v.tr.t ? v.tr.t.length : null, heat: v.heat ? v.heat.length : null }); c.continue(); }; q.onerror = () => res(); });
+    const db = await idbOpen(), rows = []; await new Promise(res => { const q = db.transaction('s').objectStore('s').openCursor(); q.onsuccess = () => { const c = q.result; if (!c) return res(); const v = c.value || {}; rows.push({ k: String(c.key), at: typeof v.at === 'number' ? v.at : null, tr: v.tr && v.tr.t ? v.tr.t.length : null, heat: v.heat ? v.heat.length : null }); c.continue(); }; q.onerror = () => res(); });
     OPS.inv.rows = rows.sort((a, b) => (b.at || 0) - (a.at || 0)); if (navigator.storage && navigator.storage.estimate) { const e = await navigator.storage.estimate(); OPS.inv.usage = e.usage; OPS.inv.quota = e.quota; }
   } catch (e) { /* kein Speicher */ } renderNx(true);
 }
@@ -2926,6 +2926,340 @@ document.addEventListener('click', e => {
     rs_note: () => { const x = rItem(arg); if (x) { x.result = NXV.form.rsn || ''; delete NXV.form.rsn; } renderNx(true); },
   };
   if (A[a] && /^rs_/.test(a)) { e.preventDefault(); A[a](); }
+});
+
+'use strict';
+/* ===== NEXUS Block 6a: 14 Backup & Wiederherstellung · 17 Deployment/Version ===== */
+const BUILD_T = 1793319399728;
+NX.bk = NX.bk || { lastExport: 0, lastSnap: 0, rpoH: 24, drills: [], exports: [], snapMade: 0 };
+const BK = { snaps: null, val: null, busy: '', ver: null, st: null };
+const BK_KEY = 'nexus_bk', BK_KEEP = 3;
+const bkLimit = o => { o.signals = o.signals.slice(0, 600); o.decisions = o.decisions.slice(0, 400); o.orders = o.orders.slice(0, 400); o.closed = o.closed.slice(0, 500); return o; };
+const chainOkOf = E => { for (let k = 0; k < E.length - 1; k++) if (E[k].p !== E[k + 1].h) return { ok: false, at: E[k].i }; for (let k = 0; k < E.length; k++) { const e = E[k]; if (fnv(e.p + '|' + e.i + '|' + e.t + '|' + e.type + '|' + JSON.stringify(e.d)) !== e.h) return { ok: false, at: e.i }; } return { ok: true, n: E.length }; };
+const kb = n => n > 1e6 ? nf(n / 1e6, 1) + ' MB' : nf(n / 1e3, 0) + ' kB';
+async function bkLoad() { try { BK.snaps = (await idbGet(BK_KEY)) || []; } catch (e) { BK.snaps = []; BK.err = String(e); } return BK.snaps; }
+async function bkSnap(why) {
+  const L = (await bkLoad()).slice(), str = JSON.stringify(bkLimit(JSON.parse(JSON.stringify(NX)))), s = { id: nid('B'), t: Date.now(), why: why || 'manuell', size: str.length, ev: NX.events.length, closed: NX.closed.length, head: NX.events[0] ? NX.events[0].h : '0', hash: fnv(str), str };
+  L.unshift(s); L.length = Math.min(L.length, BK_KEEP); await idbPut(BK_KEY, L); BK.snaps = L; NX.bk.lastSnap = s.t; NX.bk.snapMade++; emit('backup.snapshot', { id: s.id, why: s.why, size: s.size }); return s;
+}
+function bkCheck(s) {
+  const t0 = performance.now(), C = []; let o = null;
+  try { o = JSON.parse(s.str); C.push(['Datei lesbar (gültiges JSON)', true, kb(s.size)]); } catch (e) { C.push(['Datei lesbar (gültiges JSON)', false, String(e.message).slice(0, 60)]); return { ok: false, C, ms: performance.now() - t0 }; }
+  C.push(['Prüfsumme stimmt', fnv(s.str) === s.hash, 'gespeichert ' + s.hash.slice(0, 8) + '…']);
+  C.push(['Format-Version 1', o.v === 1, 'v=' + o.v]);
+  const need = ['acct', 'risk', 'flags', 'events', 'signals', 'closed', 'pos', 'cfgLog', 'strat']; const miss = need.filter(k => o[k] === undefined); C.push(['Pflichtbereiche vorhanden', !miss.length, miss.length ? 'fehlt: ' + miss.join(', ') : need.length + ' Bereiche']);
+  const ck = chainOkOf(o.events || []); C.push(['Ereigniskette lückenlos', ck.ok, ck.ok ? ck.n + ' Ereignisse' : 'Bruch bei #' + ck.at]);
+  C.push(['Konto-Zahlen sind endlich', [o.acct && o.acct.eq0, o.acct && o.acct.realized, o.acct && o.acct.fees].every(x => typeof x === 'number' && isFinite(x)), 'Start ' + (o.acct ? nf(o.acct.eq0, 0) : '–')]);
+  C.push(['Offene Positionen haben Stop', (o.pos || []).every(p => p.stop > 0), (o.pos || []).length + ' offen']);
+  const dsn = NX.closed.length - (o.closed || []).length; C.push(['Trades gegenüber Live-Stand', dsn <= 0, dsn > 0 ? dsn + ' Trades neuer als die Kopie' : 'Kopie ist aktuell oder neuer']);
+  return { ok: C.every(c => c[0].startsWith('Trades gegenüber') || c[1]), C, ms: performance.now() - t0 };
+}
+async function bkDrill() {
+  const s = await bkSnap('Übung'), r = bkCheck(s), d = { t: Date.now(), ok: r.ok, ms: Math.round(r.ms), size: s.size, n: r.C.length, bad: r.C.filter(c => !c[1] && !c[0].startsWith('Trades gegenüber')).length };
+  NX.bk.drills.unshift(d); NX.bk.drills.length = Math.min(NX.bk.drills.length, 20); BK.val = { id: s.id, r }; emit('backup.drill', { ok: d.ok, ms: d.ms }); return d;
+}
+async function bkAuto() { try { if (NX.events.length < 5) return; if (Date.now() - NX.bk.lastSnap > 12 * 3600e3) await bkSnap('automatisch'); } catch (e) { /* */ } }
+onNX(e => { if (e.type === 'backup.exported') { NX.bk.lastExport = e.t; NX.bk.exports.unshift({ t: e.t, head: e.p, n: NX.events.length }); NX.bk.exports.length = Math.min(NX.bk.exports.length, 10); } });
+setTimeout(bkAuto, 25e3); setInterval(bkAuto, 300e3);
+const lastCopy = () => Math.max(NX.bk.lastSnap || 0, NX.bk.lastExport || 0);
+function bkState() {
+  const rpo = NX.bk.rpoH * 3600e3, a = Date.now() - (NX.bk.lastExport || 0), b = Date.now() - (NX.bk.lastSnap || 0);
+  const ext = !NX.bk.lastExport ? ['bad', 'Noch nie als Datei gesichert'] : a > rpo ? ['warn', 'Datei-Sicherung älter als ' + NX.bk.rpoH + ' h'] : ['ok', 'Datei-Sicherung ' + ago(NX.bk.lastExport)];
+  const loc = !NX.bk.lastSnap ? ['warn', 'Noch keine lokale Kopie'] : b > rpo ? ['warn', 'Lokale Kopie älter als ' + NX.bk.rpoH + ' h'] : ['ok', 'Lokale Kopie ' + ago(NX.bk.lastSnap)];
+  return { ext, loc, rpoA: a, rpoB: b };
+}
+function vBkCenter() {
+  const s = bkState(), save = OBS.saveOk, D0 = NX.bk.drills[0];
+  return card('Wiederherstellung – Lage', '<div class="two">' + kv('Zustand gespeichert', save ? ago(save) : '–', save && Date.now() - save < 120e3 ? 'up' : 'warn') + kv('Lokale Kopie', s.loc[1], sev(s.loc[0])) + kv('Datei-Sicherung', s.ext[1], sev(s.ext[0])) + kv('Letzte Übung', D0 ? (D0.ok ? 'bestanden ' : 'FEHLER ') + ago(D0.t) : 'noch nie', D0 ? (D0.ok ? 'up' : 'dn') : 'warn') + '</div><div class="row">' + btnA('exp', 'Als Datei sichern', 'upb') + btnA('bk_snap', 'Lokale Kopie anlegen') + btnA('bk_drill', 'Wiederherstellungs-Übung') + '</div>' +
+    '<p class="mut sm">Wichtig: Alles liegt nur in diesem Browser. Löschst du die Website-Daten oder wechselst das Handy, ist es weg – <b>nur die Datei-Sicherung überlebt das</b>. Lokale Kopien schützen vor Programmfehlern, nicht vor Datenverlust des Browsers.</p>') +
+    card('Was jetzt zu tun ist', [s.ext[0] !== 'ok' ? ['bad', 'Datei sichern (Knopf oben) und in Dateien/Cloud ablegen.'] : null, !D0 ? ['warn', 'Einmal die Wiederherstellungs-Übung laufen lassen: beweist, dass die Sicherung lesbar ist.'] : null, D0 && !D0.ok ? ['bad', 'Letzte Übung fehlgeschlagen – siehe Tab „Recovery Drills“.'] : null].filter(Boolean).map(x => '<div class="li"><div class="r1">' + dot(x[0]) + '<span>' + x[1] + '</span></div></div>').join('') || '<div class="li"><div class="r1">' + dot('ok') + '<span>Nichts offen.</span></div></div>');
+}
+function vBkInv() {
+  if (!BK.snaps) bkLoad().then(() => renderNx(true));
+  const o = NX, keys = Object.keys(o).map(k => { let n = 0; try { n = JSON.stringify(o[k]).length; } catch (e) { /* */ } const v = o[k]; return [k, n, Array.isArray(v) ? v.length + ' Einträge' : (v && typeof v === 'object') ? Object.keys(v).length + ' Felder' : String(v).slice(0, 14)]; }).sort((a, b) => b[1] - a[1]), tot = keys.reduce((a, k) => a + k[1], 0);
+  return card('Was gesichert wird (Zustand „nexus“)', '<div class="tw"><table class="tbl"><tr><th>Bereich</th><th>Inhalt</th><th>Größe</th></tr>' + keys.slice(0, 18).map(k => '<tr><td>' + E(k[0]) + '</td><td>' + E(k[2]) + '</td><td>' + kb(k[1]) + '</td></tr>').join('') + '</table></div><div class="two">' + kv('Gesamt', kb(tot)) + kv('Bereiche', keys.length) + '</div>') +
+    card('Orte', '<div class="li"><div class="r1"><b>IndexedDB „tape“ / nexus</b><span class="sp"></span><span class="mut sm">' + (OBS.saveOk ? ago(OBS.saveOk) : '–') + '</span></div><div class="mut sm">Hauptzustand, speichert 1,5 s nach jeder Änderung. Signale/Entscheidungen/Orders auf 600/400/400, Trades auf 500 gekürzt.</div></div><div class="li"><div class="r1"><b>IndexedDB „tape“ / nexus_bk</b><span class="sp"></span><span class="mut sm">' + (BK.snaps ? BK.snaps.length + ' Kopien' : '…') + '</span></div><div class="mut sm">Bis zu ' + BK_KEEP + ' lokale Kopien (ältere werden ersetzt).</div></div><div class="li"><div class="r1"><b>Chart-Verlauf (Tape)</b></div><div class="mut sm">Bubbles, Heatmap, OI – nur Cache, wird bei Bedarf neu aufgebaut, nicht gesichert.</div></div>' + '<p class="mut sm">Nicht gesichert: Zugangsdaten (gibt es nicht) und Live-Kurse (gibt die Börse neu).</p>');
+}
+function snapRow(s) {
+  const v = BK.val && BK.val.id === s.id ? BK.val.r : null;
+  return '<div class="li"><div class="r1"><b>' + ago(s.t) + '</b><span class="mut"> · ' + E(s.why) + '</span><span class="sp"></span><span class="mut sm">' + kb(s.size) + '</span></div><div class="mut sm">' + s.ev + ' Ereignisse · ' + s.closed + ' Trades · Prüfsumme ' + s.hash.slice(0, 8) + '</div>' + (v ? '<div class="' + (v.ok ? 'up' : 'dn') + ' sm">' + (v.ok ? 'Prüfung bestanden' : 'Prüfung FEHLGESCHLAGEN') + ' (' + Math.round(v.ms) + ' ms)</div>' : '') + '<div class="row">' + btnA('bk_val:' + s.id, 'Prüfen') + (NXV.bkarm === s.id ? btnA('bk_rest:' + s.id, 'WIRKLICH zurückspielen?', 'dnb') : btnA('bk_arm:' + s.id, 'Zurückspielen')) + '</div></div>';
+}
+function vBkJobs() {
+  const sn = BK.snaps; if (!sn) { bkLoad().then(() => renderNx(true)); }
+  return card('Lokale Kopien', '<div class="row">' + btnA('bk_snap', 'Jetzt anlegen', 'upb') + btnA('exp', 'Als Datei sichern') + '<label class="btn sm">Datei einspielen<input id="impf" type="file" accept=".json,application/json" hidden></label></div>' + (sn ? (sn.length ? sn.map(snapRow).join('') : empty('Noch keine Kopie.')) : '<span class="mut sm">Lädt …</span>') + '<p class="mut sm">Automatik: alle 12 Stunden, solange die App offen ist (prüft alle 5 min). Älteste Kopie wird ab der 4. ersetzt.</p>') +
+    card('Aufträge', [['Zustand speichern', '1,5 s nach Änderung', OBS.saveErr ? 'Fehler: ' + OBS.saveErr : 'ok'], ['Lokale Kopie', 'alle 12 h (automatisch)', NX.bk.snapMade + ' angelegt'], ['Datei-Sicherung', 'manuell (Knopf)', NX.bk.lastExport ? ago(NX.bk.lastExport) : 'nie']].map(r => '<div class="li"><div class="r1"><b>' + r[0] + '</b><span class="sp"></span><span class="mut sm">' + r[1] + '</span></div><div class="mut sm">' + r[2] + '</div></div>').join(''));
+}
+function vBkVal() {
+  const sn = BK.snaps || [], v = BK.val;
+  return card('Prüfen ohne zurückzuspielen', sn.length ? sn.map(snapRow).join('') : empty('Keine Kopie vorhanden. Erst anlegen (Tab „Backup Jobs“).')) +
+    (v ? card('Ergebnis der letzten Prüfung', v.r.C.map(c => '<div class="li"><div class="r1">' + dot(c[1] ? 'ok' : 'bad') + '<span>' + E(c[0]) + '</span><span class="sp"></span><span class="mut sm">' + E(c[2]) + '</span></div></div>').join('') + '<div class="mut sm">Dauer ' + Math.round(v.r.ms) + ' ms</div>') : '') +
+    '<p class="mut sm">Zurückspielen ersetzt den aktuellen Stand; vorher wird automatisch eine Kopie „vor Wiederherstellung“ angelegt. Danach lädt die App neu.</p>';
+}
+function vBkRpo() {
+  const s = bkState(), r = NX.bk.rpoH, d = NX.bk.drills.filter(x => x.ok), rto = d.length ? Math.max(...d.map(x => x.ms)) : null;
+  return card('Zielwerte', '<div class="row"><label class="mut sm">Maximaler Datenverlust (RPO)</label><select data-cfgbk="rpo">' + [6, 12, 24, 72, 168].map(h => '<option value="' + h + '"' + (h === r ? ' selected' : '') + '>' + (h < 24 ? h + ' h' : h / 24 + ' Tage') + '</option>').join('') + '</select></div><div class="tw"><table class="tbl"><tr><th></th><th>Ziel</th><th>Ist</th><th></th></tr><tr><td>RPO Datei</td><td>' + r + ' h</td><td>' + (NX.bk.lastExport ? dur2(s.rpoA) : 'nie') + '</td><td>' + dot(s.ext[0]) + '</td></tr><tr><td>RPO lokale Kopie</td><td>' + r + ' h</td><td>' + (NX.bk.lastSnap ? dur2(s.rpoB) : 'nie') + '</td><td>' + dot(s.loc[0]) + '</td></tr><tr><td>RTO (Prüfung)</td><td>&lt; 5 min</td><td>' + (rto != null ? rto + ' ms' : 'ungemessen') + '</td><td>' + dot(rto != null ? 'ok' : 'warn') + '</td></tr></table></div><p class="mut sm">RPO = wie viel Arbeit verloren geht, wenn jetzt alles ausfällt. RTO = wie lange das Zurückspielen dauert; hier die gemessene Prüfzeit plus ca. 1 Minute für Datei auswählen und Neuladen. Gilt für die Datei-Sicherung als eigentlichen Schutz.</p>');
+}
+function vBkScen() {
+  const S = [['Programmfehler beschädigt den Zustand', 'Lokale Kopie / Datei', NX.bk.lastSnap || NX.bk.lastExport ? 'ok' : 'warn', 'Tab „Backup Jobs“ → Zurückspielen'], ['Browser-Daten gelöscht / anderes Handy', 'Nur Datei-Sicherung', NX.bk.lastExport ? 'ok' : 'bad', 'Datei einspielen (Mehr → Daten sichern)'], ['Börsen-Datenstrom fällt aus', 'Quellenwechsel, Selbstheilung', NX.flags.autoHeal !== false ? 'ok' : 'warn', 'Modul 10 → Runbooks'], ['Börsen-REST gesperrt (429)', 'Schutzschalter pausiert Anfragen', 'ok', 'Modul 16 → Rate Limits'], ['Falsche Konfiguration', 'Änderungsprotokoll, Zurücksetzen', 'ok', 'Modul 12 → Drift / Rollback'], ['Konto weicht von Trades ab', 'Abgleich, Kill-Switch', NX.recon && NX.recon.ok === false ? 'bad' : 'ok', 'Runbook „Konto-Abgleich“'], ['Seite wird nicht geladen (Hosting)', 'Nichts – Hosting ist GitHub Pages', 'warn', 'Datei lokal öffnen ist nicht möglich; Sicherung bleibt gültig']];
+  return card('Was passiert wenn …', S.map(s => '<div class="li"><div class="r1">' + dot(s[2]) + '<b>' + E(s[0]) + '</b></div><div class="mut sm">Schutz: ' + E(s[1]) + ' · Vorgehen: ' + E(s[3]) + '</div></div>').join(''));
+}
+function vBkFail() {
+  const hs = restStats(), row = (n, hosts) => { const r = hs.filter(x => hosts.includes(x.h)), n60 = r.reduce((a, x) => a + x.n60, 0), e60 = r.reduce((a, x) => a + x.err60, 0); return [n, hosts.map(hostName).join(' / '), n60 ? (e60 / n60 > 0.3 ? 'warn' : 'ok') : 'mute', n60 ? n60 + ' Anfr./min, ' + e60 + ' Fehler' : 'keine Anfragen']; };
+  const R = [row('Preise & Orderbuch (Hauptquelle)', ['fapi.binance.com', 'fstream.binance.com']), row('Ausweich 1: Hyperliquid', ['api.hyperliquid.xyz']), row('Ausweich 2: Binance Spot', ['api.binance.com', 'stream.binance.com'])];
+  return card('Quellen-Ausweichkette', R.map(r => '<div class="li"><div class="r1">' + dot(r[2]) + '<b>' + E(r[0]) + '</b></div><div class="mut sm">' + E(r[1]) + ' · ' + E(r[3]) + '</div></div>').join('') + '<div class="row">' + btnA('rb:healthall', 'Verbindungstest') + btnA('rb:reconnect', 'Neu verbinden') + '</div><p class="mut sm">Aktuelle Quelle: ' + E(({ bnf: 'Binance Perp', hl: 'Hyperliquid', bns: 'Binance Spot' })[ST.src] || String(ST.src)) + '. Wechsel manuell im Tape-Kopf (Perp / HL / Spot). Selbstheilung baut bei > 45 s Stille neu auf (Modul 10).</p>');
+}
+function vBkImm() {
+  const sn = BK.snaps || [], bad = sn.filter(s => fnv(s.str) !== s.hash), ck = chainOk();
+  return card('Manipulationserkennung', '<div class="two">' + kv('Ereigniskette', ck.ok ? 'intakt (' + ck.n + ')' : 'GEBROCHEN', ck.ok ? 'up' : 'dn') + kv('Kettenkopf', NX.events[0] ? NX.events[0].h.slice(0, 10) + '…' : '–') + kv('Kopien geprüft', sn.length - bad.length + ' von ' + sn.length, bad.length ? 'dn' : 'up') + kv('Dateien exportiert', NX.bk.exports.length) + '</div>' + NX.bk.exports.map(x => '<div class="li"><div class="mut sm">' + ago(x.t) + ' · ' + x.n + ' Ereignisse · Kettenkopf ' + x.head.slice(0, 10) + '…</div></div>').join('') + '<p class="mut sm"><b>Ehrlich:</b> Das ist Manipulations<i>erkennung</i>, nicht Unveränderlichkeit. Wer Zugriff auf den Browser hat, kann Daten UND Kette neu schreiben. Echter Schutz (WORM-Speicher, Schlüssel) braucht einen Server. Die Kettenköpfe der Datei-Exporte erlauben dir, später zu prüfen, dass der Verlauf nicht umgeschrieben wurde.</p>');
+}
+function vBkOrder() {
+  const st = [['Speicher (IndexedDB)', !OBS.saveErr && OBS.saveOk, 'ohne ihn geht nichts – zuerst prüfen'], ['App-Zustand laden', NX.events.length > 0, 'Konto, Journal, Konfiguration'], ['Audit-Kette prüfen', chainOk().ok, 'bevor etwas freigegeben wird'], ['Datenstrom', D.lastMsg && Date.now() - D.lastMsg < 30e3, 'Kurse, Orderbuch'], ['Konto-Abgleich', NX.recon && NX.recon.ok, 'Konto = Summe der Trades'], ['Kill-Switch aufheben', !NX.kill, 'erst nach den Schritten davor'], ['Strategien wieder freigeben', null, 'Release-Gates (09) prüfen']];
+  return card('Reihenfolge nach einem Ausfall', st.map((s, i) => '<div class="li"><div class="r1">' + dot(s[1] === null ? 'mute' : s[1] ? 'ok' : 'bad') + '<b>' + (i + 1) + '. ' + E(s[0]) + '</b></div><div class="mut sm">' + E(s[2]) + '</div></div>').join('') + '<p class="mut sm">Die Punkte zeigen den Zustand jetzt. Rot = in dieser Reihenfolge beheben.</p>');
+}
+function vBkDrills() {
+  const D2 = NX.bk.drills; return card('Übung', '<p class="mut sm">Legt eine Kopie an, liest sie zurück und prüft Prüfsumme, Format, Kette, Konto-Zahlen und Stops – ohne den Live-Stand anzufassen.</p><div class="row">' + btnA('bk_drill', 'Übung starten', 'upb') + '</div>' + (BK.busy ? '<span class="mut sm">Läuft …</span>' : '')) +
+    card('Bisherige Übungen', D2.length ? D2.map(d => '<div class="li"><div class="r1">' + dot(d.ok ? 'ok' : 'bad') + '<b>' + (d.ok ? 'bestanden' : d.bad + ' Fehler') + '</b><span class="sp"></span><span class="mut sm">' + ago(d.t) + '</span></div><div class="mut sm">' + d.n + ' Prüfungen · ' + d.ms + ' ms · ' + kb(d.size) + '</div></div>').join('') : empty('Noch keine Übung.'));
+}
+function vBkCont() {
+  const s = bkState(), D0 = NX.bk.drills[0], ck = chainOk(), items = [['Zustand wird gespeichert', !OBS.saveErr && OBS.saveOk && Date.now() - OBS.saveOk < 300e3], ['Datei-Sicherung innerhalb Ziel', s.ext[0] === 'ok'], ['Lokale Kopie innerhalb Ziel', s.loc[0] === 'ok'], ['Letzte Übung bestanden', !!(D0 && D0.ok)], ['Audit-Kette intakt', ck.ok]], ok = items.filter(x => x[1]).length;
+  return card('Kontinuität: ' + ok + ' / ' + items.length, '<div class="bar"><i style="width:' + ok / items.length * 100 + '%"></i></div>' + items.map(x => '<div class="li"><div class="r1">' + dot(x[1] ? 'ok' : 'bad') + '<span>' + E(x[0]) + '</span></div></div>').join(''));
+}
+PANELS['14'] = { 'Recovery Command Center': vBkCenter, 'Backup Inventory': vBkInv, 'Backup Jobs': vBkJobs, 'Restore Validation': vBkVal, 'RPO / RTO Targets': vBkRpo, 'Disaster Scenarios': vBkScen, 'Failover Planning': vBkFail, 'Immutable Backup Controls': vBkImm, 'Dependency Recovery Order': vBkOrder, 'Recovery Drills': vBkDrills, 'Continuity Status': vBkCont, 'Recovery Audit Trail': () => evAudit(/^backup\./, 'Sicherungs-Protokoll') };
+IMPL['14'] = Object.keys(PANELS['14']);
+
+/* ================= 17 Deployment: nur, was eine Einzeldatei-App wirklich hat ================= */
+async function verCheck() {
+  BK.ver = { busy: true }; renderNx(true);
+  try { const r = await fetch(location.pathname + '?v=' + Date.now(), { cache: 'no-store' }), tx = await r.text(), m = tx.match(/const BUILD_T = (\d+)/); BK.ver = { t: Date.now(), remote: m ? +m[1] : null, ok: r.ok }; }
+  catch (e) { BK.ver = { t: Date.now(), err: String(e.message || e).slice(0, 80) }; }
+  emit('deploy.check', { remote: BK.ver.remote, local: BUILD_T }); renderNx(true);
+}
+async function stEstimate() { BK.stTried = true; try { BK.st = navigator.storage && navigator.storage.estimate ? await navigator.storage.estimate() : null; } catch (e) { BK.st = null; } }
+function vDepOverview() {
+  if (!BK.stTried) stEstimate().then(() => renderNx(true));
+  const st = BK.st, mem = performance && performance.memory ? performance.memory : null;
+  return card('Diese Installation', '<div class="two">' + kv('Version', NX_VER) + kv('Gebaut', new Date(BUILD_T).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })) + kv('Größe der Seite', kb(document.documentElement.outerHTML.length)) + kv('Betrieb', location.protocol === 'https:' ? 'HTTPS ✓' : location.protocol, location.protocol === 'https:' ? 'up' : 'warn') + kv('Läuft seit', dur2(Date.now() - OBS.t0)) + kv('Online', navigator.onLine ? 'ja' : 'nein', navigator.onLine ? 'up' : 'dn') + '</div><p class="mut sm">Aufbau: eine einzige HTML-Datei (Code, Stil, Daten) → GitHub Pages. Kein Server, keine Container, keine Cloud-Rechner. Die übrigen Abschnitte dieses Moduls (Docker, Kubernetes, GPU, Autoscaling …) betreffen eine Server-Plattform und bleiben Spezifikation.</p>') +
+    card('Speicher & Speicherplatz', '<div class="two">' + kv('Browser-Speicher belegt', st && st.usage != null ? kb(st.usage) : '–') + kv('Verfügbar (Schätzung)', st && st.quota ? kb(st.quota) : '–') + kv('Heap', mem ? kb(mem.usedJSHeapSize) : 'n/a') + kv('Geräte-Kerne', navigator.hardwareConcurrency || '–') + '</div>');
+}
+function vDepPipe() {
+  const v = BK.ver; let res = '<span class="mut sm">Noch nicht geprüft.</span>';
+  if (v && v.busy) res = '<span class="mut sm">Prüft …</span>'; else if (v && v.err) res = '<span class="warn">Prüfung fehlgeschlagen: ' + E(v.err) + '</span>'; else if (v && v.remote != null) res = v.remote > BUILD_T ? '<div class="best"><b class="warn">Neuere Version verfügbar</b><div class="mut sm">Online gebaut ' + new Date(v.remote).toLocaleString('de-DE') + '</div><div class="row">' + btnA('ver_reload', 'Jetzt neu laden', 'upb') + '</div></div>' : '<span class="up">Du hast die neueste Version.</span> <span class="mut sm">geprüft ' + ago(v.t) + '</span>'; else if (v && !v.ok) res = '<span class="warn">Seite nicht erreichbar.</span>';
+  return card('Aktualisierung', '<div class="row">' + btnA('ver_check', 'Auf neue Version prüfen', 'upb') + '</div>' + res + '<p class="mut sm">Vergleicht die Bauzeit dieser Version mit der gerade veröffentlichten Datei. Dein Zustand (Konto, Journal) bleibt beim Neuladen erhalten – er liegt im Browser, nicht in der Seite.</p>') +
+    card('So kommt eine Version live', ['Änderung im Code', 'Zusammenbauen zu einer Datei (build.py)', 'Automatische Tests im Browser-Simulator (Fehlerseiten, Selbsttests, Regression)', 'Veröffentlichen: Commit → GitHub Pages (ca. 1 Minute)'].map((s, i) => '<div class="li"><div class="r1"><b>' + (i + 1) + '.</b><span>' + s + '</span></div></div>').join('') + '<p class="mut sm">Die Tests laufen beim Entwickeln, nicht automatisch bei jedem Push (keine CI-Pipeline). Die 43 Selbsttests (Modul 18) kannst du jederzeit selbst starten.</p>');
+}
+function vDepCost() {
+  const hs = restStats(), req = hs.reduce((a, h) => a + h.n, 0), ws = Object.values(OBS.ws).reduce((a, w) => a + (w.n || 0), 0);
+  return card('Kosten', '<div class="two">' + kv('Hosting', '0 €') + kv('Börsen-Daten', '0 €') + kv('Rechenzeit', '0 € (dein Handy)') + kv('Schlüssel / Lizenzen', 'keine') + kv('REST-Anfragen seit Start', fq(req)) + kv('Stream-Nachrichten', fq(ws)) + '</div><p class="mut sm">Die „Kosten“ sind Akku, Datenvolumen und Anfrage-Limits der Börsen – siehe Modul 16 (Rate Limits) und Modul 13 (Beobachtbarkeit).</p>');
+}
+function vDepRes() {
+  const J = Object.entries(JOBS).map(([k, j]) => [k, j.ms.length ? j.ms.reduce((a, b) => a + b, 0) / j.ms.length : 0, j.ms.length ? Math.max(...j.ms) : 0, j.n]).sort((a, b) => b[1] - a[1]).slice(0, 10), mem = performance && performance.memory;
+  return card('Rechenlast der App', J.length ? '<div class="tw"><table class="tbl"><tr><th>Auftrag</th><th>Ø ms</th><th>max ms</th><th>Läufe</th></tr>' + J.map(j => '<tr><td>' + E(j[0]) + '</td><td>' + nf(j[1], 1) + '</td><td>' + nf(j[2], 0) + '</td><td>' + fq(j[3]) + '</td></tr>').join('') + '</table></div>' : empty('Noch keine Messwerte.')) +
+    card('Speicher', '<div class="two">' + kv('Ereignisse im RAM', NX.events.length + ' / 2500') + kv('Signale', NX.signals.length) + kv('Trades', NX.closed.length) + kv('JS-Heap', mem ? kb(mem.usedJSHeapSize) : 'n/a') + '</div>');
+}
+PANELS['17'] = { 'Infrastructure Overview': vDepOverview, 'Deployment Pipelines': vDepPipe, 'Cost Management': vDepCost, 'Resource Allocation': vDepRes, 'Infrastructure Audit Trail': () => evAudit(/^deploy\.|^config\./, 'Bereitstellungs-Protokoll') };
+IMPL['17'] = Object.keys(PANELS['17']);
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-a]'); if (!t || !$('#nxView').contains(t)) return; const [a, ...r] = t.dataset.a.split(':'), arg = r.join(':');
+  const A = {
+    bk_snap: async () => { await bkSnap('manuell'); toast('Kopie angelegt', 2000); renderNx(true); },
+    bk_drill: async () => { BK.busy = 'drill'; renderNx(true); const d = await bkDrill(); BK.busy = ''; toast(d.ok ? 'Übung bestanden (' + d.ms + ' ms)' : 'Übung: ' + d.bad + ' Fehler', 3500); renderNx(true); },
+    bk_val: async () => { await bkLoad(); const s = BK.snaps.find(x => x.id === arg); if (s) { BK.val = { id: s.id, r: bkCheck(s) }; emit('backup.validated', { id: s.id, ok: BK.val.r.ok }); } renderNx(true); },
+    bk_arm: () => { NXV.bkarm = arg; renderNx(true); setTimeout(() => { if (NXV.bkarm === arg) { NXV.bkarm = null; renderNx(true); } }, 8000); },
+    bk_rest: async () => { await bkLoad(); const s = BK.snaps.find(x => x.id === arg); if (!s) return; const c = bkCheck(s); if (!c.ok) { toast('Kopie ist beschädigt – nicht zurückgespielt', 5000); NXV.bkarm = null; renderNx(true); return; } await bkSnap('vor Wiederherstellung'); const o = JSON.parse(s.str); emit('backup.restored', { id: s.id }); clearTimeout(nxSaveT); await idbPut('nexus', o); clearTimeout(nxSaveT); BK.restored = true; location.reload(); },
+    ver_check: () => verCheck(),
+    ver_reload: () => location.reload(),
+  };
+  if (A[a] && /^(bk_|ver_)/.test(a)) { e.preventDefault(); A[a](); }
+});
+document.addEventListener('change', e => { const t = e.target; if (t.dataset && t.dataset.cfgbk === 'rpo') { NX.bk.rpoH = +t.value; emit('config.changed', { path: 'bk.rpoH', val: NX.bk.rpoH }); renderNx(true); } });
+
+'use strict';
+/* ===== NEXUS Block 6b: 19 Wissen · 15 Governance · 11 Sicherheit (ehrliche Teilmengen) ===== */
+NX.adr = NX.adr || []; NX.gov = NX.gov || { packs: [], ev: [], waivers: [] };
+const modNm = id => { const m = modOf(id); return m ? id + ' ' + m.n.split(/[,&(–]/)[0].trim() : id; };
+const ADR0 = [
+  ['Papier-Handel statt echter Orders', 'Die App soll Strategien beweisen, bevor Geld riskiert wird.', 'LIVE_TRADING = false im Code. Orders laufen gegen echte Live-Kurse im simulierten Konto. Umstellen nur per Code-Änderung und ausdrückliche Freigabe.', 'Kein Kapitalrisiko; Ergebnisse sind realistisch, aber ohne echte Warteschlange/Slippage-Beweis.'],
+  ['Risiko-Engine hat Vetorecht', 'Algorithmen dürfen nie die letzte Instanz sein.', 'Jede Order läuft durch riskEvaluate, unabhängig vom Algorithmus und Modus.', 'Manche gute Signale werden blockiert; dafür gibt es keine Umgehung.'],
+  ['Keine Zugangsdaten in der App', 'Die App läuft im Browser ohne Server.', 'Nur öffentliche Endpunkte; Policy prüft den Browser-Speicher auf Schlüssel-Namen.', 'Kein Zugriff auf private Konten – bewusst.'],
+  ['Eine Datei, kein Server', 'Handy-only, minimaler Aufwand, kostenlos.', 'Alles in einer HTML-Datei auf GitHub Pages; Zustand in IndexedDB.', 'Kein Hintergrundbetrieb, keine Push-Nachrichten; Datenverlust nur durch Browser – daher Datei-Sicherung.'],
+  ['Behauptungen müssen Beweisstufen durchlaufen', 'Zufallstreffer sind bei vielen Tests unvermeidlich.', 'Entdeckung mit Mehrfachtest-Korrektur, Zufalls-Nullmodell und Out-of-Sample → Vorwärtstest → Canary → Produktion (Modul 09/22).', 'Langsam, dafür belastbar.'],
+  ['Verkettetes Ereignisprotokoll', 'Änderungen müssen nachvollziehbar sein.', 'Jedes Ereignis trägt den Hash des vorherigen (FNV-1a, 2×32 Bit).', 'Erkennt Lücken/Änderungen, ist aber keine Kryptografie und kein Schutz vor böswilligem Schreiben.'],
+  ['Synthetische Daten nur im Selbsttest', 'Nichts vortäuschen.', 'Tests laufen in einer Sandbox, die den Zustand exakt zurücksetzt; Anzeigen nutzen nur echte Daten.', 'Börsen-Tests sind im Entwicklungs-Simulator nicht möglich (zeigt „Failed to fetch“, korrekt).'],
+];
+const HOSTL = Object.keys(HOSTS);
+/* ---- gemeinsame Kontrollen (für 15 und 11) ---- */
+function controls() {
+  const P = policies(), q = (typeof qaSummary === 'function') ? qaSummary() : null, bs = bkState(), wv = NX.gov.waivers.filter(w => w.until > Date.now());
+  const C = P.map((p, i) => ({ id: 'K-0' + (i + 1), name: p[0], ok: p[1], det: p[2], pol: true }));
+  C.push({ id: 'K-09', name: 'Datei-Sicherung innerhalb Ziel', ok: bs.ext[0] === 'ok', det: bs.ext[1] });
+  C.push({ id: 'K-10', name: 'Selbsttests bestanden', ok: q && q.done ? q.fail === 0 : null, det: q && q.done ? q.pass + ' von ' + q.done + ' bestanden' : 'noch nicht ausgeführt (Modul 18)' });
+  C.push({ id: 'K-11', name: 'Keine offene kritische Störung', ok: !NX.inc.some(x => x.st !== 'gelöst' && x.sev === 'bad'), det: NX.inc.filter(x => x.st !== 'gelöst').length + ' offen' });
+  C.push({ id: 'K-12', name: 'Nur bekannte Datenquellen', ok: Object.keys(OBS.rest).every(h => HOSTS[h]), det: Object.keys(OBS.rest).length + ' Hosts angesprochen' });
+  C.forEach(c => { const w = wv.find(x => x.ctl === c.id); if (w) c.waiver = w; }); return C;
+}
+const ctlState = c => c.ok === null ? ['mute', 'offen'] : c.ok ? ['ok', 'erfüllt'] : c.waiver ? ['warn', 'Ausnahme'] : ['bad', 'verletzt'];
+
+/* ================= 19 Wissen ================= */
+function vKnOverview() {
+  const total = MODS.reduce((x, m) => x + m.s.length, 0), done = MODS.reduce((x, m) => x + (IMPL[m.id] || []).length, 0);
+  return card('Wissensstand', '<div class="two">' + kv('Module', MODS.length) + kv('Abschnitte gebaut', done + ' / ' + total) + kv('Algorithmen', ALGOS.length) + kv('Hypothesen', NX.hyp.length) + kv('Entscheidungen (ADR)', ADR0.length + NX.adr.length) + kv('Runbooks', RUNBOOKS.length) + '</div><p class="mut sm">Diese Seiten sind <b>generiert</b> aus dem, was die App wirklich enthält (Register, Algorithmen, Daten). Sie veralten deshalb nicht.</p>') +
+    card('Wo steht was', [['System Documentation', 'Module, gebaut vs. Spezifikation'], ['Architecture Catalog', 'Schichten und Abhängigkeiten'], ['Data Catalog', 'Datenbereiche mit Größe und Zweck'], ['Algorithm & Model Registry', 'Algorithmen, Varianten, Herkunft'], ['Research Library', 'Fragen, Läufe, Hypothesen'], ['Decision Records', 'Warum so entschieden'], ['Runbooks', 'Was tun bei Störung'], ['API Documentation', 'Genutzte Endpunkte'], ['Semantic Search', 'Stichwortsuche über alles']].map(r => '<div class="li"><div class="r1"><b>' + r[0] + '</b></div><div class="mut sm">' + r[1] + '</div></div>').join(''));
+}
+function vKnDocs() {
+  return LAYERS.map(([n, ids]) => card(E(n), ids.map(id => { const m = modOf(id), im = IMPL[id] || [], pct = Math.round(im.length / m.s.length * 100); return '<div class="li"><div class="r1"><b>' + E(modNm(id)) + '</b><span class="sp"></span><span class="mut sm">' + im.length + '/' + m.s.length + '</span></div><div class="bar sm"><i style="width:' + pct + '%"></i></div><div class="mut sm">' + E(String(m.p || '').slice(0, 170)) + '</div></div>'; }).join('')));
+}
+function vKnArch() {
+  const dep = { '01': ['06'], '20': ['01', '22'], '22': ['02', '09'], '02': ['01', '03'], '21': ['02', '08'], '23': ['08', '09'], '08': ['03'], '09': ['02', '08'], '10': ['16', '13'], '16': ['06'], '18': ['03', '09'], '04': ['05'], '14': ['12'], '15': ['12', '05'] };
+  return card('Abhängigkeiten (gebaute Module)', Object.keys(dep).map(k => '<div class="li"><div class="r1"><b>' + E(modNm(k)) + '</b></div><div class="mut sm">nutzt: ' + dep[k].map(modNm).map(E).join(' · ') + '</div></div>').join('') + '<p class="mut sm">Manuell gepflegte Übersicht der echten Aufrufe; die Schichten stehen in Modul 07 (Architecture).</p>');
+}
+const DCAT = { acct: 'Papier-Konto', risk: 'Risiko-Limits', flags: 'Schalter', events: 'Ereignisprotokoll (verkettet)', signals: 'Signale der Algorithmen', decisions: 'Entscheidungen der Engine', orders: 'Papier-Orders', pos: 'Offene Positionen', closed: 'Abgeschlossene Trades', cfgLog: 'Änderungen der Konfiguration', strat: 'Strategie-Stufen und Protokoll', inc: 'Störungen', hyp: 'Hypothesen', disc: 'Entdeckungs-Läufe und Funde', custom: 'Generierte Algorithmen', res: 'Research-Fragen', qa: 'Testergebnisse', bk: 'Sicherungs-Status', adr: 'Entscheidungsnotizen', gov: 'Governance-Nachweise', rel: 'Freigabe-Grenzen', alloc: 'Kapital-Zuteilung', cost: 'Kostenmodell', recon: 'Konto-Abgleich' };
+function vKnData() {
+  return card('Datenbereiche', '<div class="tw"><table class="tbl"><tr><th>Bereich</th><th>Zweck</th><th>Umfang</th></tr>' + Object.keys(NX).filter(k => typeof NX[k] !== 'function').map(k => { const v = NX[k]; return '<tr><td>' + E(k) + '</td><td>' + E(DCAT[k] || '–') + '</td><td>' + (Array.isArray(v) ? v.length + ' Einträge' : v && typeof v === 'object' ? Object.keys(v).length + ' Felder' : E(String(v).slice(0, 12))) + '</td></tr>'; }).join('') + '</table></div>') +
+    card('Datenquellen von außen', HOSTL.map(h => '<div class="li"><div class="r1"><b>' + E(HOSTS[h][0]) + '</b></div><div class="mut sm">' + E(HOSTS[h][1]) + ' · ' + h + '</div></div>').join(''));
+}
+function vKnAlgo() {
+  const cust = NX.custom.map(c => { const d = NX.disc.list.find(x => x.algo === c.id); return [c.id, c.name, d ? 'aus Entdeckung ' + d.id : 'selbst erzeugt']; });
+  return card('Algorithmen', ALGOS.map(a => { const isC = NX.custom.some(c => c.id === a.id), S = VARIANTS.map(v => algoStats(a.id, v)), n = S.reduce((x, y) => x + y.tot, 0); return '<div class="li"><div class="r1"><b>' + E(a.name) + '</b><span class="sp"></span>' + chip2(isC ? 'generiert' : 'eingebaut', isC ? 'warn' : '') + '</div><div class="mut sm">' + a.id + ' · ' + VARIANTS.map(v => v + ': ' + (NX.strat[skey(a.id, v)] ? NX.strat[skey(a.id, v)].stage : 'forward')).join(' · ') + ' · ' + n + ' Signale gesamt</div></div>'; }).join('')) +
+    card('Herkunft generierter Algorithmen', cust.length ? cust.map(c => '<div class="li"><div class="r1"><b>' + E(c[1]) + '</b></div><div class="mut sm">' + E(c[2]) + '</div></div>').join('') : '<span class="mut sm">Keine.</span>');
+}
+function vKnLib() {
+  return card('Research-Bibliothek', '<div class="two">' + kv('Fragen', NX.res.items.length) + kv('Mustersuchen', NX.disc.runs.length) + kv('Funde registriert', NX.disc.list.length) + kv('Hypothesen', NX.hyp.length) + '</div>' + NX.res.items.concat().slice(0, 8).map(x => '<div class="li"><div class="r1"><b>' + E(x.q) + '</b><span class="sp"></span>' + chip2(x.st) + '</div>' + (x.result ? '<div class="mut sm">' + E(x.result) + '</div>' : '') + '</div>').join('')) +
+    card('Hypothesen', NX.hyp.length ? NX.hyp.slice(0, 10).map(h => '<div class="li"><div class="r1"><b>' + E(h.text.slice(0, 80)) + '</b><span class="sp"></span>' + chip2(h.st) + '</div>' + (h.falsif ? '<div class="mut sm">Widerlegt wenn: ' + E(h.falsif) + '</div>' : '') + '</div>').join('') : '<span class="mut sm">Keine.</span>');
+}
+function vKnAdr() {
+  const f = NXV.form;
+  return card('Neue Entscheidung festhalten', '<input data-form="adrt" placeholder="Entscheidung in einem Satz" value="' + E(f.adrt || '') + '"><textarea data-form="adrc" rows="2" style="width:100%" placeholder="Warum? Was war die Lage?">' + E(f.adrc || '') + '</textarea><textarea data-form="adrd" rows="2" style="width:100%" placeholder="Folgen / Nachteile">' + E(f.adrd || '') + '</textarea><div class="row">' + btnA('kn_adr', 'Speichern', 'upb') + '</div>') +
+    card('Deine Entscheidungen', NX.adr.length ? NX.adr.map(a => '<div class="li"><div class="r1"><b>' + E(a.title) + '</b><span class="sp"></span><span class="mut sm">' + ago(a.t) + '</span></div><div class="mut sm">' + E(a.ctx) + '</div>' + (a.cons ? '<div class="mut sm">Folgen: ' + E(a.cons) + '</div>' : '') + '</div>').join('') : '<span class="mut sm">Noch keine.</span>') +
+    card('Grundsatz-Entscheidungen des Systems', ADR0.map((a, i) => '<div class="li"><div class="r1"><b>' + (i + 1) + '. ' + E(a[0]) + '</b></div><div class="mut sm">Warum: ' + E(a[1]) + '</div><div class="mut sm">Entscheidung: ' + E(a[2]) + '</div><div class="mut sm">Folgen: ' + E(a[3]) + '</div></div>').join(''));
+}
+function vKnRun() { return card('Runbooks', RUNBOOKS.map(r => '<div class="li"><div class="r1"><b>' + E(r.t) + '</b></div>' + r.steps.map((s, i) => '<div class="mut sm">' + (i + 1) + '. ' + E(s) + '</div>').join('') + '</div>').join('') + '<p class="mut sm">Mit Aktions-Knöpfen im Modul 10 (Operations).</p>'); }
+function vKnApi() {
+  const hs = restStats(); const EP = [['fapi.binance.com', 'GET /fapi/v1/klines · depth · ticker · premiumIndex · openInterest · fundingRate'], ['fstream.binance.com', 'WS aggTrade · depth@100ms · kline · forceOrder'], ['api.binance.com', 'GET /api/v3/klines · depth'], ['stream.binance.com', 'WS aggTrade · depth · kline'], ['api.hyperliquid.xyz', 'POST /info (meta, candleSnapshot, fundingHistory) · WS trades/l2Book/candle']];
+  return card('Genutzte Schnittstellen', EP.map(e => { const r = hs.find(x => x.h === e[0]); return '<div class="li"><div class="r1"><b>' + E(hostName(e[0])) + '</b><span class="sp"></span><span class="mut sm">' + (r ? r.n + ' Anfr.' : (OBS.ws[e[0]] ? fq(OBS.ws[e[0]].n) + ' Nachr.' : '–')) + '</span></div><div class="mut sm">' + E(e[1]) + '</div></div>'; }).join('') + '<p class="mut sm">Alle öffentlich, ohne Schlüssel, nur lesend. Die App bietet selbst keine API an (kein Server).</p>');
+}
+function ksearch(q) {
+  const t = q.toLowerCase().split(/\s+/).filter(x => x.length > 1), R = []; if (!t.length) return R;
+  const add = (kind, title, text, act) => { const hay = (title + ' ' + text).toLowerCase(), sc = t.reduce((a, w) => a + (hay.includes(w) ? 1 + (title.toLowerCase().includes(w) ? 1 : 0) : 0), 0); if (sc >= Math.min(t.length, 2) || (t.length === 1 && sc)) R.push({ kind, title, text, act, sc }); };
+  MODS.forEach(m => { add('Modul', modNm(m.id), String(m.p || ''), 'go:' + m.id); m.s.forEach((s, i) => add('Abschnitt', s + ' · ' + modNm(m.id), (IMPL[m.id] || []).includes(s) ? 'gebaut' : 'Spezifikation', 'sec:' + m.id + ':' + i)); });
+  RUNBOOKS.forEach(r => add('Runbook', r.t, r.steps.join(' '), 'go:10')); NX.hyp.forEach(h => add('Hypothese', h.text, h.falsif || '', 'go:05')); NX.adr.forEach(a => add('Entscheidung', a.title, a.ctx, 'go:19')); ADR0.forEach(a => add('Entscheidung', a[0], a[1] + ' ' + a[2], 'go:19')); NX.res.items.forEach(x => add('Research', x.q, x.result || '', 'go:20')); ALGOS.forEach(a => add('Algorithmus', a.name, a.id, 'go:02'));
+  return R.sort((a, b) => b.sc - a.sc).slice(0, 25);
+}
+function vKnSearch() {
+  const q = NXV.form.kq || '', R = ksearch(q);
+  return card('Suche', '<input data-form="kq" data-rr="1" placeholder="z. B. Funding, Kill-Switch, Drawdown" value="' + E(q) + '">' + (q ? (R.length ? R.map(r => '<div class="li"><div class="r1"><b>' + E(r.title) + '</b><span class="sp"></span>' + chip2(r.kind) + '</div><div class="mut sm">' + E(String(r.text).slice(0, 130)) + '</div><div class="row">' + btnA(r.act, 'Öffnen') + '</div></div>').join('') : empty('Nichts gefunden.')) : '<p class="mut sm">Stichwortsuche über Module, Abschnitte, Runbooks, Hypothesen, Entscheidungen, Research und Algorithmen. <b>Keine Bedeutungssuche</b> – sie findet nur, was wörtlich vorkommt.</p>'));
+}
+function vKnChange() {
+  const E1 = []; NX.cfgLog.slice(0, 15).forEach(c => E1.push([c.t, 'Konfiguration', c.path + ': ' + String(c.old) + ' → ' + String(c.val) + (c.why ? ' (' + c.why + ')' : '')])); for (const [k, s] of Object.entries(NX.strat)) (s.log || []).slice(0, 3).forEach(l => E1.push([l.t, 'Strategie', k + ': ' + l.from + ' → ' + l.to])); NX.disc.list.slice(0, 5).forEach(d => E1.push([d.t, 'Entdeckung', 'Fund ' + d.id + ' registriert'])); NX.adr.forEach(a => E1.push([a.t, 'Entscheidung', a.title]));
+  E1.sort((a, b) => b[0] - a[0]); return card('Änderungen (zusammengeführt)', E1.length ? E1.slice(0, 40).map(x => '<div class="li"><div class="r1"><b>' + x[1] + '</b><span class="sp"></span><span class="mut sm">' + ago(x[0]) + '</span></div><div class="mut sm">' + E(x[2]) + '</div></div>').join('') : empty('Noch keine Änderungen.'));
+}
+function vKnHealth() {
+  const un = MODS.filter(m => !(IMPL[m.id] || []).length), part = MODS.filter(m => (IMPL[m.id] || []).length && (IMPL[m.id] || []).length < m.s.length), full = MODS.filter(m => (IMPL[m.id] || []).length >= m.s.length);
+  const items = [['Algorithmen mit belegtem Vorteil dokumentiert', stratList().filter(x => x.vd.k === 'kand').length ? 'ja' : 'keine vorhanden'], ['Entscheidungsnotizen', (ADR0.length + NX.adr.length) + ''], ['Hypothesen mit Widerlegungs-Regel', NX.hyp.filter(h => h.falsif).length + ' von ' + NX.hyp.length], ['Runbooks', RUNBOOKS.length + '']];
+  return card('Dokumentations-Gesundheit', '<div class="two">' + kv('Vollständig gebaut', full.length + ' Module', 'up') + kv('Teilweise', part.length + ' Module', 'warn') + kv('Nur Spezifikation', un.length + ' Module', un.length ? 'dn' : 'up') + '</div>' + items.map(i => '<div class="li"><div class="r1"><span>' + E(i[0]) + '</span><span class="sp"></span><b>' + E(i[1]) + '</b></div></div>').join('')) + card('Nur Spezifikation', un.length ? un.map(m => '<div class="li"><span>' + E(modNm(m.id)) + '</span></div>').join('') : '<span class="mut sm">Keine.</span>');
+}
+PANELS['19'] = { 'Knowledge Overview': vKnOverview, 'System Documentation': vKnDocs, 'Architecture Catalog': vKnArch, 'Data Catalog': vKnData, 'Algorithm & Model Registry': vKnAlgo, 'Research Library': vKnLib, 'Decision Records (ADRs)': vKnAdr, 'Runbooks': vKnRun, 'API Documentation': vKnApi, 'Semantic Search': vKnSearch, 'Change History': vKnChange, 'Documentation Health': vKnHealth, 'Knowledge Audit Trail': () => evAudit(/^(research|disc|hypothesis|knowledge)\./, 'Wissens-Protokoll') };
+IMPL['19'] = Object.keys(PANELS['19']);
+
+/* ================= 15 Governance ================= */
+function packBuild() {
+  const C = controls(), ck = chainOk(), q = typeof qaSummary === 'function' ? qaSummary() : null;
+  const body = { app: NX_VER, built: new Date(BUILD_T).toISOString(), created: new Date().toISOString(), chain: ck, head: NX.events[0] ? NX.events[0].h : null, mode: NX.mode, kill: NX.kill, live: LIVE_TRADING, controls: C.map(c => ({ id: c.id, name: c.name, ok: c.ok, detail: c.det, waiver: c.waiver ? c.waiver.why : null })), risk: NX.risk, flags: NX.flags, cfgLog: NX.cfgLog.slice(0, 50), strategies: Object.fromEntries(Object.entries(NX.strat).map(([k, s]) => [k, { stage: s.stage, log: (s.log || []).slice(0, 10) }])), incidents: NX.inc.slice(0, 50).map(i => ({ id: i.id, t: i.t, title: i.title, st: i.st })), tests: q, waivers: NX.gov.waivers, adr: NX.adr };
+  const str = JSON.stringify(body, null, 1); return { str, hash: fnv(str), n: C.length, bad: C.filter(c => c.ok === false && !c.waiver).length };
+}
+function vGvCockpit() {
+  const C = controls(), bad = C.filter(c => c.ok === false && !c.waiver).length, ok = C.filter(c => c.ok).length, open = NX.inc.filter(x => x.st !== 'gelöst').length, L = NX.gov.packs[0];
+  return card('Governance-Lage', '<div class="two">' + kv('Kontrollen erfüllt', ok + ' / ' + C.length, bad ? 'warn' : 'up') + kv('Verletzt', bad, bad ? 'dn' : 'up') + kv('Ausnahmen aktiv', NX.gov.waivers.filter(w => w.until > Date.now()).length) + kv('Offene Störungen', open, open ? 'warn' : 'up') + kv('Audit-Kette', chainOk().ok ? 'intakt' : 'GEBROCHEN', chainOk().ok ? 'up' : 'dn') + kv('Letzter Nachweis', L ? ago(L.t) : 'nie') + '</div><div class="row">' + btnA('gv_pack', 'Nachweis-Paket erzeugen', 'upb') + btnA('gv_ev', 'Nachweis festhalten') + '</div>') + (bad ? card('Verletzte Kontrollen', C.filter(c => c.ok === false && !c.waiver).map(c => '<div class="li"><div class="r1">' + dot('bad') + '<b>' + c.id + ' ' + E(c.name) + '</b></div><div class="mut sm">' + E(c.det) + '</div></div>').join('')) : '');
+}
+function vGvPol() {
+  const P = policies(); return card('Richtlinien (live geprüft)', P.map((p, i) => '<div class="li"><div class="r1">' + dot(p[1] === null ? 'mute' : p[1] ? 'ok' : 'bad') + '<b>' + E(p[0]) + '</b></div><div class="mut sm">' + E(p[2]) + '</div></div>').join('')) +
+    card('Grenzen im Risikomodell', '<div class="tw"><table class="tbl"><tr><th>Grenze</th><th>Aktuell</th><th>Standard</th></tr>' + RISK_FIELDS.map(f => '<tr><td>' + E(f.l) + '</td><td class="' + (NX.risk[f.k] !== RISK_DEF[f.k] ? 'warn' : '') + '">' + NX.risk[f.k] + ' ' + (f.u || '') + '</td><td>' + RISK_DEF[f.k] + '</td></tr>').join('') + '</table></div><p class="mut sm">Abweichungen vom Standard sind gelb. Änderungen siehe Modul 12.</p>');
+}
+function vGvCtl() { const C = controls(); return card('Kontrollen', C.map(c => { const s = ctlState(c); return '<div class="li"><div class="r1">' + dot(s[0]) + '<b>' + c.id + ' ' + E(c.name) + '</b><span class="sp"></span><span class="' + sev(s[0]) + ' sm">' + s[1] + '</span></div><div class="mut sm">' + E(c.det) + '</div>' + (c.waiver ? '<div class="warn sm">Ausnahme bis ' + new Date(c.waiver.until).toLocaleDateString('de-DE') + ': ' + E(c.waiver.why) + '</div>' : '') + '</div>'; }).join('')); }
+function vGvEv() {
+  return card('Nachweise festhalten', '<p class="mut sm">Hält den jetzigen Prüfstand mit Zeit und Ketten-Kopf fest. So lässt sich später zeigen, wie es an diesem Tag aussah.</p><div class="row">' + btnA('gv_ev', 'Jetzt festhalten', 'upb') + '</div>') + card('Festgehaltene Stände', NX.gov.ev.length ? NX.gov.ev.map(x => '<div class="li"><div class="r1"><b>' + new Date(x.t).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) + '</b><span class="sp"></span><span class="' + (x.bad ? 'dn' : 'up') + ' sm">' + (x.bad ? x.bad + ' verletzt' : 'alles erfüllt') + '</span></div><div class="mut sm">' + x.ok + '/' + x.n + ' Kontrollen · Kettenkopf ' + E(String(x.head).slice(0, 10)) + '… · ' + E(x.fails.join(', ') || '–') + '</div></div>').join('') : empty('Noch keiner.'));
+}
+function vGvStrat() {
+  const L = stratList().filter(x => x.st.tot > 0 || x.s.stage !== 'forward' || x.v === 'standard'); return card('Strategien: Stufe, Beleg, Letzte Änderung', '<div class="tw"><table class="tbl"><tr><th>Strategie</th><th>Stufe</th><th>n</th><th>Urteil</th><th>Zuletzt</th></tr>' + L.map(x => '<tr><td>' + E(x.name.slice(0, 18)) + '<div class="mut sm">' + x.v + '</div></td><td>' + x.s.stage + '</td><td>' + x.st.n + '</td><td>' + E(x.vd.t || x.vd.k) + '</td><td>' + (x.s.log && x.s.log[0] ? ago(x.s.log[0].t) : '–') + '</td></tr>').join('') + '</table></div><p class="mut sm">Freigabe-Tore und Stufen-Wechsel mit Begründung: Modul 09. Freigabe-Schalter ' + (NX.flags.releaseGate ? 'AN (Tore bindend)' : 'AUS (Tore nur Hinweis)') + '.</p>');
+}
+function vGvModel() {
+  const A = NX.disc.list.filter(d => d.algo); return card('Herkunft generierter Algorithmen', A.length ? A.map(d => { const S = VARIANTS.map(v => algoStats(d.algo, v)); return '<div class="li"><div class="r1"><b>' + E(ftxt(d.ks).slice(0, 40)) + '</b></div><div class="mut sm">Richtung ' + d.dir + ' · ' + d.sym + ' ' + d.tf + ' · Daten ' + new Date(d.from).toLocaleDateString('de-DE') + '–' + new Date(d.to).toLocaleDateString('de-DE') + '</div><div class="mut sm">Fund: n=' + d.n + ', t=' + nf(d.tt, 2) + ', q=' + nf(d.q, 2) + ', OOS ' + (d.oosOk ? 'ok' : 'nicht bestanden') + ' · Algorithmus ' + d.algo + '</div><div class="mut sm">Vorwärts: ' + VARIANTS.map((v, i) => v + ' n=' + S[i].n).join(' · ') + '</div></div>'; }).join('') : empty('Keine generierten Algorithmen.')) + '<p class="mut sm">Jeder generierte Algorithmus ist bis zu seinen Rohdaten und Prüfzahlen zurückverfolgbar (siehe „Data Lineage“).</p>';
+}
+function vGvLin() {
+  const C = NX.closed.slice(0, 6), flow = [['Kurse / Kerzen', 'Börse (REST/WS)', fq(Object.values(OBS.ws).reduce((a, w) => a + (w.n || 0), 0)) + ' Nachrichten'], ['Signal', 'Algorithmus × Variante', NX.signals.length], ['Entscheidung', 'Engine + Risiko-Engine', NX.decisions.length], ['Order', 'Papier-Ausführung', NX.orders.length], ['Position', 'Konto', NX.pos.length + ' offen'], ['Trade', 'Journal', NX.closed.length]];
+  return card('Datenfluss', flow.map((f, i) => '<div class="li"><div class="r1"><b>' + (i + 1) + '. ' + f[0] + '</b><span class="sp"></span><span class="mut sm">' + f[2] + '</span></div><div class="mut sm">' + f[1] + '</div></div>').join('')) +
+    card('Rückverfolgung der letzten Trades', C.length ? C.map(c => { const ev = NX.events.filter(e => e.tr === c.sig).length, d = NX.decisions.find(x => x.id === c.dec), s = NX.signals.find(x => x.id === c.sig); return '<div class="li"><div class="r1"><b>' + c.sym + ' ' + c.side + '</b><span class="sp"></span><span class="mut sm">' + ago(c.t1) + '</span></div><div class="mut sm">Trade ' + c.id + ' ← Position ' + c.pos + ' ← Entscheidung ' + (c.dec || '–') + (d ? ' (' + d.state + ')' : ' (gekürzt)') + ' ← Signal ' + (c.sig || '–') + (s ? '' : ' (gekürzt)') + ' · ' + ev + ' verkettete Ereignisse</div></div>'; }).join('') : empty('Noch keine Trades.'));
+}
+function vGvRet() {
+  const R = [['Ereignisse', NX.events.length, 2500], ['Signale', NX.signals.length, 600], ['Entscheidungen', NX.decisions.length, 400], ['Orders', NX.orders.length, 400], ['Trades', NX.closed.length, 500], ['Konfig-Änderungen', NX.cfgLog.length, 300], ['Störungen', NX.inc.length, 200]];
+  return card('Aufbewahrung', R.map(r => '<div class="li"><div class="r1"><b>' + r[0] + '</b><span class="sp"></span><span class="mut sm">' + r[1] + ' / ' + r[2] + '</span></div><div class="bar sm"><i style="width:' + Math.min(100, r[1] / r[2] * 100) + '%"></i></div></div>').join('') + '<p class="mut sm">Ältestes fällt bei Überlauf weg (Trades: Gewinn/Verlust bleibt im Konto als „archiviert“: ' + nf(NX.acct.archived || 0, 2) + ' $). Für die Langzeit-Aufbewahrung gibt es nur die Datei-Sicherung (Modul 14) und das Nachweis-Paket.</p>');
+}
+function vGvPack() {
+  return card('Nachweis-Paket', '<p class="mut sm">Eine Datei mit: Kontrollen, Limits, Schaltern, Änderungsprotokoll, Strategie-Stufen, Störungen, Testergebnissen, Ausnahmen, Entscheidungsnotizen und Ketten-Kopf, dazu eine Prüfsumme.</p><div class="row">' + btnA('gv_pack', 'Erzeugen & herunterladen', 'upb') + '</div>') + card('Erzeugte Pakete', NX.gov.packs.length ? NX.gov.packs.map(p => '<div class="li"><div class="r1"><b>' + ago(p.t) + '</b><span class="sp"></span><span class="mut sm">' + kb(p.size) + '</span></div><div class="mut sm">Prüfsumme ' + p.hash.slice(0, 12) + ' · ' + p.ok + '/' + p.n + ' erfüllt</div></div>').join('') : empty('Noch keines.'));
+}
+function vGvWaiv() {
+  const C = controls(), f = NXV.form, W = NX.gov.waivers;
+  return card('Ausnahme eintragen', '<div class="row"><select data-form="wvc">' + C.filter(c => c.ok === false).map(c => '<option value="' + c.id + '">' + c.id + ' ' + E(c.name) + '</option>').join('') + '</select><select data-form="wvd">' + [1, 7, 30].map(d => '<option value="' + d + '">' + d + ' Tage</option>').join('') + '</select></div><input data-form="wvr" placeholder="Begründung (Pflicht)" value="' + E(f.wvr || '') + '"><div class="row">' + btnA('gv_wv', 'Eintragen', 'upb') + '</div><p class="mut sm">Nur verletzte Kontrollen sind wählbar. Ausnahmen laufen automatisch ab. Die Kontrolle bleibt verletzt – sie wird nur als „Ausnahme“ geführt.</p>') + card('Ausnahmen', W.length ? W.map(w => '<div class="li"><div class="r1"><b>' + w.ctl + '</b><span class="sp"></span><span class="' + (w.until > Date.now() ? 'warn' : 'mut') + ' sm">' + (w.until > Date.now() ? 'aktiv bis ' + new Date(w.until).toLocaleDateString('de-DE') : 'abgelaufen') + '</span></div><div class="mut sm">' + E(w.why) + '</div></div>').join('') : empty('Keine.'));
+}
+function vGvInc() { const I = NX.inc; return card('Störungen und Verstöße', I.length ? I.slice(0, 25).map(i => '<div class="li"><div class="r1">' + dot(i.st === 'gelöst' ? 'ok' : i.sev === 'bad' ? 'bad' : 'warn') + '<b>' + E(i.title) + '</b><span class="sp"></span><span class="mut sm">' + ago(i.t) + '</span></div><div class="mut sm">' + i.st + (i.pm ? ' · Nachbetrachtung vorhanden' : '') + '</div></div>').join('') : empty('Keine Störungen.')); }
+PANELS['15'] = { 'Governance Cockpit': vGvCockpit, 'Policy Registry': vGvPol, 'Compliance Controls': vGvCtl, 'Control Evidence': vGvEv, 'Strategy Governance': vGvStrat, 'Model Governance': vGvModel, 'Data Lineage': vGvLin, 'Retention & Records': vGvRet, 'Audit Evidence Packs': vGvPack, 'Exceptions & Waivers': vGvWaiv, 'Compliance Incidents': vGvInc, 'Audit Trail': () => PANELS['05']['Audit Trail']() };
+IMPL['15'] = Object.keys(PANELS['15']);
+
+/* ================= 11 Sicherheit ================= */
+const ACT = ['Mensch (du)', 'Algorithmus', 'Risiko-Engine', 'System / Selbstheilung'];
+const MATRIX = [
+  ['Signal erzeugen', ['nein (nur manuell eintragen)', 'erlaubt', 'nein', 'nein']],
+  ['Papier-Order auslösen', ['erlaubt (Freigabe)', 'Vorschlag; im Modus „auto“ nach Risiko-Prüfung', 'Veto', 'nein']],
+  ['Order ohne Stop', ['Veto', 'Veto', 'Veto', 'nein']],
+  ['Risiko-Limits ändern', ['erlaubt (protokolliert)', 'nein', 'nein', 'nein']],
+  ['Kill-Switch auslösen', ['erlaubt', 'nein', 'erlaubt (automatisch)', 'erlaubt (Abgleich-Abweichung)']],
+  ['Kill-Switch aufheben', ['erlaubt', 'nein', 'nein', 'nein']],
+  ['Strategie freigeben (Canary/Prod)', ['erlaubt (Tore bindend, wenn aktiv)', 'nein', 'nein', 'nur stoppen (Kill-Kriterien)']],
+  ['Verbindung neu aufbauen', ['erlaubt', 'nein', 'nein', 'erlaubt (nach 45 s Stille)']],
+  ['Echte Order an die Börse senden', ['nicht möglich (gesperrt)', 'nicht möglich', 'nicht möglich', 'nicht möglich']],
+];
+const permWord = s => /^(nein|nicht)/.test(s) ? 'dn' : /^Veto/.test(s) ? 'warn' : 'up';
+function vScCockpit() {
+  const sc = [...document.scripts].filter(s => s.src), sus = []; try { for (let i = 0; i < localStorage.length; i++) if (/key|secret|token|passw/i.test(localStorage.key(i))) sus.push(localStorage.key(i)); } catch (e) { /* */ }
+  const ext = Object.keys(OBS.rest).filter(h => !HOSTS[h]), P = [['Echtes Handeln gesperrt', !LIVE_TRADING, 'LIVE_TRADING = false'], ['Keine Zugangsdaten gespeichert', !sus.length, sus.length ? sus.join(', ') : 'keine schlüsselartigen Speicher-Namen'], ['Verbindung verschlüsselt', location.protocol === 'https:', location.protocol], ['Keine fremden Skripte geladen', !sc.length, sc.length + ' externe Skripte'], ['Nur bekannte Börsen angesprochen', !ext.length, ext.length ? ext.join(', ') : HOSTL.length + ' bekannte Hosts'], ['Audit-Kette intakt', chainOk().ok, chainOk().ok ? 'lückenlos' : 'gebrochen']], bad = P.filter(p => !p[1]).length;
+  return card('Sicherheitslage: ' + (bad ? bad + ' Befund(e)' : 'ohne Befund'), P.map(p => '<div class="li"><div class="r1">' + dot(p[1] ? 'ok' : 'bad') + '<b>' + E(p[0]) + '</b></div><div class="mut sm">' + E(p[2]) + '</div></div>').join('') + '<p class="mut sm"><b>Grenzen:</b> Es gibt keine Konten, Anmeldung oder Rechte-Verwaltung – die App läuft nur bei dir. Wer dein Handy entsperrt, kann alles sehen und ändern. Geräte-Sperre und Browser-Schutz sind deine Sicherheit.</p>');
+}
+function vScMatrix() {
+  return card('Wer darf was', '<div class="tw"><table class="tbl"><tr><th>Aktion</th>' + ['Du', 'Algo', 'Risiko', 'System'].map(a => '<th>' + a + '</th>').join('') + '</tr>' + MATRIX.map(r => '<tr><td>' + E(r[0]) + '</td>' + r[1].map(c => '<td class="' + permWord(c) + '">' + (permWord(c) === 'up' ? '✓' : permWord(c) === 'warn' ? 'Veto' : '✕') + '</td>').join('') + '</tr>').join('') + '</table></div><p class="mut sm">Das sind keine eingestellten Konten, sondern die im Code fest verdrahteten Regeln. Details: „Permission Simulation“.</p>');
+}
+function vScAgent() {
+  return card('Was Algorithmen dürfen', '<div class="two">' + kv('Betriebsmodus', ({ off: 'nur Signale', ask: 'Vorschlag + Freigabe', auto: 'Papier automatisch' })[NX.mode] || NX.mode) + kv('Kill-Switch', NX.kill ? 'AKTIV' : 'aus', NX.kill ? 'dn' : 'up') + '</div>' + [['Signale erzeugen und selbst auswerten', true], ['Entscheidung vorschlagen (Größe, Stop, Ziel)', true], ['Papier-Order auslösen', NX.mode === 'auto' ? 'nur nach Risiko-Prüfung' : 'nur mit deiner Freigabe'], ['Risiko-Limits ändern', false], ['Kill-Switch ändern', false], ['Selbst in Produktion befördert werden', false], ['Echte Orders senden', false]].map(r => '<div class="li"><div class="r1">' + dot(r[1] === true ? 'ok' : r[1] === false ? 'bad' : 'warn') + '<span>' + E(r[0]) + '</span><span class="sp"></span><span class="mut sm">' + (r[1] === true ? 'erlaubt' : r[1] === false ? 'gesperrt' : E(r[1])) + '</span></div></div>').join('') + '<p class="mut sm">Generierte Algorithmen (Modul 22) haben dieselben Rechte – nicht mehr.</p>');
+}
+function vScSecrets() {
+  const keys = [], hit = []; try { for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i)); } catch (e) { /* */ }
+  const walk = (o, p, d) => { if (d > 3 || !o || typeof o !== 'object') return; for (const k of Object.keys(o)) { if (/api.?key|secret|passphrase|private|password|token/i.test(k)) hit.push(p + k); if (typeof o[k] === 'object') walk(o[k], p + k + '.', d + 1); } }; walk(NX, '', 0);
+  const long = (() => { const s = JSON.stringify(NX.cfgLog.slice(0, 50) + JSON.stringify(NX.res)); return /[A-Za-z0-9]{40,}/.test(s); })();
+  return card('Prüfung auf Geheimnisse', '<div class="two">' + kv('localStorage-Einträge', keys.length) + kv('Schlüssel-Namen im Zustand', hit.length, hit.length ? 'dn' : 'up') + kv('Lange Zufallsketten in Notizen', long ? 'ja' : 'nein', long ? 'warn' : 'up') + '</div>' + (hit.length ? '<div class="dn sm">' + hit.map(E).join(', ') + '</div>' : '') + '<p class="mut sm">Es gibt keinen Tresor, weil nichts Geheimes gebraucht wird: nur öffentliche Marktdaten. Falls später echte Börsen-Schlüssel nötig werden, gehören sie <b>nie</b> in diese Seite, sondern auf einen eigenen Server.</p>');
+}
+function vScEnv() {
+  return card('Trennung Test / Echt', [['Echter Handel', !LIVE_TRADING, 'Code-Konstante, nicht über Oberfläche änderbar'], ['Konto', true, 'Papier-Konto „' + nf(NX.acct.eq0, 0) + ' $“ getrennt von allem Echten'], ['Selbsttests', true, 'laufen in Sandbox; Zustand wird exakt zurückgesetzt (Modul 18)'], ['Daten', true, 'Live-Kurse echt; keine erfundenen Werte außerhalb der Tests'], ['Zwischenspeicher', true, 'Chart-Cache (Tape) und Zustand (NEXUS) getrennt']].map(r => '<div class="li"><div class="r1">' + dot(r[1] ? 'ok' : 'bad') + '<b>' + r[0] + '</b></div><div class="mut sm">' + E(r[2]) + '</div></div>').join(''));
+}
+function vScEvents() {
+  const ev = NX.events.filter(e => /^(risk\.|mode\.|ops\.alert|connector\.breaker|reconcile|account\.reset|config\.reset|order\.illegal|backup\.restored|incident|inc\.opened)/.test(e.type)).slice(0, 40);
+  return card('Sicherheits-relevante Ereignisse', ev.length ? ev.map(e => '<div class="li"><div class="r1"><b>' + E(e.type) + '</b><span class="sp"></span><span class="mut sm">' + ago(e.t) + '</span></div><div class="mut sm">#' + e.i + ' ' + E(JSON.stringify(e.d).slice(0, 100)) + '</div></div>').join('') : empty('Nichts aufgefallen.'));
+}
+function vScSim() {
+  const f = NXV.form, ai = +(f.sca || 0), bi = +(f.scb || 0), r = MATRIX[bi][1][ai];
+  return card('Rechte durchspielen', '<div class="row"><select data-form="sca" data-rr="1">' + ACT.map((a, i) => '<option value="' + i + '"' + (i === ai ? ' selected' : '') + '>' + E(a) + '</option>').join('') + '</select></div><div class="row"><select data-form="scb" data-rr="1">' + MATRIX.map((m, i) => '<option value="' + i + '"' + (i === bi ? ' selected' : '') + '>' + E(m[0]) + '</option>').join('') + '</select></div><div class="best"><b class="' + permWord(r) + '">' + (permWord(r) === 'up' ? 'Erlaubt' : permWord(r) === 'warn' ? 'Blockiert durch Veto' : 'Nicht erlaubt') + '</b><div class="mut sm">' + E(ACT[ai]) + ' → ' + E(MATRIX[bi][0]) + ': ' + E(r) + '</div></div><p class="mut sm">Reine Auskunft aus der Regeltabelle – es wird nichts ausgeführt.</p>');
+}
+PANELS['11'] = { 'Security Cockpit': vScCockpit, 'RBAC / Policy Matrix': vScMatrix, 'Agent Permissions': vScAgent, 'Secrets Registry Integration': vScSecrets, 'Environment Isolation': vScEnv, 'Security Events': vScEvents, 'Permission Simulation': vScSim, 'Security Audit Trail': () => evAudit(/^(risk\.|mode\.|reconcile|account\.|order\.illegal|backup\.restored)/, 'Sicherheits-Protokoll') };
+IMPL['11'] = Object.keys(PANELS['11']);
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-a]'); if (!t || !$('#nxView').contains(t)) return; const [a, ...r] = t.dataset.a.split(':'), arg = r.join(':');
+  const A = {
+    kn_adr: () => { const f = NXV.form; if (!(f.adrt || '').trim()) return toast('Bitte die Entscheidung eintippen', 2500); NX.adr.unshift({ id: nid('A'), t: Date.now(), title: f.adrt.trim(), ctx: (f.adrc || '').trim(), cons: (f.adrd || '').trim() }); f.adrt = f.adrc = f.adrd = ''; emit('knowledge.adr', { title: NX.adr[0].title.slice(0, 60) }); renderNx(true); },
+    sec: () => { const [m, i] = arg.split(':'); NXV.tab[m] = +i; go(m); },
+    gv_ev: () => { const C = controls(); NX.gov.ev.unshift({ t: Date.now(), n: C.length, ok: C.filter(c => c.ok).length, bad: C.filter(c => c.ok === false && !c.waiver).length, fails: C.filter(c => c.ok === false).map(c => c.id), head: NX.events[0] ? NX.events[0].h : '0' }); NX.gov.ev.length = Math.min(NX.gov.ev.length, 30); emit('governance.evidence', { bad: NX.gov.ev[0].bad }); toast('Stand festgehalten', 2000); renderNx(true); },
+    gv_pack: () => { const p = packBuild(), b = new Blob([p.str], { type: 'application/json' }), u = URL.createObjectURL(b), a2 = document.createElement('a'); a2.href = u; a2.download = 'nexus-nachweis-' + new Date().toISOString().slice(0, 10) + '.json'; document.body.appendChild(a2); a2.click(); a2.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000); NX.gov.packs.unshift({ t: Date.now(), hash: p.hash, size: p.str.length, n: p.n, ok: p.n - p.bad }); NX.gov.packs.length = Math.min(NX.gov.packs.length, 20); emit('governance.pack', { hash: p.hash }); renderNx(true); },
+    gv_wv: () => { const f = NXV.form, c = f.wvc || ((controls().find(x => x.ok === false) || {}).id); if (!c) return toast('Keine verletzte Kontrolle', 2500); if (!(f.wvr || '').trim()) return toast('Begründung ist Pflicht', 2500); NX.gov.waivers.unshift({ id: nid('W'), ctl: c, why: f.wvr.trim(), t: Date.now(), until: Date.now() + (+f.wvd || 1) * 864e5 }); f.wvr = ''; emit('governance.waiver', { ctl: c }); renderNx(true); },
+  };
+  if (A[a] && /^(kn_|gv_|sec$)/.test(a)) { e.preventDefault(); A[a](); }
 });
 
 'use strict';
