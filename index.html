@@ -110,6 +110,84 @@ body:not(.onTape) #tfSeg,body:not(.onTape) #modeSeg,body:not(.onTape) .pw,body:n
 .dt{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--faint);flex:none}.dt.ok{background:var(--up);box-shadow:0 0 6px rgba(47,212,138,.5)}.dt.warn{background:var(--warn)}.dt.bad{background:var(--dn);box-shadow:0 0 6px rgba(255,90,107,.5)}.dt.mute{background:var(--faint)}
 .sw{width:40px;height:22px;border-radius:11px;border:1px solid var(--line);background:var(--pn);position:relative;cursor:pointer;padding:0;flex:none}.sw i{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--mute);transition:all .15s}.sw.on{background:rgba(47,212,138,.18);border-color:rgba(47,212,138,.5)}.sw.on i{left:20px;background:var(--up)}
 .arr{text-align:center;color:var(--faint);font-size:11px;line-height:8px;margin:2px 0}
+/* ===== Pro-Oberfläche ===== */
+html[data-theme="gold"]{--acc:#e0b04a;--accbg:rgba(224,176,74,.13);--accln:rgba(224,176,74,.45);--acct:#161106}
+html[data-theme="blue"]{--acc:#4da3ff;--accbg:rgba(77,163,255,.13);--accln:rgba(77,163,255,.45);--acct:#06101c}
+:root{--sheet:#0c1017;--sheet2:#121823}
+#ptb,#pst{display:none}
+body.pro #top{display:none}
+body.pro #ptb{display:block;flex:none;background:var(--bg);border-bottom:1px solid var(--line)}
+body.pro:not(.onTape) #ptb{display:none}
+body.pro #pst{display:flex}
+.pbtn{position:relative;flex:none;width:36px;height:36px;border-radius:10px;border:0;background:none;color:var(--mute);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.pbtn:active{background:var(--c2)}.pbtn svg{width:20px;height:20px}
+.pbtn em{position:absolute;top:2px;right:0;min-width:15px;height:15px;border-radius:8px;background:var(--acc);color:var(--acct);font:700 10px/15px var(--font);font-style:normal;text-align:center;padding:0 3px}.pbtn em[hidden]{display:none}
+.ptr1{display:flex;align-items:center;gap:6px;padding:6px 8px 4px}.ptr1 .grow{flex:1}
+.ptr1 .pend{display:flex;align-items:center;padding:0 4px}
+.ppill{flex:none;display:inline-flex;align-items:center;gap:5px;height:34px;padding:0 10px;border-radius:17px;background:var(--pn);border:1px solid var(--line);color:var(--fg);cursor:pointer;max-width:42vw}
+.ppill b{font:600 13px var(--font);white-space:nowrap}.ppill small{font:500 10px var(--font);color:var(--mute);border:1px solid var(--line);border-radius:6px;padding:0 4px}.ppill i{font-style:normal;color:var(--faint);font-size:10px}
+.ppill.psym b{font-size:14px;letter-spacing:.02em}
+.ptr2{padding:0 10px 6px}.ptr2 #stats{margin:0;gap:14px}
+body.pro .px{font-size:17px}
+/* Sheets */
+.psb{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0);display:flex;align-items:flex-end;justify-content:center;transition:background .18s}
+.psb.in{background:rgba(0,0,0,.55)}
+.psh{width:100%;max-width:640px;max-height:78vh;background:var(--sheet);border:1px solid var(--line);border-bottom:0;border-radius:18px 18px 0 0;display:flex;flex-direction:column;transform:translateY(100%);transition:transform .18s ease-out;padding-bottom:env(safe-area-inset-bottom,0)}
+.psh.full{height:92vh;max-height:92vh}
+.psb.in .psh{transform:none}
+.pgrab{width:38px;height:4px;border-radius:2px;background:var(--line);margin:8px auto 0;flex:none}
+.phd{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 16px;flex:none}.phd h2{margin:0;flex:1;font-size:16px;font-weight:600}
+.pcount{font-size:11.5px;color:var(--mute);border:1px solid var(--line);border-radius:10px;padding:1px 9px}
+.pbd{flex:1;min-height:0;overflow-y:auto;padding:0 12px 14px;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:8px}
+.pft{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line);flex:none}
+.pfb{flex:1;height:42px;border-radius:10px;border:1px solid var(--line);background:var(--sheet2);color:var(--fg);font-weight:600;cursor:pointer}.pfb.pri{background:var(--acc);border-color:var(--acc);color:var(--acct)}
+.psearch{width:100%;height:42px;border-radius:12px;border:1px solid var(--line);background:var(--pn);color:var(--fg);padding:0 14px;font-size:14px;flex:none}.psearch:focus{outline:0;border-color:var(--accln)}
+.pchips,.ptabs{display:flex;gap:6px;flex-wrap:wrap;flex:none;align-items:center}.ptabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+.pgap{flex:1}
+.pchip,.ptab{flex:none;height:32px;padding:0 14px;border-radius:16px;border:1px solid var(--line);background:var(--pn);color:var(--mute);font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap}
+.pchip.on,.ptab.on{background:var(--accbg);border-color:var(--accln);color:var(--acc)}
+.plist{display:flex;flex-direction:column;gap:6px}
+.prow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:11px 12px;border-radius:12px;border:1px solid var(--line);background:var(--pn);color:var(--fg);cursor:pointer}
+.prow.on{border-color:var(--accln);background:var(--accbg)}
+.prow .pn{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}.prow .pn b{font-size:14px;font-weight:600}.prow small,.pind small{color:var(--mute);font-size:11.5px}
+.prow .pp{display:flex;flex-direction:column;align-items:flex-end;gap:1px}.prow .pp b{font:600 13px var(--mono)}.prow .pp small{font:500 11px var(--mono)}
+.pspark{width:64px;height:24px;flex:none}.pspark.up{color:var(--up)}.pspark.dn{color:var(--dn)}
+.pck{width:20px;height:20px;color:var(--acc);flex:none}
+.pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:6px 0}
+.ptile{height:54px;border-radius:12px;border:1px solid var(--line);background:var(--pn);color:var(--fg);font:600 15px var(--font);cursor:pointer}.ptile.on{background:var(--accbg);border-color:var(--accln);color:var(--acc)}
+/* Indikatoren */
+.pind{display:flex;align-items:center;gap:4px;padding:10px 6px 10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--pn)}
+.pind.on{border-color:var(--accln)}
+.pit{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.pit b{font-size:14px;font-weight:600}
+.pbadge{align-self:flex-start;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--warn);border:1px solid rgba(245,166,35,.4);border-radius:8px;padding:0 6px}
+.pbtn.star.on{color:var(--acc)}.pbtn.star.on svg{fill:currentColor}
+.ptog{flex:none;min-width:48px;height:30px;border-radius:15px;border:1px solid var(--line);background:var(--sheet2);color:var(--mute);font:700 11px var(--font);cursor:pointer;margin-left:2px}.ptog.on{background:var(--acc);border-color:var(--acc);color:var(--acct)}
+/* Einstellungen */
+.psec{font-size:12px;color:var(--mute);padding:4px 2px}.psec b{display:inline-block;background:var(--accbg);color:var(--acc);border-radius:6px;padding:1px 7px;margin-right:6px;font:600 11px var(--mono)}
+.pset{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--pn)}.pset.col{flex-direction:column;align-items:stretch}
+.pstep{display:flex;align-items:center;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.pstep button{width:42px;height:38px;border:0;background:var(--sheet2);color:var(--fg);font-size:20px;cursor:pointer}.pstep button:disabled{opacity:.3}
+.pstep b{min-width:54px;text-align:center;font:600 14px var(--mono)}
+/* Menü */
+.psb.left{align-items:stretch;justify-content:flex-start}
+.psh.drawer{width:86vw;max-width:340px;max-height:none;height:100%;border-radius:0 18px 18px 0;border:1px solid var(--line);border-left:0;transform:translateX(-100%)}
+.psb.left.in .psh.drawer{transform:none}
+.pbrand{flex:1;display:flex;align-items:center;gap:8px;color:var(--acc)}.pbrand svg{width:24px;height:24px}.pbrand b{letter-spacing:.14em;font-size:14px}.pbrand small{color:var(--faint);letter-spacing:.1em;font-size:10px}
+.psec2{font-size:10px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);margin:10px 4px 0}
+.prow.mod{padding:9px 12px}.pmid{font:600 11px var(--mono);color:var(--acc);background:var(--accbg);border-radius:6px;padding:2px 6px;min-width:30px;text-align:center}
+#pmore{position:fixed;right:8px;z-index:210;background:var(--sheet);border:1px solid var(--line);border-radius:12px;padding:6px;min-width:230px;box-shadow:0 14px 40px rgba(0,0,0,.6);display:flex;flex-direction:column}
+#pmore button{background:none;border:0;color:var(--fg);text-align:left;padding:11px 12px;border-radius:8px;cursor:pointer;font-size:13.5px}#pmore button:active{background:var(--c2)}
+/* Statusleiste + Navigation */
+#pst{flex:none;gap:0;align-items:stretch;border-top:1px solid var(--line);background:var(--bg);overflow-x:auto;scrollbar-width:none}
+#pst button{flex:1 0 auto;display:flex;align-items:center;justify-content:center;gap:6px;padding:5px 9px;background:none;border:0;color:var(--mute);font-size:11px;cursor:pointer;white-space:nowrap}
+#pst button small{color:var(--faint);font-size:10px}#pst button b{font:600 11.5px var(--mono)}#pst b.warn{color:var(--warn)}#pst b.up{color:var(--up)}#pst b.dn{color:var(--dn)}
+body.pro #nav{background:var(--bg)}
+body.pro #nav button.on{color:var(--acc)}
+body.pro #nav button svg{width:22px;height:22px}
+body.pro .tb.on{color:var(--acc);border-color:var(--accln);background:var(--accbg)}
+body.pro .btn.upb:hover{border-color:var(--accln)}
+@media (min-width:900px){.psb{align-items:center}.psh{border-radius:18px;border-bottom:1px solid var(--line);max-height:80vh}.psh.full{height:80vh}.psb.left{align-items:stretch}.psh.drawer{border-radius:0 18px 18px 0}}
+@media (max-width:400px){.ppill{padding:0 9px;gap:3px}.ppill i,.ppill small{display:none}.pbtn{width:32px}.ptr1{gap:3px;padding:6px 6px 4px}.ptr1 .pend{padding:0 2px}.ppill b{font-size:12.5px}}
 
 </style></head><body>
 <div id="app">
@@ -2933,7 +3011,7 @@ document.addEventListener('click', e => {
 
 'use strict';
 /* ===== NEXUS Block 6a: 14 Backup & Wiederherstellung · 17 Deployment/Version ===== */
-const BUILD_T = 1793343616167;
+const BUILD_T = 1793344814979;
 NX.bk = NX.bk || { lastExport: 0, lastSnap: 0, rpoH: 24, drills: [], exports: [], snapMade: 0 };
 const BK = { snaps: null, val: null, busy: '', ver: null, st: null };
 const BK_KEY = 'nexus_bk', BK_KEEP = 3;
@@ -3843,7 +3921,215 @@ document.addEventListener('click', e => {
 });
 
 'use strict';
+/* ===== Pro-Oberfläche (umschaltbar gegen „Klassisch“) =====
+   Bedienmuster nach dem Vorbild moderner Trading-Web-Apps: 5-Tab-Leiste, Menü, kompakte Chart-Leiste, Auswahl-Sheets,
+   Indikator-Manager mit Einstellungen, Statusleiste. Zeigt nur, was es wirklich gibt. */
+const PRO = { sheets: [], tm: null };
+const proOn = () => ST.ui !== 'classic';
+const PI = {
+  menu: '<path d="M4 7h16M4 12h16M4 17h16"/>', ind: '<path d="M3 17l5-6 4 3 6-9"/><path d="M3 21h18"/>', more: '<circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/>',
+  chart: '<path d="M3 17l5-6 4 3 6-9"/>', wl: '<path d="M6 3h12v18l-6-4-6 4z"/>', trader: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', alarm: '<path d="M18 16V11a6 6 0 10-12 0v5l-2 2h16z"/><path d="M10 21h4"/>',
+  star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>', gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>', check: '<path d="M5 12l4 4 10-10"/>',
+};
+const pSvg = (p, c) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="' + (c || '') + '">' + p + '</svg>';
+
+/* ----- Katalog der Indikatoren (nur Ebenen, die der Chart wirklich zeichnet) ----- */
+const PDEF = { heat: true, gain: 1, bubbles: true, bubMul: 1, liq: true, delta: true, cvd: true, oi: true, side: true, domGroup: 1, tickMul: 0 };
+const PIND = [
+  { id: 'heat', n: 'Orderbuch-Heatmap', d: 'Tiefe des Orderbuchs über die Zeit – Liquiditätswände sichtbar machen.', cat: 'Orderflow', code: 'HEAT', on: () => !!ST.heat, set: v => { ST.heat = v; }, P: [{ t: 'step', k: 'gain', l: 'Intensität', min: 0.2, max: 3, st: 0.2 }] },
+  { id: 'bubbles', n: 'Große Trades (Blasen)', d: 'Große Einzeltrades als Blasen. Nur im Kerzen-Modus.', cat: 'Orderflow', code: 'BUB', on: () => !!ST.bubbles, set: v => { ST.bubbles = v; }, P: [{ t: 'step', k: 'bubMul', l: 'Größe', min: 0.3, max: 3, st: 0.1 }] },
+  { id: 'liq', n: 'Liquidationen', d: 'Erzwungene Schließungen. Nur Binance Perp.', cat: 'Orderflow', code: 'LIQ', on: () => !!ST.liq, set: v => { ST.liq = v; }, note: () => ST.src !== 'bnf' ? 'nur Binance Perp' : '' },
+  { id: 'delta', n: 'Delta', d: 'Käufer minus Verkäufer je Kerze, als eigenes Fenster.', cat: 'Orderflow', code: 'Δ', on: () => !!ST.delta, set: v => { ST.delta = v; } },
+  { id: 'cvd', n: 'CVD', d: 'Kumuliertes Delta: wer drückt den Preis wirklich?', cat: 'Orderflow', code: 'CVD', on: () => !!ST.cvd, set: v => { ST.cvd = v; } },
+  { id: 'oi', n: 'Open Interest', d: 'Offene Kontrakte als eigenes Fenster (nicht im Spot).', cat: 'Orderflow', code: 'OI', on: () => !!ST.oi, set: v => { ST.oi = v; }, note: () => ST.src === 'bns' ? 'nicht im Spot' : '' },
+  { id: 'side', n: 'Orderbuch & Trades', d: 'Seitenleiste mit Orderbuch-Leiter und Trade-Band.', cat: 'Ansicht', code: 'DOM', on: () => !!ST.side, set: v => { ST.side = v; }, P: [{ t: 'seg', k: 'domGroup', l: 'Gruppierung', o: [[1, '×1'], [2, '×2'], [5, '×5'], [10, '×10'], [50, '×50']] }] },
+];
+const PTABS = ['Alle', 'Favoriten', 'Orderflow', 'Ansicht'];
+const pFav = () => Array.isArray(ST.fav) ? ST.fav : [];
+const pApplyChart = () => { saveST(); try { buildPop(); } catch (e) { /* */ } redraw(true); setTimeout(resize, 10); proSync(); };
+
+/* ----- Sheets ----- */
+function proSheet(title, body, o) {
+  o = o || {}; const el = document.createElement('div'); el.className = 'psb';
+  el.innerHTML = '<div class="psh' + (o.full ? ' full' : '') + '"><div class="pgrab"></div><div class="phd"><h2>' + title + '</h2>' + (o.head || '') + '<button class="pbtn" data-px="close" aria-label="Schließen">✕</button></div><div class="pbd">' + body + '</div>' + (o.foot ? '<div class="pft">' + o.foot + '</div>' : '') + '</div>';
+  el.addEventListener('click', e => { if (e.target === el || e.target.closest('[data-px="close"]')) proClose(el); });
+  el._o = o; document.body.append(el); PRO.sheets.push(el); requestAnimationFrame(() => el.classList.add('in')); return el;
+}
+function proClose(el) { if (!el || !el.isConnected) return; el.classList.remove('in'); const o = el._o || {}; setTimeout(() => el.remove(), 180); PRO.sheets = PRO.sheets.filter(x => x !== el); if (o.onClose) o.onClose(); }
+const proCloseAll = () => PRO.sheets.slice().forEach(proClose);
+
+/* Markt / Watchlist */
+function proSymSheet() {
+  const el = proSheet('Markt', '<input class="psearch" type="search" placeholder="Suchen …" data-px="q" autocomplete="off"><div class="pchips">' + Object.entries(SRC).map(([k, l]) => '<button class="pchip" data-px="src:' + k + '">' + l + '</button>').join('') + '</div><div class="plist"></div>', { full: true, onClose: () => clearInterval(el._iv) });
+  const q = $('input', el), list = $('.plist', el);
+  const draw = () => {
+    $$('[data-px^="src:"]', el).forEach(b => b.classList.toggle('on', b.dataset.px === 'src:' + ST.src));
+    const f = q.value.trim().toUpperCase(), rows = SYMS.filter(s => !f || s.includes(f));
+    list.innerHTML = rows.length ? rows.map(s => {
+      const w = MI.wl[s], sp = w && w.sp && w.sp.length > 3 ? proSpark(w.sp) : '';
+      return '<button class="prow' + (s === ST.sym ? ' on' : '') + '" data-px="sym:' + s + '"><div class="pn"><b>' + s + '</b><small>' + (w && w.fund != null ? 'Funding ' + nf(w.fund, 4) + ' %' : SRC[ST.src]) + '</small></div>' + sp + '<div class="pp"><b>' + (w ? px(w.px) : '–') + '</b><small class="' + cl(w && w.chg) + '">' + (w && w.chg != null ? pn(w.chg, 2) + ' %' : '') + '</small></div></button>';
+    }).join('') : '<div class="empty">Nichts gefunden</div>';
+  };
+  const load = () => { if (NX.flags.rest !== false) miWatch().then(draw).catch(() => { }); };
+  q.addEventListener('input', draw);
+  el.addEventListener('click', e => {
+    const b = e.target.closest('[data-px]'); if (!b) return; const [a, v] = b.dataset.px.split(':');
+    if (a === 'sym') { if (ST.sym !== v) { ST.sym = v; saveST(); connect(); syncUI(); } proClose(el); }
+    if (a === 'src') { if (ST.src !== v) { ST.src = v; saveST(); connect(); syncUI(); MI.wl = {}; MI.wlT = 0; draw(); load(); } }
+  });
+  draw(); load(); el._iv = setInterval(draw, 4000); return el;
+}
+function proSpark(a) {
+  const mn = Math.min(...a), mx = Math.max(...a), w = 64, h = 24, d = a.map((v, i) => (i / (a.length - 1) * w).toFixed(1) + ',' + (h - 2 - (v - mn) / ((mx - mn) || 1) * (h - 4)).toFixed(1)).join(' ');
+  return '<svg class="pspark ' + (a[a.length - 1] >= a[0] ? 'up' : 'dn') + '" viewBox="0 0 ' + w + ' ' + h + '"><polyline points="' + d + '" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>';
+}
+/* Zeitrahmen */
+function proTfSheet() {
+  const el = proSheet('Zeitrahmen', '<div class="pgrid">' + Object.keys(TFS).map(k => '<button class="ptile' + (k === ST.tf ? ' on' : '') + '" data-px="tf:' + k + '">' + k + '</button>').join('') + '</div>');
+  el.addEventListener('click', e => { const b = e.target.closest('[data-px^="tf:"]'); if (!b) return; ST.tf = b.dataset.px.slice(3); saveST(); connect(); syncUI(); proClose(el); });
+}
+/* Chart-Typ */
+function proCtSheet() {
+  const el = proSheet('Chart-Typ', '<div class="plist">' + [['chart', 'Kerzen', 'Klassische Kerzen mit Blasen, Heatmap und Fenstern'], ['fp', 'Footprint', 'Volumen je Preisstufe in jeder Kerze (Bid × Ask)']].map(([v, n, d]) => '<div class="prow ct' + (ST.mode === v ? ' on' : '') + '" data-px="ct:' + v + '" role="button" tabindex="0"><div class="pn"><b>' + n + '</b><small>' + d + '</small></div>' + (ST.mode === v ? pSvg(PI.check, 'pck') : '') + (v === 'fp' ? '<button class="pbtn" data-px="fpset" aria-label="Footprint-Einstellungen">' + pSvg(PI.gear) + '</button>' : '') + '</div>').join('') + '</div>');
+  el.addEventListener('click', e => {
+    if (e.target.closest('[data-px="fpset"]')) { proClose(el); proFpSettings(); return; }
+    const b = e.target.closest('[data-px^="ct:"]'); if (!b) return; ST.mode = b.dataset.px.slice(3); saveST(); resetView(); syncUI(); redraw(true); proClose(el);
+  });
+}
+function proFpSettings() { proSettings({ n: 'Footprint', code: 'FP', P: [{ t: 'seg', k: 'tickMul', l: 'Preisstufe (Tick)', o: TICKS }] }); }
+
+/* Indikator-Manager */
+function proIndSheet(tab, qv) {
+  PRO.itab = tab || PRO.itab || 'Alle'; const act = () => PIND.filter(i => i.on()).length;
+  const el = proSheet('Indikatoren', '<input class="psearch" type="search" placeholder="Indikatoren suchen …" data-px="q" autocomplete="off"><div class="ptabs">' + PTABS.map(t => '<button class="ptab" data-px="tab:' + t + '">' + t + '</button>').join('') + '</div><div class="plist"></div>', { full: true, head: '<span class="pcount" id="pIndCnt"></span>' });
+  const q = $('input', el), list = $('.plist', el); if (qv) q.value = qv;
+  const draw = () => {
+    $$('.ptab', el).forEach(b => b.classList.toggle('on', b.dataset.px === 'tab:' + PRO.itab)); $('#pIndCnt', el).textContent = act() + ' aktiv';
+    const f = q.value.trim().toLowerCase(), fav = pFav();
+    const rows = PIND.filter(i => (PRO.itab === 'Alle' || (PRO.itab === 'Favoriten' ? fav.includes(i.id) : i.cat === PRO.itab)) && (!f || (i.n + ' ' + i.d).toLowerCase().includes(f)));
+    list.innerHTML = rows.length ? rows.map(i => { const on = i.on(), nt = i.note ? i.note() : ''; return '<div class="pind' + (on ? ' on' : '') + '" data-id="' + i.id + '"><div class="pit"><b>' + E(i.n) + '</b>' + (nt ? '<span class="pbadge">' + E(nt) + '</span>' : '') + '<small>' + E(i.d) + '</small></div><button class="pbtn star' + (fav.includes(i.id) ? ' on' : '') + '" data-px="fav:' + i.id + '" aria-label="Favorit">' + pSvg(PI.star) + '</button>' + (i.P ? '<button class="pbtn" data-px="cfg:' + i.id + '" aria-label="Einstellungen">' + pSvg(PI.gear) + '</button>' : '') + '<button class="ptog' + (on ? ' on' : '') + '" data-px="tog:' + i.id + '" aria-pressed="' + on + '">' + (on ? 'AN' : 'AUS') + '</button></div>'; }).join('') : '<div class="empty">' + (PRO.itab === 'Favoriten' ? 'Noch keine Favoriten – Stern antippen.' : 'Nichts gefunden') + '</div>';
+  };
+  q.addEventListener('input', draw);
+  el.addEventListener('click', e => {
+    const b = e.target.closest('[data-px]'); if (!b) return; const [a, v] = b.dataset.px.split(':');
+    if (a === 'tab') { PRO.itab = v; draw(); }
+    if (a === 'tog') { const i = PIND.find(x => x.id === v); i.set(!i.on()); pApplyChart(); draw(); }
+    if (a === 'fav') { const s = new Set(pFav()); s.has(v) ? s.delete(v) : s.add(v); ST.fav = [...s]; saveST(); draw(); }
+    if (a === 'cfg') { proClose(el); proSettings(PIND.find(x => x.id === v), () => proIndSheet(PRO.itab, q.value)); }
+  });
+  draw(); return el;
+}
+/* Einstellungen eines Indikators: Änderungen wirken sofort; Abbrechen stellt zurück, Zurücksetzen nimmt Standardwerte */
+function proSettings(ind, back) {
+  const keys = ind.P.map(p => p.k), snap = {}; keys.forEach(k => { snap[k] = ST[k]; });
+  const fmt = (p, v) => nf(v == null ? PDEF[p.k] : v, p.st < 1 ? 1 : 0);
+  const body = () => '<div class="psec"><b>' + E(ind.code || '') + '</b> ' + E(ind.n) + '</div>' + ind.P.map(p => {
+    const v = ST[p.k] == null ? PDEF[p.k] : ST[p.k];
+    if (p.t === 'step') return '<div class="pset"><span>' + E(p.l) + '</span><div class="pstep"><button data-px="dn:' + p.k + '"' + (v <= p.min + 1e-9 ? ' disabled' : '') + '>−</button><b>' + fmt(p, v) + '</b><button data-px="up:' + p.k + '"' + (v >= p.max - 1e-9 ? ' disabled' : '') + '>+</button></div></div>';
+    if (p.t === 'seg') return '<div class="pset col"><span>' + E(p.l) + '</span><div class="pchips">' + p.o.map(([ov, ol]) => '<button class="pchip' + (String(v) === String(ov) ? ' on' : '') + '" data-px="seg:' + p.k + ':' + ov + '">' + E(ol) + '</button>').join('') + '</div></div>';
+    return '';
+  }).join('');
+  const el = proSheet('Einstellungen', '<div id="pSetB">' + body() + '</div>', { foot: '<button class="pfb" data-px="reset">↺ Zurücksetzen</button><button class="pfb" data-px="cancel">Abbrechen</button><button class="pfb pri" data-px="save">Speichern</button>' });
+  const redo = () => { $('#pSetB', el).innerHTML = body(); pApplyChart(); };
+  el.addEventListener('click', e => {
+    const b = e.target.closest('[data-px]'); if (!b || b.disabled) return; const parts = b.dataset.px.split(':'), a = parts[0], k = parts[1];
+    const p = ind.P.find(x => x.k === k);
+    if (a === 'dn' || a === 'up') { const v = ST[k] == null ? PDEF[k] : ST[k]; ST[k] = Math.round(Math.min(p.max, Math.max(p.min, v + (a === 'up' ? 1 : -1) * p.st)) * 100) / 100; redo(); }
+    if (a === 'seg') { ST[k] = +parts[2]; redo(); }
+    if (a === 'reset') { keys.forEach(x => { ST[x] = PDEF[x]; }); redo(); }
+    if (a === 'cancel') { keys.forEach(x => { ST[x] = snap[x]; }); pApplyChart(); proClose(el); if (back) back(); }
+    if (a === 'save') { saveST(); proClose(el); if (back) back(); }
+  });
+}
+
+/* Menü (links) */
+function proMenu(open) {
+  let d = $('#pdr'); if (open === false || (open === undefined && d)) { if (d) { d.id = ''; d.classList.remove('in'); setTimeout(() => d.remove(), 180); } return; }
+  if (d) return; d = document.createElement('div'); d.id = 'pdr'; d.className = 'psb left';
+  const row = (id, name, extra) => { const m = modOf(id), n = (IMPL[id] || []).length, s = modState(m); return '<button class="prow mod" data-px="go:' + id + '"><span class="pmid">' + id + '</span><div class="pn"><b>' + E(id === '00' ? 'Command Center' : name || m.n) + '</b><small>' + n + '/' + m.s.length + ' Abschnitte' + (extra || '') + '</small></div><span class="dt ' + ({ live: 'ok', part: 'warn' }[s] || '') + '"></span></button>'; };
+  d.innerHTML = '<div class="psh drawer"><div class="phd"><div class="pbrand">' + pSvg('<path d="M7 22V10l9 8 9-8v12" transform="scale(.75)"/>') + '<b>TAPE</b><small>NEXUS</small></div><button class="pbtn" data-px="close" aria-label="Schließen">✕</button></div><div class="pbd">' +
+    '<div class="psec2">Darstellung</div><div class="pchips"><button class="pchip' + (proOn() ? ' on' : '') + '" data-px="ui:pro">Pro</button><button class="pchip' + (!proOn() ? ' on' : '') + '" data-px="ui:classic">Klassisch</button><span class="pgap"></span><button class="pchip' + (ST.theme !== 'blue' ? ' on' : '') + '" data-px="theme:gold">Gold</button><button class="pchip' + (ST.theme === 'blue' ? ' on' : '') + '" data-px="theme:blue">Blau</button></div>' +
+    (SRV.on ? '<button class="prow" data-px="srv"><div class="pn"><b>Eigener Server</b><small>' + (SRV.ok ? 'verbunden – Engine läuft rund um die Uhr' : 'nicht verbunden') + '</small></div><span class="dt ' + (SRV.ok ? 'ok' : 'bad') + '"></span></button>' : '') +
+    row('00') + LAYERS.map(([name, ids]) => '<div class="psec2">' + E(name) + '</div>' + ids.map(id => row(id)).join('')).join('') + '</div></div>';
+  d.addEventListener('click', e => {
+    if (e.target === d || e.target.closest('[data-px="close"]')) return proMenu(false);
+    const b = e.target.closest('[data-px]'); if (!b) return; const [a, v] = b.dataset.px.split(':');
+    if (a === 'go') { proMenu(false); go(v); }
+    if (a === 'srv') { proMenu(false); NXV.tab['17'] = 4; go('17'); }
+    if (a === 'ui') { ST.ui = v; saveST(); proApply(); proMenu(false); proMenu(true); }
+    if (a === 'theme') { ST.theme = v; saveST(); proApply(); proMenu(false); proMenu(true); }
+  });
+  document.body.append(d); requestAnimationFrame(() => d.classList.add('in'));
+}
+/* Mehr-Menü (⋮) */
+function proMore(anchor) {
+  const old = $('#pmore'); if (old) { old.remove(); return; }
+  const m = document.createElement('div'); m.id = 'pmore'; const r = anchor.getBoundingClientRect(); m.style.top = (r.bottom + 6) + 'px';
+  const it = [['ind', 'Indikatoren'], ['ct', 'Chart-Typ'], ['side', ST.side ? 'Orderbuch & Trades ausblenden' : 'Orderbuch & Trades einblenden'], ['view', 'Ansicht zurücksetzen']].concat(SRV.on ? [['srv', 'Server-Status']] : []).concat([['look', 'Darstellung …']]);
+  m.innerHTML = it.map(([k, l]) => '<button data-pm="' + k + '">' + l + '</button>').join('');
+  m.addEventListener('click', e => {
+    const b = e.target.closest('[data-pm]'); if (!b) return; m.remove(); const k = b.dataset.pm;
+    if (k === 'ind') proIndSheet(); if (k === 'ct') proCtSheet(); if (k === 'look') proMenu(true);
+    if (k === 'side') { ST.side = !ST.side; pApplyChart(); }
+    if (k === 'view') { resetView(); redraw(true); }
+    if (k === 'srv') { NXV.tab['17'] = 4; go('17'); }
+  });
+  document.body.append(m); setTimeout(() => document.addEventListener('click', function f(e) { if (!e.target.closest('#pmore')) { const x = $('#pmore'); if (x) x.remove(); } document.removeEventListener('click', f); }), 0);
+}
+
+/* ----- Leisten ----- */
+function proMount(on) {
+  let t = $('#ptb');
+  if (!t) {
+    t = document.createElement('div'); t.id = 'ptb';
+    t.innerHTML = '<div class="ptr1"><button class="pbtn" data-p="menu" aria-label="Menü">' + pSvg(PI.menu) + '</button><button class="ppill psym" data-p="sym"><b id="pSym">BTC</b><small id="pSrc"></small><i>▾</i></button><button class="ppill" data-p="tf"><b id="pTf"></b><i>▾</i></button><button class="ppill" data-p="ct"><b id="pCt"></b><i>▾</i></button><span class="grow"></span><button class="pbtn" data-p="ind" aria-label="Indikatoren">' + pSvg(PI.ind) + '<em id="pIndN"></em></button><button class="pbtn" data-p="more" aria-label="Mehr">' + pSvg(PI.more) + '</button><span class="pend"></span></div><div class="ptr2"></div>';
+    $('#top').after(t);
+    const s = document.createElement('div'); s.id = 'pst'; $('#nav').before(s);
+    t.addEventListener('click', e => {
+      const b = e.target.closest('[data-p]'); if (!b) return; const k = b.dataset.p;
+      if (k === 'menu') proMenu(); if (k === 'sym') proSymSheet(); if (k === 'tf') proTfSheet(); if (k === 'ind') proIndSheet(); if (k === 'more') proMore(b);
+      if (k === 'ct' && !b._lp) proCtSheet();
+    });
+    const ct = t.querySelector('[data-p="ct"]'); /* langes Drücken = Auswahl, kurzes Tippen = umschalten wäre verwirrend: Tippen öffnet die Auswahl */
+    s.addEventListener('click', e => {
+      const b = e.target.closest('[data-s]'); if (!b) return; const k = b.dataset.s;
+      if (k === 'feed') toast(healthText(), 6000); if (k === 'pnl') go('05'); if (k === 'risk') go('00'); if (k === 'mode') go('03'); if (k === 'srv') { NXV.tab['17'] = 4; go('17'); }
+    });
+  }
+  if (on) { $('.ptr2', t).append($('#stats')); $('.pend', t).append($('#dot')); }
+  else { $('#sideBtn').before($('#stats')); $('#top').append($('#dot')); }
+}
+function proNav() {
+  const T = [['tape', 'Chart', PI.chart], ['p:wl', 'Watchlist', PI.wl], ['03', 'Trader', PI.trader], ['10', 'Alarme', PI.alarm], ['p:menu', 'Menü', PI.menu]];
+  $('#nav').innerHTML = T.map(([id, l, svg]) => '<button ' + (id.startsWith('p:') ? 'data-pro="' + id.slice(2) + '"' : 'data-go="' + id + '"') + '>' + pSvg(svg) + '<span>' + l + '</span><i></i></button>').join('');
+  $('#nav').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.go) go(b.dataset.go); else if (b.dataset.pro === 'wl') proSymSheet(); else if (b.dataset.pro === 'menu') proMenu(); };
+  proMark(NXV.cur); try { nxBadge(); } catch (e) { /* */ }
+}
+function proMark(id) { if (!proOn()) return; $$('#nav button').forEach(b => b.classList.toggle('on', !!b.dataset.go && b.dataset.go === id)); const m = $('#nav [data-pro="menu"]'); if (m) m.classList.toggle('on', id !== 'tape' && id !== '03' && id !== '10'); }
+function proSync() {
+  if (!$('#ptb')) return; const s = $('#pSym'); if (!s) return;
+  s.textContent = ST.sym; $('#pSrc').textContent = ({ bnf: 'Perp', hl: 'HL', bns: 'Spot' })[ST.src] || ''; $('#pTf').textContent = ST.tf; $('#pCt').textContent = ST.mode === 'fp' ? 'Footprint' : 'Kerzen';
+  const n = PIND.filter(i => i.on()).length, e = $('#pIndN'); e.textContent = n; e.hidden = !n;
+}
+function proStatus() {
+  const el = $('#pst'); if (!el || !proOn()) return; let eq = 0, pl = 0; try { eq = equity(); pl = eq - NX.acct.eq0; } catch (e) { /* */ }
+  const h = health(), risk = NX.kill ? ['KILL', 'dn'] : (NX.pause && NX.pause.until > Date.now()) ? ['Pause', 'warn'] : ['Risiko ok', 'up'], mode = ({ off: 'Aus', ask: 'Freigabe', auto: 'Auto' })[NX.mode] || NX.mode;
+  el.innerHTML = '<button data-s="feed"><i class="dt ' + h + '"></i>' + ({ ok: 'Live', warn: 'verzögert', bad: 'getrennt' })[h] + '</button><button data-s="pnl"><small>Papier</small><b class="' + cl(pl) + '">' + pn(pl, 2) + '</b></button><button data-s="risk"><b class="' + risk[1] + '">' + risk[0] + '</b></button><button data-s="mode"><small>Modus</small><b>' + mode + '</b></button>' + (SRV.on ? '<button data-s="srv"><i class="dt ' + (SRV.ok ? 'ok' : 'bad') + '"></i>Server</button>' : '');
+}
+function proApply() {
+  const on = proOn(); document.body.classList.toggle('pro', on); document.documentElement.dataset.theme = ST.theme === 'blue' ? 'blue' : 'gold';
+  proMount(on); if (on) proNav(); else { buildNav(); go(NXV.cur, false); }
+  try { colors(); } catch (e) { /* */ } proSync(); proStatus(); redraw(true); setTimeout(resize, 30);
+}
+function proInit() {
+  proApply();
+  const _go = go; go = function (id, push) { _go(id, push); proMark(id); }; /* Markierung der Leiste nach jedem Seitenwechsel */
+  const _sync = syncUI; syncUI = function () { _sync(); proSync(); };
+  setInterval(() => { proStatus(); proSync(); }, 1000);
+}
+
+'use strict';
 /* ===== Start ===== */
-(async () => { try { await srvTake(); } catch (e) { console.error(e); } try { await nxLoad(); } catch (e) { /* ohne gespeicherten Zustand */ } try { discInit(); } catch (e) { console.error(e); } init(); nxInit(); })();
+(async () => { try { await srvTake(); } catch (e) { console.error(e); } try { await nxLoad(); } catch (e) { /* ohne gespeicherten Zustand */ } try { discInit(); } catch (e) { console.error(e); } init(); nxInit(); try { proInit(); } catch (e) { console.error(e); } })();
 
 </script></body></html>
