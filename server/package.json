@@ -1,0 +1,10 @@
+{
+  "name": "tape-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Privater Tape-Server: Login, Engine rund um die Uhr, Push, Sicherung",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "dependencies": { "playwright-core": "1.63.0" },
+  "engines": { "node": ">=20" }
+}

@@ -1,0 +1,43 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    init: true
+    shm_size: "1gb"
+    stop_grace_period: 40s
+    environment:
+      APP_PASSWORD: ${APP_PASSWORD:?APP_PASSWORD fehlt}
+      NTFY_URL: ${NTFY_URL:-https://ntfy.sh}
+      NTFY_TOPIC: ${NTFY_TOPIC:-}
+      TG_TOKEN: ${TG_TOKEN:-}
+      TG_CHAT: ${TG_CHAT:-}
+      HC_URL: ${HC_URL:-}
+    volumes:
+      - tape_data:/data
+    expose:
+      - "8080"
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN fehlt}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+volumes:
+  tape_data:
+  caddy_data:
+  caddy_config:

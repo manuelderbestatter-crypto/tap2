@@ -1,0 +1,59 @@
+#cloud-config
+# Vorlage: nur die Werte zwischen __ ... __ ersetzen. Die ausgefüllte Datei enthält Geheimnisse – niemals ins Repo legen!
+package_update: true
+package_upgrade: true
+ssh_pwauth: false
+packages: [docker.io, docker-compose-v2, git, ufw, curl, cron, unattended-upgrades]
+write_files:
+  - path: /opt/tape/settings.env
+    permissions: '0600'
+    content: |
+      APP_PASSWORD=__APP_PASSWORD__
+      REPO=__REPO__
+      NTFY_TOPIC=__NTFY_TOPIC__
+      DOMAIN=
+      TG_TOKEN=
+      TG_CHAT=
+      HC_URL=
+  - path: /opt/tape/deploy_key
+    permissions: '0600'
+    content: |
+__DEPLOY_KEY__
+  - path: /opt/tape/setup.sh
+    permissions: '0700'
+    content: |
+      #!/bin/bash
+      set -uo pipefail
+      exec > >(tee -a /var/log/tape-setup.log) 2>&1
+      set -a; . /opt/tape/settings.env; set +a
+      say() { curl -fsS --max-time 15 -H 'content-type: application/json' -d "$(printf '{"topic":"%s","title":"%s","message":"%s","priority":4}' "$NTFY_TOPIC" "$1" "$2")" https://ntfy.sh/ >/dev/null || true; }
+      fail() { say "Tape-Server: Einrichtung FEHLER" "$(tail -n 12 /var/log/tape-setup.log | tr '"\n\\' "' |/" | cut -c1-900)"; exit 1; }
+      trap fail ERR
+      systemctl enable --now docker cron
+      IP=$(curl -fsS4 --max-time 10 https://api.ipify.org || curl -fsS4 --max-time 10 https://ifconfig.me)
+      [ -n "${DOMAIN:-}" ] || DOMAIN="$(echo "$IP" | tr . -).sslip.io"
+      export GIT_SSH_COMMAND="ssh -i /opt/tape/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+      git clone "git@github.com:${REPO}.git" /opt/tape/repo || { echo "git clone fehlgeschlagen (Deploy-Key/Repo prüfen)"; fail; }
+      cd /opt/tape/repo
+      git config core.sshCommand "$GIT_SSH_COMMAND"
+      cat > .env <<ENV
+      APP_PASSWORD=${APP_PASSWORD}
+      DOMAIN=${DOMAIN}
+      NTFY_TOPIC=${NTFY_TOPIC}
+      TG_TOKEN=${TG_TOKEN}
+      TG_CHAT=${TG_CHAT}
+      HC_URL=${HC_URL}
+      ENV
+      chmod 600 .env
+      cp deploy/update.sh /opt/tape/update.sh && chmod 700 /opt/tape/update.sh
+      echo '*/5 * * * * root /opt/tape/update.sh >> /var/log/tape-update.log 2>&1' > /etc/cron.d/tape-update
+      ufw default deny incoming; ufw default allow outgoing; ufw allow 80/tcp; ufw allow 443/tcp; ufw allow 443/udp; ufw --force enable
+      docker compose up -d --build || { echo "docker compose fehlgeschlagen"; fail; }
+      for i in $(seq 1 36); do curl -fsS --max-time 8 "https://${DOMAIN}/healthz" >/dev/null 2>&1 && break; sleep 10; done
+      if curl -fsS --max-time 8 "https://${DOMAIN}/healthz" >/dev/null 2>&1; then
+        say "Tape-Server bereit" "Öffne https://${DOMAIN} und melde dich an."
+      else
+        echo "HTTPS nicht erreichbar"; docker compose logs --tail 8 caddy; fail
+      fi
+runcmd:
+  - [bash, /opt/tape/setup.sh]

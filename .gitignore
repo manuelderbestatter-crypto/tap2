@@ -1,0 +1,5 @@
+.env
+*.secrets
+.deploykey*
+tape-cloud-init.yaml
+node_modules/

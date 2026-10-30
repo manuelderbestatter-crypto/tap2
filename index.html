@@ -483,7 +483,7 @@ function initChart() {
   setInterval(() => redraw(), 250);
   (function loop() { requestAnimationFrame(loop); if (dirty && performance.now() - lastDraw > 30) { dirty = false; lastDraw = performance.now(); try { draw(); } catch (e) { console.error(e); } OBS.draw.push(performance.now() - lastDraw); if (OBS.draw.length > 120) OBS.draw.shift(); } })();
 }
-function redraw(now) { dirty = true; }
+function redraw(now) { if (window.__ENGINE) return; dirty = true; }
 function resetView() { V.auto = true; V.follow = true; V.barW = ST.mode === 'fp' ? 92 : 9; const l = D.candles[D.candles.length - 1]; V.right = (l ? l.t : Date.now()) + D.tfMs * (ST.mode === 'fp' ? 2.5 : 8); lastCT = l ? l.t : 0; }
 
 const plotW = () => W - AX;
@@ -787,7 +787,7 @@ function init() {
   buildTop(); syncUI(); initChart();
   $('#dom .group').onclick = () => { const o = [1, 2, 5, 10, 50]; ST.domGroup = o[(o.indexOf(ST.domGroup) + 1) % o.length]; saveST(); $('#dom .group').textContent = '×' + ST.domGroup; renderDOM(); };
   $('#dom .group').textContent = '×' + ST.domGroup;
-  setInterval(() => { renderStats(); renderDOM(); renderTape(); }, 400);
+  setInterval(() => { if (window.__ENGINE) return; renderStats(); renderDOM(); renderTape(); }, 400);
   setInterval(sampleHeat, 1000);
   window.addEventListener('visibilitychange', () => { if (!document.hidden) redraw(true); });
   connect();
@@ -2933,7 +2933,7 @@ document.addEventListener('click', e => {
 
 'use strict';
 /* ===== NEXUS Block 6a: 14 Backup & Wiederherstellung · 17 Deployment/Version ===== */
-const BUILD_T = 1793320475204;
+const BUILD_T = 1793343616167;
 NX.bk = NX.bk || { lastExport: 0, lastSnap: 0, rpoH: 24, drills: [], exports: [], snapMade: 0 };
 const BK = { snaps: null, val: null, busy: '', ver: null, st: null };
 const BK_KEY = 'nexus_bk', BK_KEEP = 3;
@@ -3047,12 +3047,12 @@ function vDepOverview() {
 function vDepPipe() {
   const v = BK.ver; let res = '<span class="mut sm">Noch nicht geprüft.</span>';
   if (v && v.busy) res = '<span class="mut sm">Prüft …</span>'; else if (v && v.err) res = '<span class="warn">Prüfung fehlgeschlagen: ' + E(v.err) + '</span>'; else if (v && v.remote != null) res = v.remote > BUILD_T ? '<div class="best"><b class="warn">Neuere Version verfügbar</b><div class="mut sm">Online gebaut ' + new Date(v.remote).toLocaleString('de-DE') + '</div><div class="row">' + btnA('ver_reload', 'Jetzt neu laden', 'upb') + '</div></div>' : '<span class="up">Du hast die neueste Version.</span> <span class="mut sm">geprüft ' + ago(v.t) + '</span>'; else if (v && !v.ok) res = '<span class="warn">Seite nicht erreichbar.</span>';
-  return card('Aktualisierung', '<div class="row">' + btnA('ver_check', 'Auf neue Version prüfen', 'upb') + '</div>' + res + '<p class="mut sm">Vergleicht die Bauzeit dieser Version mit der gerade veröffentlichten Datei. Dein Zustand (Konto, Journal) bleibt beim Neuladen erhalten – er liegt im Browser, nicht in der Seite.</p>') +
-    card('So kommt eine Version live', ['Änderung im Code', 'Zusammenbauen zu einer Datei (build.py)', 'Automatische Tests im Browser-Simulator (Fehlerseiten, Selbsttests, Regression)', 'Veröffentlichen: Commit → GitHub Pages (ca. 1 Minute)'].map((s, i) => '<div class="li"><div class="r1"><b>' + (i + 1) + '.</b><span>' + s + '</span></div></div>').join('') + '<p class="mut sm">Die Tests laufen beim Entwickeln, nicht automatisch bei jedem Push (keine CI-Pipeline). Die 43 Selbsttests (Modul 18) kannst du jederzeit selbst starten.</p>');
+  return vSrvCard() + card('Aktualisierung', '<div class="row">' + btnA('ver_check', 'Auf neue Version prüfen', 'upb') + '</div>' + res + '<p class="mut sm">Vergleicht die Bauzeit dieser Version mit der gerade veröffentlichten Datei. Dein Zustand (Konto, Journal) bleibt beim Neuladen erhalten – er liegt im Browser, nicht in der Seite.</p>') +
+    card('So kommt eine Version live', ['Änderung im Code', 'Zusammenbauen zu einer Datei (build.py)', 'Automatische Tests im Browser-Simulator (Fehlerseiten, Selbsttests, Regression)', (SRV.on ? 'Veröffentlichen: Commit → dein Server holt die Datei automatisch (ca. 5 Minuten)' : 'Veröffentlichen: Commit → GitHub Pages (ca. 1 Minute)')].map((s, i) => '<div class="li"><div class="r1"><b>' + (i + 1) + '.</b><span>' + s + '</span></div></div>').join('') + '<p class="mut sm">Die Tests laufen beim Entwickeln, nicht automatisch bei jedem Push (keine CI-Pipeline). Die 43 Selbsttests (Modul 18) kannst du jederzeit selbst starten.</p>');
 }
 function vDepCost() {
   const hs = restStats(), req = hs.reduce((a, h) => a + h.n, 0), ws = Object.values(OBS.ws).reduce((a, w) => a + (w.n || 0), 0);
-  return card('Kosten', '<div class="two">' + kv('Hosting', '0 €') + kv('Börsen-Daten', '0 €') + kv('Rechenzeit', '0 € (dein Handy)') + kv('Schlüssel / Lizenzen', 'keine') + kv('REST-Anfragen seit Start', fq(req)) + kv('Stream-Nachrichten', fq(ws)) + '</div><p class="mut sm">Die „Kosten“ sind Akku, Datenvolumen und Anfrage-Limits der Börsen – siehe Modul 16 (Rate Limits) und Modul 13 (Beobachtbarkeit).</p>');
+  return card('Kosten', '<div class="two">' + kv('Hosting', SRV.on ? 'eigener Server (Monatsmiete beim Anbieter)' : '0 €') + kv('Börsen-Daten', '0 €') + kv('Rechenzeit', SRV.on ? 'Server (rund um die Uhr) + dein Handy' : '0 € (dein Handy)') + kv('Schlüssel / Lizenzen', 'keine') + kv('REST-Anfragen seit Start', fq(req)) + kv('Stream-Nachrichten', fq(ws)) + '</div><p class="mut sm">Die „Kosten“ sind Akku, Datenvolumen und Anfrage-Limits der Börsen – siehe Modul 16 (Rate Limits) und Modul 13 (Beobachtbarkeit).</p>');
 }
 function vDepRes() {
   const J = Object.entries(JOBS).map(([k, j]) => [k, j.ms.length ? j.ms.reduce((a, b) => a + b, 0) / j.ms.length : 0, j.ms.length ? Math.max(...j.ms) : 0, j.n]).sort((a, b) => b[1] - a[1]).slice(0, 10), mem = performance && performance.memory;
@@ -3730,7 +3730,120 @@ document.addEventListener('click', e => {
 });
 
 'use strict';
+/* ===== Server-Übergabe =====
+   Nur aktiv, wenn die App vom eigenen Server kommt (window.__SERVER). Der Server lässt die Engine rund um die Uhr laufen.
+   Öffnest du die App, übernimmt das Handy die Steuerung (Stand vom Server); beim Schließen geht sie zurück.
+   Es steuert immer genau einer: Handy ODER Server – nie beide gleichzeitig. */
+const SRV = { on: !!window.__SERVER, eng: !!window.__ENGINE, ok: false, local: false, dead: '', tok: '', err: '', pushAt: 0, pushes: 0, kb: 0, sig: '', beatAt: 0, busy: false };
+
+async function srvFetch(path, body, gz) {
+  const opt = { method: 'POST', credentials: 'same-origin', headers: { 'x-ctl': SRV.tok } };
+  if (body !== undefined) {
+    const txt = JSON.stringify(body);
+    if (gz && typeof CompressionStream === 'function') { opt.body = await new Response(new Blob([txt]).stream().pipeThrough(new CompressionStream('gzip'))).blob(); opt.headers['x-gz'] = '1'; }
+    else opt.body = txt;
+    opt.headers['content-type'] = 'application/json'; SRV.kb = Math.round((opt.body.size || opt.body.length) / 102.4) / 10;
+  }
+  return fetch(path, opt);
+}
+
+function srvAsk(msg, buttons) {
+  return new Promise(res => {
+    const d = document.createElement('div');
+    d.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#07090c;color:#e8eef5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;font:15px system-ui,sans-serif';
+    const b = document.createElement('b'); b.textContent = msg; d.append(b);
+    for (const [k, label] of buttons) { const x = document.createElement('button'); x.textContent = label; x.style.cssText = 'padding:12px 20px;border-radius:10px;border:1px solid #2a3340;background:#121820;color:#e8eef5;font:inherit'; x.onclick = () => { d.remove(); res(k); }; d.append(x); }
+    document.body.append(d);
+  });
+}
+
+/* Beim Start: Steuerung vom Server übernehmen (vor dem Laden des lokalen Stands) */
+async function srvTake() {
+  if (!SRV.on || SRV.eng) return;
+  for (;;) {
+    try {
+      const r = await srvFetch('/api/take', {});
+      if (r.status === 401) { location.href = '/login'; await new Promise(() => {}); }
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const o = await r.json(); SRV.tok = o.tok;
+      if (o.nx) await idbPut('nexus', o.nx);                 // Server hat Stand → ersetzt den lokalen
+      if (o.st) { for (const k of ['sym', 'src', 'tf']) if (o.st[k]) ST[k] = o.st[k]; saveST(); }
+      SRV.ok = true; SRV.err = ''; SRV.sig = o.nx ? '' : 'first'; return;
+    } catch (e) {
+      SRV.err = String(e && e.message || e);
+      const c = await srvAsk('Server nicht erreichbar (' + SRV.err + ')', [['retry', 'Erneut versuchen'], ['local', 'Lokal weiterarbeiten (ohne Server, Stand wird später verworfen)']]);
+      if (c === 'local') { SRV.local = true; return; }
+    }
+  }
+}
+
+function srvSig() { const h = NX.events && NX.events[0] ? NX.events[0].h : '0'; return h + '|' + NX.pos.length + '|' + ST.sym + '|' + ST.src + '|' + ST.tf; }
+function srvPayload() {
+  const o = JSON.parse(JSON.stringify(NX)); o.signals = o.signals.slice(0, 600); o.decisions = o.decisions.slice(0, 400); o.orders = o.orders.slice(0, 400); o.closed = o.closed.slice(0, 500);
+  return { nx: o, st: { sym: ST.sym, src: ST.src, tf: ST.tf } };
+}
+
+/* Steuerung verloren: 'lease' = Server hat nach Pause übernommen → neu laden (holt den neuen Stand); 'other' = anderes Gerät → nachfragen */
+async function srvLost(why) {
+  if (SRV.dead) return; SRV.dead = why || 'lease';
+  if (SRV.dead === 'lease') { location.reload(); return; }
+  await srvAsk('Ein anderes Gerät steuert gerade.', [['take', 'Hier übernehmen']]); location.reload();
+}
+async function srvCheck(r) {
+  if (r.status === 401) { location.href = '/login'; return false; }
+  if (r.status === 409) { let j = {}; try { j = await r.json(); } catch (e) { /* leer */ } srvLost(j.why); return false; }
+  return r.ok;
+}
+
+async function srvPush(force) {
+  if (!SRV.ok || SRV.busy || SRV.dead) return; const sig = srvSig(); if (!force && sig === SRV.sig) return;
+  SRV.busy = true;
+  try { const r = await srvFetch('/api/push', srvPayload(), true); if (await srvCheck(r)) { SRV.sig = sig; SRV.pushAt = Date.now(); SRV.pushes++; SRV.err = ''; } else if (!r.ok && r.status !== 409) SRV.err = 'Push HTTP ' + r.status; }
+  catch (e) { SRV.err = 'Push: ' + (e && e.message || e); }
+  SRV.busy = false;
+}
+async function srvBeat() {
+  if (!SRV.ok || SRV.dead) return;
+  try { const r = await srvFetch('/api/beat'); if (await srvCheck(r)) { SRV.beatAt = Date.now(); SRV.err = ''; } }
+  catch (e) { SRV.err = 'Verbindung: ' + (e && e.message || e); }
+}
+
+if (SRV.on && !SRV.eng) {
+  setInterval(() => { if (!document.hidden) { srvBeat(); srvPush(false); } }, 10000);
+  document.addEventListener('visibilitychange', () => { if (!SRV.ok) return; if (document.hidden) srvPush(true); else { srvBeat(); } });
+  addEventListener('pagehide', () => { if (SRV.ok && !SRV.dead) { try { navigator.sendBeacon('/api/release?t=' + encodeURIComponent(SRV.tok)); } catch (e) { /* egal */ } } });
+  /* Datei-Einspielen: erst auf den Server, dann lokal (sonst würde der Server-Stand nach dem Neuladen zurückkommen) */
+  const _imp = nxImport;
+  nxImport = async function (txt) {
+    if (SRV.ok) { const o = JSON.parse(txt); if (!o || !o.state || o.state.v !== 1) throw new Error('Datei passt nicht'); const r = await srvFetch('/api/push', { nx: o.state, st: { sym: ST.sym, src: ST.src, tf: ST.tf } }, true); if (!r.ok) throw new Error('Server hat die Datei nicht angenommen (HTTP ' + r.status + ')'); }
+    return _imp(txt);
+  };
+}
+
+/* ----- Anzeige in Modul 17 → Deployment Pipelines ----- */
+function vSrvCard() {
+  if (!SRV.on) return card('Eigener Server', '<p class="mut sm">Nicht aktiv: Diese Version läuft nur in deinem Browser und rechnet nur, solange sie offen ist. Mit dem eigenen Server läuft die Engine rund um die Uhr und meldet sich per Push.</p>');
+  const s = SRV.stat, conn = SRV.local ? '<b class="warn">lokal, ohne Server</b>' : SRV.dead ? '<b class="warn">Steuerung verloren</b>' : SRV.ok ? '<b class="up">verbunden</b>' : '<b class="warn">getrennt</b>';
+  let h = '<div class="two">' + kv('Verbindung', conn) + kv('Steuerung', SRV.ok ? 'dein Handy (jetzt)' : '–') + kv('Letzter Upload', SRV.pushAt ? ago(SRV.pushAt) : 'noch keiner') + kv('Uploads / Größe', SRV.pushes + ' · ' + SRV.kb + ' kB') + '</div>';
+  if (SRV.err) h += '<p class="warn sm">' + E(SRV.err) + '</p>';
+  h += '<div class="row">' + btnA('srv_status', 'Server-Status laden', 'upb') + '</div>';
+  if (s && s.err) h += '<p class="warn sm">Status nicht lesbar: ' + E(s.err) + '</p>';
+  else if (s) {
+    const en = s.engine || {}, hl = en.health;
+    h += '<div class="two">' + kv('Server-Engine', en.up ? '<b class="up">läuft</b>' : '<span class="mut">aus (Handy steuert)</span>') + kv('Server läuft seit', dur(s.uptime * 1000)) + kv('Neustarts der Engine', en.restarts) + kv('Letzter Stand', s.stateAt ? ago(s.stateAt) + (s.stateBy ? ' (' + E(s.stateBy) + ')' : '') : '–') + kv('Alarm-Wege', [s.notify.ntfy ? 'ntfy' : '', s.notify.telegram ? 'Telegram' : ''].filter(Boolean).join(', ') || '<b class="warn">keiner eingerichtet</b>') + kv('Sicherungen auf dem Server', s.backups) + '</div>';
+    if (hl) h += '<p class="mut sm">Engine zuletzt geprüft: ' + E(hl.sym) + ' ' + E(hl.src) + ', ' + hl.pos + ' Position(en), ' + hl.ev + ' Ereignisse.</p>';
+    h += '<details><summary class="mut sm">Server-Protokoll</summary><pre class="mut sm" style="white-space:pre-wrap">' + E((s.log || []).slice(-12).join('\n')) + '</pre></details>';
+  }
+  h += '<div class="row"><a class="btn sm" href="/api/export">Server-Stand herunterladen</a><a class="btn sm" href="/logout">Abmelden</a></div>';
+  return card('Eigener Server', h + '<p class="mut sm">Es steuert immer genau einer: dein Handy, solange die App offen ist – danach übernimmt der Server den zuletzt gemeldeten Stand. Alles bleibt Papier-Handel gegen echte Live-Preise.</p>');
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-a]'); if (!t || t.dataset.a !== 'srv_status' || !$('#nxView').contains(t)) return; e.preventDefault();
+  fetch('/api/status', { credentials: 'same-origin' }).then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))).then(j => { SRV.stat = j; renderNx(true); }).catch(x => { SRV.stat = { err: String(x.message || x) }; renderNx(true); });
+});
+
+'use strict';
 /* ===== Start ===== */
-(async () => { try { await nxLoad(); } catch (e) { /* ohne gespeicherten Zustand */ } try { discInit(); } catch (e) { console.error(e); } init(); nxInit(); })();
+(async () => { try { await srvTake(); } catch (e) { console.error(e); } try { await nxLoad(); } catch (e) { /* ohne gespeicherten Zustand */ } try { discInit(); } catch (e) { console.error(e); } init(); nxInit(); })();
 
 </script></body></html>
