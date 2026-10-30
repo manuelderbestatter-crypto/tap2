@@ -3012,7 +3012,7 @@ document.addEventListener('click', e => {
 
 'use strict';
 /* ===== NEXUS Block 6a: 14 Backup & Wiederherstellung · 17 Deployment/Version ===== */
-const BUILD_T = 1793348468816;
+const BUILD_T = 1793348878642;
 NX.bk = NX.bk || { lastExport: 0, lastSnap: 0, rpoH: 24, drills: [], exports: [], snapMade: 0 };
 const BK = { snaps: null, val: null, busy: '', ver: null, st: null };
 const BK_KEY = 'nexus_bk', BK_KEEP = 3;
@@ -3999,7 +3999,7 @@ function hEv(id, name, xs, ys, horizon, ntests) {   // xs: Merkmal zum Zeitpunkt
   return { id, name, r, r1, r2, n, rnd, crit, lab, h: horizon };
 }
 function hubDerive() {
-  const f = {}, S = HUB.s, fl = S.flow && S.flow.d, be = S.beh && S.beh.d, ls = S.ls && S.ls.d, ev = [];
+  const f = {}, S = HUB.s, fl = hubFlowLong(), be = hubBehLong(), ls = S.ls && S.ls.d, ev = [];
   if (fl && fl.length > 60) {
     const sd = fl.map(x => x.sd), pd = fl.map(x => x.pd), rs = hRoll(sd, HEV_W), rp = hRoll(pd, HEV_W), a = rs.filter(x => x != null), b = rp.filter(x => x != null), n = fl.length;
     f.spot12 = rs[n - 1]; f.perp12 = rp[n - 1]; f.zSpot = f.spot12 / hStd(a); f.zPerp = f.perp12 / hStd(b);
@@ -4151,7 +4151,7 @@ function vHubReg() {
     '<div class="mut sm">' + E(s.grp) + ' · ' + E(s.kind) + ' · ' + s.hosts.map(h => E(hostName(h))).join(', ') + '</div><div class="mut sm">' + E(s.note) + '</div>' +
     '<div class="mut sm">' + (a[0] === 'ok' ? 'Stand ' + ago(st.ok) + ' · ' + st.n + ' Punkte · ' + st.ms + ' ms · neu laden nach ' + dur(s.ttl) : '<span class="' + (a[0] === 'bad' ? 'dn' : 'warn') + '">' + E(a[1]) + '</span>') + ' ' + btnA('hub_load:' + s.id, 'Neu laden') + '</div></div>'; }).join('');
   return card('Quellen', rows) + (typeof hubPlan === 'function' ? hubPlan(false) : '') + card('Tests (Evidenz-Check)', HUB.ev.length ? '<div class="tw"><table class="tbl"><tr><th>Merkmal</th><th>Horizont</th><th>r</th><th>1. / 2. Hälfte</th><th>n</th><th>Zufall ±</th><th>Urteil</th></tr>' + HUB.ev.map(e => '<tr><td>' + E(e.name) + '</td><td>' + e.h + '</td><td>' + (e.r == null ? '–' : pn(e.r, 2)) + '</td><td>' + (e.r1 == null ? '–' : pn(e.r1, 2)) + ' / ' + (e.r2 == null ? '–' : pn(e.r2, 2)) + '</td><td>' + e.n + '</td><td>' + nf(e.rnd, 2) + '</td><td class="' + (e.lab === 'Beleg' ? 'up' : e.lab === 'Hinweis' ? 'warn' : '') + '">' + e.lab + '</td></tr>').join('') + '</table></div>' +
-    '<p class="mut sm">r = Korrelation des Merkmals mit der Kursänderung danach (nicht überlappende Stichproben). Beleg: |r| über der Schwelle für ' + HUB.ev.length + ' Tests und gleiche Richtung in beiden Hälften. Hinweis: nur über dem Zufallsbereich. Die Daten reichen je nach Quelle nur ca. 20–40 Tage (stündlich) bzw. 3 Jahre (täglich): mit mehr Verlauf wird das Urteil belastbarer. Alles gemessen im selben Datensatz, ohne Test an neuen Daten.</p>' : empty('Noch nicht genug geladen.')) +
+    '<p class="mut sm">r = Korrelation des Merkmals mit der Kursänderung danach (nicht überlappende Stichproben). Beleg: |r| über der Schwelle für ' + HUB.ev.length + ' Tests und gleiche Richtung in beiden Hälften. Hinweis: nur über dem Zufallsbereich. Stündliche Daten reichen ohne Server ca. 20–40 Tage; mit dem eigenen Server kommen bis zu 3 Jahre aus den Binance-Archiven dazu (Fluss, Basis, Funding, 400 Tage Open Interest). Mit mehr Verlauf wird das Urteil belastbarer. Alles gemessen im selben Datensatz, ohne Test an neuen Daten.</p>' : empty('Noch nicht genug geladen.')) +
     card('Regeln', '<p class="mut sm">Nur öffentliche Lese-Schnittstellen. Keine Schlüssel, keine Anmeldedaten Dritter, kein Auslesen von Seiten, die das verbieten. Fällt eine Quelle aus, gilt der letzte Stand mit Altersangabe; erfunden oder geglättet wird nichts. Server-Quellen laufen über eine feste Liste auf deinem Server (kein offener Proxy).</p>');
 }
 function hubMacroCard() {
@@ -4171,6 +4171,33 @@ document.addEventListener('click', e => {
   const t = e.target.closest('[data-a]'); if (!t || !/^hub_/.test(t.dataset.a)) return; e.preventDefault(); const [a, arg] = t.dataset.a.split(':');
   if (a === 'hub_all') HSRC.forEach((s, i) => setTimeout(() => hubLoad(s.id, true), i * 300)); if (a === 'hub_load') hubLoad(arg, true); renderNx(true);
 });
+
+'use strict';
+/* ===== Historie aus den freien Binance-Archiven (über den eigenen Server) =====
+   Verlängert die stündlichen Reihen (Spot/Perp-Fluss, Basis, Positionierung, Funding) von Wochen auf Jahre – nur für die Prüfung,
+   die Grafiken zeigen weiter die letzten 14 Tage. Live-Daten überschreiben die Archiv-Stunden am Ende. */
+Object.assign(HOSTS, { 'data.binance.vision': ['Binance Daten-Archiv', 'Historische Kerzen, Funding, Open Interest (frei, Bulk-Dateien)'] });
+HSRC.push({ id: 'hist', n: 'Historie (Binance-Archive, bis 3 Jahre)', grp: 'Historie', ttl: 6 * 3600e3, sym: true, kind: 'Server · frei', server: true, hosts: ['data.binance.vision'],
+  note: 'Dein Server lädt einmalig die freien Binance-Archive (Stundenkerzen Spot und Perp mit Taker-Volumen, Funding, 400 Tage Open Interest) und danach täglich die neuen Tage. Damit prüft der Evidenz-Check die Merkmale und Setups an Jahren statt Wochen. Nur BTC, ETH, SOL.',
+  count: d => d.n,
+  async get() { const r = await fetch('/api/hist?sym=' + ST.sym + (window.__HK ? '&k=' + encodeURIComponent(window.__HK) : ''), { credentials: 'same-origin' }); const j = await r.json().catch(() => ({})); if (!r.ok || !j.ok) throw new Error(j.err || 'HTTP ' + r.status); return j; } });
+const hubHist = () => { const st = HUB.s.hist; return st && st.d && st.key === ST.sym ? st.d : null; };
+let hLongC = { k: '', fl: null, be: null };
+function hLongKey() { const a = HUB.s.hist, b = HUB.s.flow, c = HUB.s.beh; return [ST.sym, a && a.ok, b && b.ok, c && c.ok].join('|'); }
+function hubFlowLong() {
+  const live = HUB.s.flow && HUB.s.flow.key === ST.sym ? HUB.s.flow.d : null, hd = hubHist(); if (!hd) return live;
+  const k = hLongKey(); if (hLongC.k === k && hLongC.fl) return hLongC.fl;
+  const out = []; for (let i = 0; i < hd.n; i++) if (hd.sc[i] && hd.pc[i] && hd.sd[i] != null && hd.pd[i] != null) out.push({ t: hd.t0 + i * hd.step, sc: hd.sc[i], pc: hd.pc[i], sd: hd.sd[i], pd: hd.pd[i] });
+  if (live && live.length) { const t0 = live[0].t; while (out.length && out[out.length - 1].t >= t0) out.pop(); for (const x of live) out.push(x); }
+  if (hLongC.k !== k) hLongC = { k, fl: null, be: null }; return hLongC.fl = out;
+}
+function hubBehLong() {
+  const live = HUB.s.beh && HUB.s.beh.key === ST.sym ? HUB.s.beh.d : null, hd = hubHist(); if (!hd) return live;
+  const k = hLongKey(); if (hLongC.k === k && hLongC.be) return hLongC.be;
+  const out = []; let pv = null; for (let i = 0; i < hd.n; i++) { const v = hd.oi[i], p = hd.po[i], t = hd.t0 + i * hd.step; if (v == null || !p) { pv = null; continue; } if (pv) { const dOI = v - pv.oi, dP = p - pv.p; out.push({ t, oi: v, p, dOI, dP, cls: dOI >= 0 ? (dP >= 0 ? 'LO' : 'SO') : (dP < 0 ? 'LC' : 'SC') }); } pv = { oi: v, p }; }
+  if (live && live.length) { const t0 = live[0].t; while (out.length && out[out.length - 1].t >= t0) out.pop(); for (const x of live) out.push(x); }
+  if (hLongC.k !== k) hLongC = { k, fl: null, be: null }; return hLongC.be = out;
+}
 
 'use strict';
 /* ===== Daten-Hub, Teil 2 =====
@@ -4318,19 +4345,22 @@ function hubPlan(compact) {
 Object.assign(HEVMAP, { flow: ['spot', 'perp', 'basis', 'absorb'], xflow: ['cbprem', 'cbimb', 'allimb', 'hlimb', 'whale', 'liq', 'fund'] });
 const FABS_W = 168, FABS_Z = 2, FABS_R = 0.25;     // Absorption: |Delta| > 2σ (letzte 7 Tage), Preisbewegung < 0,25σ in Gegenrichtung
 function fDerive() {
-  const S = HUB.s, f = HUB.f, fl = S.flow && S.flow.d, xd = S.xflow && S.xflow.d, FF = HUB.ff = {};
+  const S = HUB.s, f = HUB.f, fl = hubFlowLong(), xd = S.xflow && S.xflow.d, FF = HUB.ff = {};
   /* ---- Absorption ---- */
   if (fl && fl.length > FABS_W + 50) {
     const n = fl[fl.length - 1].t + 3600e3 > Date.now() ? fl.length - 1 : fl.length;   // laufende Stunde nie werten
     const n0 = fl.length, d = fl.map(x => x.sd + x.pd), r = fl.map((x, i) => i ? Math.log(x.pc / fl[i - 1].pc) : 0), A = new Array(n0).fill(0), ev = [];
+    let s1 = 0, s2 = 0, q1 = 0, q2 = 0; for (let k = 0; k < FABS_W; k++) { s1 += d[k]; s2 += d[k] * d[k]; q1 += r[k]; q2 += r[k] * r[k]; }   // gleitende Summen statt Neuberechnung
     for (let i = FABS_W; i < n; i++) {
-      const dd = d.slice(i - FABS_W, i), rr = r.slice(i - FABS_W, i), md = mean(dd), sd = hStd(dd), sr = hStd(rr), zd = (d[i] - md) / sd, zr = r[i] / sr;
+      if (i > FABS_W) { const o = i - FABS_W - 1, nw = i - 1; s1 += d[nw] - d[o]; s2 += d[nw] * d[nw] - d[o] * d[o]; q1 += r[nw] - r[o]; q2 += r[nw] * r[nw] - r[o] * r[o]; }
+      const md = s1 / FABS_W, sd = Math.sqrt(Math.max(s2 / FABS_W - md * md, 0)) || 1e-9, mr = q1 / FABS_W, sr = Math.sqrt(Math.max(q2 / FABS_W - mr * mr, 0)) || 1e-9, zd = (d[i] - md) / sd, zr = r[i] / sr;
       A[i] = zd < -FABS_Z && zr > -FABS_R ? 1 : zd > FABS_Z && zr < FABS_R ? -1 : 0; if (A[i]) ev.push({ t: fl[i].t, a: A[i], zd, zr, p: fl[i].pc, i });
     }
-    FF.abs = A; FF.absEv = ev; let s6 = 0; for (let i = n - 6; i < n; i++) s6 += A[i]; f.absorb = s6; f.absLast = ev.length ? ev[ev.length - 1] : null;
+    FF.abs = A; FF.absEv = ev; FF.absMap = new Map(fl.map((x, i) => [x.t, A[i]])); let s6 = 0; for (let i = n - 6; i < n; i++) s6 += A[i]; f.absorb = s6; f.absLast = ev.length ? ev[ev.length - 1] : null;
     const xs = [], ys = []; let next = 0; for (const e of ev) { if (e.i < next || e.i + HEV_H >= n) continue; xs.push(e.a); ys.push(Math.log(fl[e.i + HEV_H].pc / fl[e.i].pc)); next = e.i + HEV_H; }
     HUB.ev.push(hEv('absorb', 'Absorption (Ereignis)', xs, ys, HEV_H + ' h', HEV_NT));
   }
+  { const hd = hubHist(); if (hd && hd.fr) { const xs = [], ys = []; for (let i = 0; i + HEV_H < hd.n; i += HEV_H) { const a = hd.fr[i], p0 = hd.pc[i], p1 = hd.pc[i + HEV_H]; if (a == null || !p0 || !p1) continue; xs.push(a * 100); ys.push(Math.log(p1 / p0)); } if (xs.length >= 40) { HUB.ev.push(hEv('fund', 'Funding Binance (Historie)', xs, ys, HEV_H + ' h', HEV_NT)); FF.fundHist = true; } } }
   if (!(xd && xd.q && xd.q.series)) return;
   const q = xd.q, keys = Object.keys(q.series), A = {}; for (const k of keys) A[k] = xSer(q, k); const n = q.hours - 1, W = HEV_W, ref = A['bn:s'] || [];
   /* ---- Wal- gegen Kleinanleger-Fluss (Print-Größe ≥ 100 Tsd gegen < 10 Tsd, alle Börsen) ---- */
@@ -4361,7 +4391,7 @@ function fDerive() {
     let L = 0, Sx = 0, ok = true; for (let j = i - W + 1; j <= i && ok; j++) { const h = lq.find(x => x.i === j); if (!h) ok = false; else { L += h.L; Sx += h.S; } } if (ok && L + Sx > 0) X.liq.push([(L - Sx) / (L + Sx), y]);
   }
   const add = (id, nm, k) => HUB.ev.push(hEv(id, nm, X[k].map(p => p[0]), X[k].map(p => p[1]), HEV_H + ' h', HEV_NT));
-  add('whale', 'Wal-Fluss (Prints ≥ 100 Tsd, 12 h)', 'whale'); add('liq', 'Liquidationen Long minus Short (12 h)', 'liq'); add('fund', 'Funding (OI-gewichtet, alle Börsen)', 'fund');
+  add('whale', 'Wal-Fluss (Prints ≥ 100 Tsd, 12 h)', 'whale'); add('liq', 'Liquidationen Long minus Short (12 h)', 'liq'); if (!FF.fundHist) add('fund', 'Funding (OI-gewichtet, alle Börsen)', 'fund');
 }
 { const _hd = hubDerive; hubDerive = function () { _hd(); try { fDerive(); } catch (e) { console.error(e); } }; }
 
@@ -4369,7 +4399,7 @@ function fDerive() {
 const fXNeed = (ttl, ev) => hPanel('xflow', ttl, ['xflow'], ev, hNeed('xflow'), 'Braucht die Eigenaufnahme auf deinem Server (Source Registry → Börsen im Vergleich).');
 function pAbs() {
   const FF = HUB.ff || {}, fl = HUB.s.flow && HUB.s.flow.d, f = HUB.f, ttl = 'Absorption · ' + ST.sym; if (!fl || !FF.abs) return hPanel('flow', ttl, ['flow'], ['absorb'], hNeed('flow'), 'Aus den Binance-Kerzen (Spot + Perp).');
-  const w = fl.slice(-336), off = fl.length - w.length, bars = w.map((x, i) => [x.t, FF.abs[off + i]]);
+  const w = fl.slice(-336), bars = w.map(x => [x.t, FF.absMap.get(x.t) || 0]);
   const last = FF.absEv.slice(-5).reverse().map(e => kv(new Date(e.t).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit' }) + ' Uhr', (e.a > 0 ? 'Verkäufer absorbiert' : 'Käufer absorbiert') + ' · Δ ' + nf(e.zd, 1) + 'σ, Preis ' + nf(e.zr, 1) + 'σ', e.a > 0 ? 'up' : 'dn')).join('');
   return hPanel('flow', ttl, ['flow'], ['absorb'], ncHTML('h_absp', 120, specMulti({ lines: [{ n: 'Preis (Perp)', pts: w.map(x => [x.t, x.pc]), col: C.fg }], fmt: v => fusd(v) })) + ncHTML('h_absb', 70, specMulti({ lines: [{ n: 'Absorption: + Verkäufer aufgefangen / − Käufer aufgefangen', pts: bars, bars: true }], base: 0, fmt: v => nf(v, 0) })) +
     '<div class="best"><b>' + (f.absorb > 0 ? 'Letzte 6 h: Verkaufsdruck wird aufgefangen' : f.absorb < 0 ? 'Letzte 6 h: Kaufdruck wird aufgefangen' : 'Letzte 6 h: keine Absorption') + '</b><div class="mut sm">' + FF.absEv.length + ' Ereignisse in ' + fl.length + ' h.</div></div>' + (last || '') + hEvLine(['absorb']),
