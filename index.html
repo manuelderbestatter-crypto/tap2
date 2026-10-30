@@ -3012,7 +3012,7 @@ document.addEventListener('click', e => {
 
 'use strict';
 /* ===== NEXUS Block 6a: 14 Backup & Wiederherstellung · 17 Deployment/Version ===== */
-const BUILD_T = 1793347412713;
+const BUILD_T = 1793348107089;
 NX.bk = NX.bk || { lastExport: 0, lastSnap: 0, rpoH: 24, drills: [], exports: [], snapMade: 0 };
 const BK = { snaps: null, val: null, busy: '', ver: null, st: null };
 const BK_KEY = 'nexus_bk', BK_KEEP = 3;
@@ -3931,7 +3931,7 @@ Object.assign(HOSTS, {
   'stablecoins.llama.fi': ['DefiLlama Stablecoins', 'Umlauf aller Stablecoins'],
 });
 const HUB = { s: {}, f: {}, ev: [], evSig: '', t0: Date.now() };
-const HEV_H = 4, HEV_W = 12, HEV_NT = 14, HEV_Z = 2.9;   // Mehrfachtest-Korrektur für bis zu 14 Prüfungen (Bonferroni 0,05/14 ≈ z 2,9)
+const HEV_H = 4, HEV_W = 12, HEV_NT = 18, HEV_Z = 3.0;   // Mehrfachtest-Korrektur für bis zu 18 Prüfungen (Bonferroni 0,05/18 ≈ z 3,0)
 const HPAN = [], HEVMAP = { flow: ['spot', 'perp', 'basis'], beh: ['pos'], ls: ['ls'], fng: ['fng'], chain: ['mvrv'], stable: ['stable'] };                       // vorab festgelegt: Vorhersage-Horizont 4 h, Fenster 12 h (stündliche Daten)
 const hubSrv = async id => {
   const r = await fetch('/api/hub?id=' + id + (window.__HK ? '&k=' + encodeURIComponent(window.__HK) : ''), { credentials: 'same-origin' });
@@ -4178,33 +4178,34 @@ document.addEventListener('click', e => {
    (b) Kostenbasis der kurzfristigen Halter, SOPR, NUPL (BGeometrics, frei, stark begrenzt → nur der Server holt es, 8 h Zwischenspeicher).
    (c) Beschaffungsplan: für jede Datenart, ob frei, ableitbar, selbst aufgezeichnet oder wirklich nur bezahlt erhältlich ist. */
 Object.assign(HOSTS, {
+  'ws.okx.com': ['OKX Live-Strom', 'Handel + Liquidationen Spot/Swap (Eigenaufnahme)'],
   'stream.binance.com': ['Binance Live-Strom', 'Handels-Strom Spot/Perp (Eigenaufnahme)'], 'stream.bybit.com': ['Bybit Live-Strom', 'Handels-Strom Spot/Perp (Eigenaufnahme)'],
   'ws-feed.exchange.coinbase.com': ['Coinbase Live-Strom', 'Handels-Strom Spot (Eigenaufnahme)'], 'api.hyperliquid.xyz': ['Hyperliquid Live-Strom', 'Handels-Strom Perp (Eigenaufnahme)'],
   'bitcoin-data.com': ['BGeometrics', 'On-Chain: Kostenbasis STH, SOPR, NUPL'],
 });
 const XREC = ['BTC', 'ETH', 'SOL'], XMIN_LV = 54;
-const XNM = { 'bn:s': 'Binance Spot', 'bn:p': 'Binance Perp', 'by:s': 'Bybit Spot', 'by:p': 'Bybit Perp', 'cb:s': 'Coinbase Spot', 'hl:p': 'Hyperliquid Perp' };
-const XCOL = () => ({ 'bn:s': C.acc, 'bn:p': C.warn, 'by:s': C.mute, 'by:p': C.faint, 'cb:s': C.up, 'hl:p': C.dn });
+const XNM = { 'bn:s': 'Binance Spot', 'bn:p': 'Binance Perp', 'by:s': 'Bybit Spot', 'by:p': 'Bybit Perp', 'ok:s': 'OKX Spot', 'ok:p': 'OKX Perp', 'cb:s': 'Coinbase Spot', 'hl:p': 'Hyperliquid Perp' };
+const XCOL = () => ({ 'bn:s': C.acc, 'bn:p': C.warn, 'by:s': C.mute, 'by:p': C.faint, 'ok:s': '#9b8cff', 'ok:p': '#6f5fd6', 'cb:s': C.up, 'hl:p': C.dn });
 const hubRec = async sym => {
   if (!XREC.includes(sym)) throw new Error('Der Recorder nimmt nur ' + XREC.join(', ') + ' auf (gewählt: ' + sym + ')');
   const k = window.__HK ? '&k=' + encodeURIComponent(window.__HK) : '', get = async p => { const r = await fetch(p + k, { credentials: 'same-origin' }); if (r.status === 401) throw new Error('nicht angemeldet'); const j = await r.json().catch(() => ({})); if (!r.ok || j.ok === false) throw new Error(j.err || 'HTTP ' + r.status); return j; };
   const [q, stat] = await Promise.all([get('/api/rec?sym=' + sym + '&h=1000'), get('/api/rec?status=1')]); return { q, stat };
 };
 HSRC.push(
-  { id: 'xflow', n: 'Börsen im Vergleich (Eigenaufnahme)', grp: 'Orderflow', ttl: 300e3, sym: true, kind: 'Server · Eigenaufnahme', server: true, hosts: ['stream.binance.com', 'stream.bybit.com', 'ws-feed.exchange.coinbase.com', 'api.hyperliquid.xyz'],
-    note: 'Dein Server schneidet die öffentlichen Handels-Ströme von Binance, Bybit, Coinbase und Hyperliquid rund um die Uhr mit (BTC, ETH, SOL) und verdichtet sie zu Stunden: wie viel Käufer-/Verkäufer-Volumen je Börse. Das ist genau das, was die bezahlten Anbieter als „CVD je Börse“ verkaufen – die Historie entsteht ab dem Start der Aufnahme.',
+  { id: 'xflow', n: 'Börsen im Vergleich (Eigenaufnahme)', grp: 'Orderflow', ttl: 300e3, sym: true, kind: 'Server · Eigenaufnahme', server: true, hosts: ['stream.binance.com', 'stream.bybit.com', 'ws.okx.com', 'ws-feed.exchange.coinbase.com', 'api.hyperliquid.xyz'],
+    note: 'Dein Server schneidet die öffentlichen Ströme von Binance, Bybit, OKX, Coinbase und Hyperliquid rund um die Uhr mit (BTC, ETH, SOL): Käufer-/Verkäufer-Volumen je Börse und Ordergröße, echte Zwangsliquidationen (Binance, Bybit, OKX), dazu Funding und Open Interest je Börse alle 15 min. Das ist genau das, was die bezahlten Anbieter als „CVD je Börse“ verkaufen – die Historie entsteht ab dem Start der Aufnahme.',
     count: d => Object.values(d.q.series).reduce((n, x) => n + x.hours, 0), get: () => hubRec(ST.sym) },
   { id: 'bg', n: 'On-Chain: Kostenbasis kurzfristiger Halter, SOPR, NUPL', grp: 'On-Chain', ttl: 8 * 3600e3, kind: 'Server · frei, stark begrenzt', server: true, hosts: ['bitcoin-data.com'],
     note: 'BGeometrics (bitcoin-data.com), kostenloser Zugang ohne Anmeldung: 8 Abrufe pro Stunde, 15 pro Tag, 4 Jahre täglich. Deshalb holt nur der Server alle 8 Stunden, mit Zwischenspeicher auf der Platte. Nutzungsbedingungen für gewerbliche Nutzung ungeklärt → nur privat. Antwortformat bisher nicht gegen die echte Schnittstelle geprüft: stimmt es nicht, steht der Fehler hier.',
     count: d => Object.values(d.series || {}).reduce((n, x) => n + (x.pts ? x.pts.length : 0), 0),
     async get() { const j = await hubSrv('bg'); if (!Object.values(j.series || {}).some(x => x.pts)) throw new Error(Object.values(j.series || {}).map(x => x.err).filter(Boolean)[0] || 'keine Daten'); return j; } },
 );
-Object.assign(HEVMAP, { xflow: ['cbprem', 'cbimb', 'allimb', 'hlimb'], bg: ['sthgap', 'sopr'] });
+Object.assign(HEVMAP, { bg: ['sthgap', 'sopr'] });
 
 /* ----- Ableitung ----- */
 function xSer(q, key) {   // volle, lückenlos aufgenommene Stunden; die laufende Stunde zählt nie mit
   const s = q.series[key], out = []; if (!s) return out;
-  for (let i = 0; i < q.hours - 1; i++) { const ok = s.lv[i] >= XMIN_LV && s.bu[i] != null; out.push({ t: q.t0 + i * q.step, ok, bu: ok ? s.bu[i] : 0, se: ok ? s.se[i] : 0, c: ok ? s.c[i] : null }); }
+  for (let i = 0; i < q.hours - 1; i++) { const ok = s.lv[i] >= XMIN_LV && s.bu[i] != null; out.push({ t: q.t0 + i * q.step, ok, bu: ok ? s.bu[i] : 0, se: ok ? s.se[i] : 0, c: ok ? s.c[i] : null, x: ok && s.x ? s.x.map(a => a[i] || 0) : [0, 0, 0, 0, 0, 0, 0, 0] }); }
   return out;
 }
 function xImb(a, i, w) {   // Ungleichgewicht (Käufer − Verkäufer) / Summe über w Stunden, nur wenn alle Stunden vollständig
@@ -4294,17 +4295,108 @@ const HPLAN = [
   ['Stablecoin-Umlauf, Fear & Greed, Makro (FRED), CNN', 'frei', 'gebaut', 'Makro/CNN über den Server (Browser darf nicht direkt).'],
   ['Gesamt-MVRV und Realized Price', 'frei', 'gebaut', 'Coin Metrics Community.'],
   ['Kostenbasis kurzfristiger Halter (STH), SOPR, NUPL', 'frei, begrenzt', 'gebaut, ungeprüft', 'BGeometrics: 15 Abrufe/Tag. Server holt alle 8 h und merkt es sich auf der Platte. Format erst auf dem echten Server verifizierbar.'],
-  ['Echte Liquidationen (Strom)', 'frei, selbst aufgezeichnet', 'geplant', 'Binance/Bybit senden jede Zwangsliquidation öffentlich. Aufnahme wie beim Handelsstrom; daraus echte Liquidations-Balken statt Schätzung.'],
+  ['Echte Liquidationen + Zonen, CVD nach Ordergröße, Funding/OI aller Börsen', 'frei, selbst aufgezeichnet', 'gebaut', 'Binance, Bybit, OKX senden Zwangsliquidationen öffentlich; Server schneidet mit. Hyperliquid hat keinen öffentlichen Liquidations-Strom.'],
+  ['Absorption', 'ableitbar', 'gebaut', 'Feste Regel aus Delta und Preisbewegung je Stunde. Footprint je Preisstufe folgt mit der Aufnahme von Preisstufen.'],
+  ['Orderbuch-Heatmap (ruhende Liquidität über Zeit)', 'frei, selbst aufgezeichnet', 'geplant', 'Tiefe-Ströme sind frei; der Verlauf muss mitgeschnitten werden (viel Datenmenge, daher verdichtet je Preisstufe).'],
+  ['Optionen: Gamma-Exposure (GEX)', 'frei, ableitbar', 'geplant', 'Deribit veröffentlicht Optionsdaten frei; GEX wird selbst berechnet.'],
+  ['Spot-BTC-ETF-Flüsse', 'frei mit Schlüssel / Scraping', 'offen', 'SoSoValue gibt freie Schlüssel (begrenzt). Bräuchte deine Zustimmung, einen Daten-Schlüssel (kein Börsen-Schlüssel) auf dem Server zu hinterlegen.'],
   ['Liquidations-Heatmap (Preisniveaus)', 'Modell', 'geplant', 'Auch bei CoinGlass ein Modell aus OI und Hebel-Annahmen, kein Messwert. Würde als Modell gekennzeichnet gebaut; Annahmen sichtbar.'],
   ['Jahre an Historie für Fluss-Daten', 'frei', 'geplant', 'data.binance.vision (Bulk-Dateien) für Binance; Prüfung bekäme Jahre statt Wochen.'],
   ['Börsen-Zu-/Abflüsse, Wallet-Zuordnung (CryptoQuant, Glassnode)', 'bezahlt', 'nicht möglich', 'Beruht auf Adress-Zuordnung (Labels), die die Anbieter über Jahre aufgebaut haben. Selbstbau = eigener Bitcoin-Node + Labeling, Wochen Arbeit, hunderte GB. Lohnt nicht.'],
   ['Miner-Flüsse, Fonds-/ETF-Flüsse, Goldman/EPFR', 'bezahlt', 'nicht möglich', 'Bezahlte Forschungs- bzw. Verzeichnis-Daten. Nur über Scraping fragiler Seiten, das deren Bedingungen verbietet.'],
 ];
 function hubPlan(compact) {
-  const cls = c => c === 'gebaut' ? 'up' : /geplant|ungeprüft/.test(c) ? 'warn' : 'dn', rows = HPLAN.filter(r => !compact || !/^gebaut$/.test(r[2]));
+  const cls = c => c === 'gebaut' ? 'up' : /geplant|ungeprüft|offen/.test(c) ? 'warn' : 'dn', rows = HPLAN.filter(r => !compact || !/^gebaut$/.test(r[2]));
   const li = rows.map(r => '<div class="li"><div class="r1"><b>' + E(r[0]) + '</b><span class="sp"></span>' + chip2(r[2], cls(r[2]) === 'up' ? 'up' : cls(r[2]) === 'warn' ? 'warn' : 'dn') + chip2(r[1], '') + '</div><div class="mut sm">' + E(r[3]) + '</div></div>').join('');
   return card(compact ? 'Noch nicht angebunden (ehrlich)' : 'Beschaffungsplan: frei, ableitbar, selbst aufgezeichnet oder wirklich nur bezahlt', li + (compact ? '<p class="mut sm">Vollständige Liste: Source Registry.</p>' : '<p class="mut sm">„Selbst aufgezeichnet“ heißt: es gibt keinen Verlauf zum Nachladen, deshalb schneidet der Server ab Start mit. Je länger er läuft, desto belastbarer wird die Prüfung. Premium-Anbieter haben genau diesen Vorsprung (Archiv + Adress-Zuordnung), nicht bessere Rohdaten.</p>'));
 }
+
+'use strict';
+/* ===== Order-Flow-Merkmale (Feature Store) =====
+   Absorption (aus 1000 h Binance-Kerzen, sofort prüfbar), Wal- gegen Kleinanleger-Fluss, echte Liquidationen + Zonen, Funding/OI über Börsen.
+   Alles aus gemessenen Daten; jede Einstufung ist eine vorab festgelegte Regel, kein Modell, und läuft durch den Evidenz-Check. */
+Object.assign(HEVMAP, { flow: ['spot', 'perp', 'basis', 'absorb'], xflow: ['cbprem', 'cbimb', 'allimb', 'hlimb', 'whale', 'liq', 'fund'] });
+const FABS_W = 168, FABS_Z = 2, FABS_R = 0.25;     // Absorption: |Delta| > 2σ (letzte 7 Tage), Preisbewegung < 0,25σ in Gegenrichtung
+function fDerive() {
+  const S = HUB.s, f = HUB.f, fl = S.flow && S.flow.d, xd = S.xflow && S.xflow.d, FF = HUB.ff = {};
+  /* ---- Absorption ---- */
+  if (fl && fl.length > FABS_W + 50) {
+    const n = fl.length, d = fl.map(x => x.sd + x.pd), r = fl.map((x, i) => i ? Math.log(x.pc / fl[i - 1].pc) : 0), A = new Array(n).fill(0), ev = [];
+    for (let i = FABS_W; i < n; i++) {
+      const dd = d.slice(i - FABS_W, i), rr = r.slice(i - FABS_W, i), md = mean(dd), sd = hStd(dd), sr = hStd(rr), zd = (d[i] - md) / sd, zr = r[i] / sr;
+      A[i] = zd < -FABS_Z && zr > -FABS_R ? 1 : zd > FABS_Z && zr < FABS_R ? -1 : 0; if (A[i]) ev.push({ t: fl[i].t, a: A[i], zd, zr, p: fl[i].pc, i });
+    }
+    FF.abs = A; FF.absEv = ev; let s6 = 0; for (let i = n - 6; i < n; i++) s6 += A[i]; f.absorb = s6; f.absLast = ev.length ? ev[ev.length - 1] : null;
+    const xs = [], ys = []; let next = 0; for (const e of ev) { if (e.i < next || e.i + HEV_H >= n) continue; xs.push(e.a); ys.push(Math.log(fl[e.i + HEV_H].pc / fl[e.i].pc)); next = e.i + HEV_H; }
+    HUB.ev.push(hEv('absorb', 'Absorption (Ereignis)', xs, ys, HEV_H + ' h', HEV_NT));
+  }
+  if (!(xd && xd.q && xd.q.series)) return;
+  const q = xd.q, keys = Object.keys(q.series), A = {}; for (const k of keys) A[k] = xSer(q, k); const n = q.hours - 1, W = HEV_W, ref = A['bn:s'] || [];
+  /* ---- Wal- gegen Kleinanleger-Fluss (Print-Größe ≥ 100 Tsd gegen < 10 Tsd, alle Börsen) ---- */
+  const win = (i, ia, ib) => { let b = 0, s = 0, c = 0; for (const k of keys) { let ok = true, bb = 0, ss = 0; for (let j = i - W + 1; j <= i; j++) { const h = A[k][j]; if (!h || !h.ok) { ok = false; break; } bb += h.x[ia]; ss += h.x[ib]; } if (ok) { b += bb; s += ss; c++; } } return c >= 4 && b + s > 0 ? (b - s) / (b + s) : null; };
+  const wl = [], rt = []; for (let i = W - 1; i < n; i++) { const a = win(i, 4, 5), b = win(i, 0, 1); if (a != null) wl.push([A[keys[0]][i].t, a]); if (b != null) rt.push([A[keys[0]][i].t, b]); }
+  FF.whale = wl; FF.retail = rt; if (wl.length) f.whaleImb = wl[wl.length - 1][1]; if (rt.length) f.retailImb = rt[rt.length - 1][1];
+  /* ---- Liquidationen (Binance, Bybit, OKX) ---- */
+  const lq = []; for (let i = 0; i < n; i++) { let L = 0, Sx = 0, any = false; for (const k of keys) { const h = A[k][i]; if (h && h.ok && q.series[k].liq) { L += h.x[6]; Sx += h.x[7]; any = true; } } if (any) lq.push({ t: q.t0 + i * q.step, L, S: Sx, i }); }
+  FF.liq = lq; const l24 = lq.filter(x => x.t > Date.now() - 864e5); f.liqL24 = l24.reduce((a, x) => a + x.L, 0); f.liqS24 = l24.reduce((a, x) => a + x.S, 0);
+  const px = (() => { for (let i = n - 1; i >= 0; i--) if (ref[i] && ref[i].c) return ref[i].c; return null; })();
+  if (q.liq && q.liq.length && px) {   // Zonen: wo wurde in 7 Tagen tatsächlich liquidiert (0,25-%-Preisstufen)
+    const bw = px * 0.0025, Z = new Map(); for (const e of q.liq) { if (e[0] < Date.now() - 7 * 864e5) continue; const b = Math.round(e[3] / bw); const z = Z.get(b) || { p: b * bw, L: 0, S: 0, n: 0 }; z[e[2]] += e[4]; z.n++; Z.set(b, z); }
+    FF.zones = [...Z.values()].sort((a, b) => (b.L + b.S) - (a.L + a.S)).slice(0, 6).map(z => Object.assign(z, { dist: (z.p / px - 1) * 100 }));
+  }
+  /* ---- Funding / OI über Börsen ---- */
+  const dv = q.deriv || {}, vs = Object.keys(dv), lastOf = a => { for (let i = a.length - 1; i >= 0; i--) if (a[i] != null) return [i, a[i]]; return null; };
+  if (vs.length) {
+    const now = {}; let oiS = 0, frW = 0; for (const v of vs) { const o = lastOf(dv[v].oi), fr = lastOf(dv[v].fr); if (o && fr && o[0] >= q.hours - 3) { now[v] = { oi: o[1], fr: fr[1] }; oiS += o[1]; frW += fr[1] * o[1]; } }
+    FF.dnow = now; if (oiS > 0) { f.oiSum = oiS; f.fundW = frW / oiS; }
+    const fs = [], os = []; for (let i = 0; i < q.hours; i++) { let o = 0, w = 0, c = 0; for (const v of vs) { const a = dv[v].oi[i], b = dv[v].fr[i]; if (a != null && b != null) { o += a; w += a * b; c++; } } if (c === vs.length && o > 0) { fs.push([q.t0 + i * q.step, w / o * 100, i]); os.push([q.t0 + i * q.step, o, i]); } }
+    FF.fund = fs; FF.oi = os; if (os.length > 24) { const a = os[os.length - 1], b = os.find(x => x[0] >= a[0] - 864e5); if (b && b !== a) f.oiChg24 = (a[1] / b[1] - 1) * 100; }
+  }
+  /* ---- Evidenz (Rendite der nächsten 4 h, Binance Spot) ---- */
+  const X = { whale: [], liq: [], fund: [] }, wm = new Map(wl.map(p => [p[0], p[1]])), fm = new Map((FF.fund || []).map(p => [p[0], p[1]]));
+  for (let i = W; i + HEV_H < n; i += HEV_H) {
+    const p0 = ref[i] && ref[i].ok ? ref[i].c : null, p1 = ref[i + HEV_H] && ref[i + HEV_H].ok ? ref[i + HEV_H].c : null; if (!p0 || !p1) continue; const y = Math.log(p1 / p0), t = q.t0 + i * q.step;
+    if (wm.has(t)) X.whale.push([wm.get(t), y]); if (fm.has(t)) X.fund.push([fm.get(t), y]);
+    let L = 0, Sx = 0, ok = true; for (let j = i - W + 1; j <= i && ok; j++) { const h = lq.find(x => x.i === j); if (!h) ok = false; else { L += h.L; Sx += h.S; } } if (ok && L + Sx > 0) X.liq.push([(L - Sx) / (L + Sx), y]);
+  }
+  const add = (id, nm, k) => HUB.ev.push(hEv(id, nm, X[k].map(p => p[0]), X[k].map(p => p[1]), HEV_H + ' h', HEV_NT));
+  add('whale', 'Wal-Fluss (Prints ≥ 100 Tsd, 12 h)', 'whale'); add('liq', 'Liquidationen Long minus Short (12 h)', 'liq'); add('fund', 'Funding (OI-gewichtet, alle Börsen)', 'fund');
+}
+{ const _hd = hubDerive; hubDerive = function () { _hd(); try { fDerive(); } catch (e) { console.error(e); } }; }
+
+/* ----- Ansichten ----- */
+const fXNeed = (ttl, ev) => hPanel('xflow', ttl, ['xflow'], ev, hNeed('xflow'), 'Braucht die Eigenaufnahme auf deinem Server (Source Registry → Börsen im Vergleich).');
+function pAbs() {
+  const FF = HUB.ff || {}, fl = HUB.s.flow && HUB.s.flow.d, f = HUB.f, ttl = 'Absorption · ' + ST.sym; if (!fl || !FF.abs) return hPanel('flow', ttl, ['flow'], ['absorb'], hNeed('flow'), 'Aus den Binance-Kerzen (Spot + Perp).');
+  const w = fl.slice(-336), off = fl.length - w.length, bars = w.map((x, i) => [x.t, FF.abs[off + i]]);
+  const last = FF.absEv.slice(-5).reverse().map(e => kv(new Date(e.t).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit' }) + ' Uhr', (e.a > 0 ? 'Verkäufer absorbiert' : 'Käufer absorbiert') + ' · Δ ' + nf(e.zd, 1) + 'σ, Preis ' + nf(e.zr, 1) + 'σ', e.a > 0 ? 'up' : 'dn')).join('');
+  return hPanel('flow', ttl, ['flow'], ['absorb'], ncHTML('h_absp', 120, specMulti({ lines: [{ n: 'Preis (Perp)', pts: w.map(x => [x.t, x.pc]), col: C.fg }], fmt: v => fusd(v) })) + ncHTML('h_absb', 70, specMulti({ lines: [{ n: 'Absorption: + Verkäufer aufgefangen / − Käufer aufgefangen', pts: bars, bars: true }], base: 0, fmt: v => nf(v, 0) })) +
+    '<div class="best"><b>' + (f.absorb > 0 ? 'Letzte 6 h: Verkaufsdruck wird aufgefangen' : f.absorb < 0 ? 'Letzte 6 h: Kaufdruck wird aufgefangen' : 'Letzte 6 h: keine Absorption') + '</b><div class="mut sm">' + FF.absEv.length + ' Ereignisse in ' + fl.length + ' h.</div></div>' + (last || '') + hEvLine(['absorb']),
+    'Regel (vorab festgelegt): Netto-Taker-Delta Spot+Perp jenseits von 2σ der letzten 7 Tage, aber der Preis bewegt sich weniger als 0,25σ in diese Richtung → passive Gegenseite fängt ab. Stundenbasis; feinere Auflösung (Footprint je Preisstufe) braucht die Eigenaufnahme mit Preisstufen.');
+}
+function pWhale() {
+  const FF = HUB.ff || {}, f = HUB.f, ttl = 'Wal- gegen Kleinanleger-Fluss · ' + ST.sym; if (!FF.whale) return fXNeed(ttl, ['whale']);
+  if (FF.whale.length < 3) return hPanel('xflow', ttl, ['xflow'], ['whale'], '<div class="empty">Sammelt noch (braucht 12 volle Stunden auf mindestens 4 Börsen).</div>', '');
+  return hPanel('xflow', ttl, ['xflow'], ['whale'], ncHTML('h_whale', 160, specMulti({ lines: [{ n: 'Große Prints ≥ 100 Tsd', pts: FF.whale.slice(-336), col: C.acc }, { n: 'Kleine Prints < 10 Tsd', pts: FF.retail.slice(-336), col: C.mute }], base: 0, fmt: v => nf(v * 100, 0) + ' %' })) +
+    '<div class="two">' + kv('Groß, 12 h', pn(f.whaleImb * 100, 0) + ' %', cl(f.whaleImb)) + kv('Klein, 12 h', f.retailImb == null ? '–' : pn(f.retailImb * 100, 0) + ' %', cl(f.retailImb)) + '</div>' + (f.whaleImb != null && f.retailImb != null && xDir(f.whaleImb) && xDir(f.whaleImb) === -xDir(f.retailImb) ? '<div class="best"><b>Große und kleine Händler stehen gegeneinander</b></div>' : '') + hEvLine(['whale']),
+    'Ungleichgewicht der Taker-Prints je Größenklasse über alle aufgenommenen Börsen. Grenze: Börsen zerlegen große Orders teils in viele Prints (besonders Bybit/OKX), daher ist „groß“ eine Untergrenze.');
+}
+function pLiq() {
+  const FF = HUB.ff || {}, f = HUB.f, ttl = 'Liquidationen (echt) · ' + ST.sym; if (!FF.liq) return fXNeed(ttl, ['liq']);
+  const w = FF.liq.slice(-336), z = FF.zones || [];
+  return hPanel('xflow', ttl, ['xflow'], ['liq'], (w.length > 1 ? ncHTML('h_liq', 150, specMulti({ lines: [{ n: 'Shorts liquidiert', pts: w.map(x => [x.t, x.S]), bars: true }, { n: 'Longs liquidiert', pts: w.map(x => [x.t, -x.L]), bars: true }], base: 0, fmt: v => fusd(Math.abs(v)) })) : '<div class="empty">Sammelt noch.</div>') +
+    '<div class="two">' + kv('Longs liquidiert, 24 h', fusd(f.liqL24 || 0), 'dn') + kv('Shorts liquidiert, 24 h', fusd(f.liqS24 || 0), 'up') + '</div>' +
+    (z.length ? '<div class="h4">Zonen mit den meisten Liquidationen (7 Tage)</div><div class="tw"><table class="tbl"><tr><th>Preis</th><th>Abstand</th><th>Longs</th><th>Shorts</th><th>Anzahl</th></tr>' + z.map(x => '<tr><td>' + fusd(x.p) + '</td><td class="' + cl(x.dist) + '">' + pn(x.dist, 2) + ' %</td><td>' + fusd(x.L) + '</td><td>' + fusd(x.S) + '</td><td>' + x.n + '</td></tr>').join('') + '</table></div>' : '') + hEvLine(['liq']),
+    'Echte Zwangsliquidationen aus den öffentlichen Strömen von Binance, Bybit und OKX (Hyperliquid veröffentlicht sie nicht als Strom). Binance meldet höchstens eine je Sekunde und Symbol → Untergrenze. Das sind vergangene Ereignisse; eine Vorhersage-Heatmap wäre ein Modell und ist noch nicht gebaut.');
+}
+function pDeriv() {
+  const FF = HUB.ff || {}, f = HUB.f, ttl = 'Funding & Open Interest über Börsen · ' + ST.sym; if (!FF.dnow) return fXNeed(ttl, ['fund']);
+  const xd = HUB.s.xflow.d, dv = xd.q.deriv || {}, rows = Object.keys(dv).map(v => { const o = FF.dnow[v]; return '<tr><td>' + E(dv[v].name) + '</td><td class="' + (o ? cl(o.fr) : '') + '">' + (o ? pn(o.fr * 100, 4) + ' %' : '–') + '</td><td>' + (o ? fusd(o.oi) : '–') + '</td><td class="mut">' + E(dv[v].err || '') + '</td></tr>'; }).join('');
+  return hPanel('xflow', ttl, ['xflow'], ['fund'], (FF.fund && FF.fund.length > 2 ? ncHTML('h_fund', 110, specMulti({ lines: [{ n: 'Funding OI-gewichtet (% je 8 h)', pts: FF.fund.slice(-336), col: C.warn }], base: 0, fmt: v => nf(v, 4) })) + ncHTML('h_oi', 110, specMulti({ lines: [{ n: 'Open Interest gesamt', pts: FF.oi.slice(-336), col: C.acc }], fmt: v => fusd(v) })) : '') +
+    '<div class="tw"><table class="tbl"><tr><th>Börse</th><th>Funding (8 h)</th><th>Open Interest</th><th></th></tr>' + rows + '</table></div><div class="two">' + kv('Funding gewichtet', f.fundW == null ? '–' : pn(f.fundW * 100, 4) + ' %', cl(f.fundW)) + kv('OI gesamt', f.oiSum == null ? '–' : fusd(f.oiSum)) + kv('OI-Änderung 24 h', f.oiChg24 == null ? 'sammelt' : pn(f.oiChg24, 1) + ' %', cl(f.oiChg24)) + '</div>' + hEvLine(['fund']),
+    'Alle 15 min vom Server abgefragt. Hyperliquid zahlt stündlich; hier × 8 auf die übliche 8-Stunden-Basis umgerechnet.');
+}
+HPAN.push(['flow', pAbs, ['absorb']], ['xflow', pWhale, ['whale']], ['xflow', pLiq, ['liq']], ['xflow', pDeriv, ['fund']]);
 
 'use strict';
 /* ===== Pro-Oberfläche (umschaltbar gegen „Klassisch“) =====
