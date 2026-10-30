@@ -85,3 +85,10 @@ Alles Papier-Handel gegen echte Live-Kurse. `LIVE_TRADING = false`. Keine Zugang
 ## Daten-Hub (Modul 06)
 
 Freie, öffentliche Quellen (Binance Spot/Perp, Fear & Greed, Coin Metrics, DefiLlama; über den eigenen Server: FRED-Makro, CNN). Jedes Merkmal wird gegen die Kursentwicklung danach geprüft (Evidenz-Check, vorab festgelegter Horizont, Mehrfachtest-Korrektur); ohne Beleg beeinflusst es keine Entscheidung. Nicht angebunden (ehrlich): bezahlte On-Chain-Varianten, Fondsflüsse, CVD je Fremdbörse, ETF-Flüsse, Nachrichten.
+
+## Order-Flow-Pipeline (Server-Recorder) und Setups – Stand 30.10.2026
+- **Data Plane (Server, `server/rec.js`)**: öffentliche WebSocket-Ströme Binance Spot/Perp, Bybit Spot/Perp, OKX Spot/Swap, Coinbase Spot, Hyperliquid Perp (BTC, ETH, SOL). Je Minute: Taker-Kauf/-Verkauf, nach Print-Größe (< 10 Tsd, < 100 Tsd, ≥ 100 Tsd), OHLC, echte Liquidationen (Binance, Bybit, OKX) + Einzel-Ereignisse mit Preis. Funding/OI aller 4 Perp-Börsen alle 15 min. Minuten 2 Tage, danach Stunden (bleibt). Lücken bleiben Lücken. `/api/rec`.
+- **Feature Store (Client, `hubx.js`, `hubf.js`)**: Ungleichgewicht je Börse, Coinbase-Aufschlag, Wal- gegen Kleinanleger-Fluss, Liquidationen + Zonen (7 Tage), Funding OI-gewichtet, OI-Änderung, Absorption (Binance-Kerzen, 1000 h), STH-Kostenbasis/SOPR/NUPL (BGeometrics über Server, 8 h Cache, Format ungeprüft). Evidenz-Check mit Mehrfachtest-Korrektur für 18 Prüfungen (z 3,0).
+- **Decision Engine (`nx_setup.js`)**: 4 Setups als Hypothesen – Absorption-Umkehr, Squeeze, Fragile Bewegung, STH-Rückeroberung (nur BTC, Swing 72 h). Varianten = Stufen: locker (Auslöser) · standard (+ Orderflow) · streng (+ Regime/On-Chain + Risiko Funding/OI). Vorwärtstest mit eigener Haltedauer.
+- **Lagebild** (Command Center, Daten-Hub, Trader-Cockpit): gemessene Lage mit Evidenz-Chip, Status jedes Setups je Stufe inkl. Blockaden, „Was am wahrscheinlichsten funktioniert“ nur aus belegten Kandidaten.
+- **Offen**: Orderbuch-Heatmap-Aufnahme, Footprint je Preisstufe, Deribit-GEX, Rückfüllung (data.binance.vision), ETF-Flüsse (Schlüssel nötig), Vorhersage-Liquidations-Heatmap (Modell).

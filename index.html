@@ -982,7 +982,7 @@ function marketCtx() {
   o.fund = D.stats.fund8; o.basis = D.stats.index && D.stats.mark ? (D.stats.mark / D.stats.index - 1) * 100 : null;
   const oi = D.oi; if (oi.length > 3) { const tgt = now - 3600e3; let b = oi[0]; for (const x of oi) { if (x.t <= tgt) b = x; else break; } o.oi1h = b.t <= tgt + 600e3 && b.v ? (oi[oi.length - 1].v / b.v - 1) * 100 : null; }
   const bs = bookStats(0.0025); if (bs) { o.imb = bs.a > 0 ? bs.b / bs.a : null; o.spreadBp = bs.spreadBp; }
-  if (typeof hubFeat === 'function') { const h = hubFeat(); if (h && h.lead) o.hub = { lead: h.lead, fng: h.fng, spxVs: h.spxVs, basisZ: h.basisZ }; }
+  if (typeof hubFeat === 'function') { const h = hubFeat(); if (h && h.lead) o.hub = { lead: h.lead, fng: h.fng, spxVs: h.spxVs, basisZ: h.basisZ, x: h.xtxt, absorb: h.absorb, whale: h.whaleImb, fundW: h.fundW, vsSth: h.vsSth }; }
   o.regime = o.trend + ' / ' + o.vol; ctxC = { t: now, v: o }; return o;
 }
 
@@ -1038,8 +1038,8 @@ function algoCfg(id) { return NX.algos[id] || (NX.algos[id] = { on: true, trade:
 const RUN = { ct: {}, cool: {}, bk: [], lastBk: 0, last60: 0, lastBkRun: 0 };
 
 function mkSignal(a, vn, r, ctx, manual) {
-  const px = D.last.p, side = r.side, dir = sgn(side), buf = manual ? 0 : (a.id === 'fund' ? 0 : 0.3 * ctx.atr);
-  let stop = r.ext - dir * buf; const dist = Math.abs(px - stop); if (!manual && (dist < 0.25 * ctx.atr || dist > 6 * ctx.atr)) return null; if (dist <= 0) return null;
+  const px = D.last.p, side = r.side, dir = sgn(side), buf = manual ? 0 : (a.id === 'fund' || a.htf ? 0 : 0.3 * ctx.atr);
+  let stop = r.ext - dir * buf; const dist = Math.abs(px - stop); if (!manual && (dist < 0.25 * ctx.atr || dist > (a.maxAtr || 6) * ctx.atr)) return null; if (dist <= 0) return null;
   let target = r.tgt != null && (r.tgt - px) * dir >= dist ? r.tgt : px + dir * dist * 1.5;
   return { id: nid('S'), t: Date.now(), k: nxKey(), sym: ST.sym, src: ST.src, tf: ST.tf, algo: a.id, variant: vn, side, px, stop, target, rr: Math.abs(target - px) / dist, atr: ctx.atr || 0, why: r.why || [], reg: ctx.regime || '', st: 'open', h: {}, out: '', R: null, mfe: 0, mae: 0, last: Date.now(), manual: !!manual };
 }
@@ -1067,13 +1067,13 @@ function netR(sig, exitPx) { const dir = sgn(sig.side), dist = Math.abs(sig.px -
 function trackSignals() {
   const now = Date.now();
   for (const s of NX.signals) {
-    if (s.st !== 'open') continue; const age = now - s.t; if (age > 90 * 60e3 && s.k !== nxKey()) { s.st = 'expired'; continue; } if (s.k !== nxKey()) continue;
+    if (s.st !== 'open') continue; const age = now - s.t, hold = (algoOf(s.algo) || {}).hold || 60 * 60e3; if (age > Math.max(90 * 60e3, hold + 30 * 60e3) && s.k !== nxKey()) { s.st = 'expired'; continue; } if (s.k !== nxKey()) continue;
     const rg = rangeSince(s.last), p = D.last.p; s.last = now; const dir = sgn(s.side), dist = Math.abs(s.px - s.stop);
     if (rg) { const fav = dir > 0 ? rg.hi - s.px : s.px - rg.lo, adv = dir > 0 ? s.px - rg.lo : rg.hi - s.px; s.mfe = Math.max(s.mfe, fav / dist); s.mae = Math.max(s.mae, adv / dist);
       const hitS = dir > 0 ? rg.lo <= s.stop : rg.hi >= s.stop, hitT = dir > 0 ? rg.hi >= s.target : rg.lo <= s.target;
       if (hitS) { s.out = 'S'; s.R = netR(s, s.stop); } else if (hitT) { s.out = 'T'; s.R = netR(s, s.target); } }
     for (const [hk, m] of [['m5', 5], ['m15', 15], ['m60', 60]]) if (s.h[hk] == null && age >= m * 60e3 && age < (m + 3) * 60e3) s.h[hk] = (dir * (p / s.px - 1)) * 1e4 - costBpOf(s.src);
-    if (!s.out && age >= 60 * 60e3) { s.out = 'Z'; s.R = netR(s, p); }
+    if (!s.out && age >= hold) { s.out = 'Z'; s.R = netR(s, p); }
     if (s.out) { s.st = 'done'; emit('signal.evaluated', { id: s.id, out: s.out, R: +s.R.toFixed(2) }, s.id); }
   }
 }
@@ -3012,7 +3012,7 @@ document.addEventListener('click', e => {
 
 'use strict';
 /* ===== NEXUS Block 6a: 14 Backup & Wiederherstellung · 17 Deployment/Version ===== */
-const BUILD_T = 1793348107089;
+const BUILD_T = 1793348468816;
 NX.bk = NX.bk || { lastExport: 0, lastSnap: 0, rpoH: 24, drills: [], exports: [], snapMade: 0 };
 const BK = { snaps: null, val: null, busy: '', ver: null, st: null };
 const BK_KEY = 'nexus_bk', BK_KEEP = 3;
@@ -4321,7 +4321,8 @@ function fDerive() {
   const S = HUB.s, f = HUB.f, fl = S.flow && S.flow.d, xd = S.xflow && S.xflow.d, FF = HUB.ff = {};
   /* ---- Absorption ---- */
   if (fl && fl.length > FABS_W + 50) {
-    const n = fl.length, d = fl.map(x => x.sd + x.pd), r = fl.map((x, i) => i ? Math.log(x.pc / fl[i - 1].pc) : 0), A = new Array(n).fill(0), ev = [];
+    const n = fl[fl.length - 1].t + 3600e3 > Date.now() ? fl.length - 1 : fl.length;   // laufende Stunde nie werten
+    const n0 = fl.length, d = fl.map(x => x.sd + x.pd), r = fl.map((x, i) => i ? Math.log(x.pc / fl[i - 1].pc) : 0), A = new Array(n0).fill(0), ev = [];
     for (let i = FABS_W; i < n; i++) {
       const dd = d.slice(i - FABS_W, i), rr = r.slice(i - FABS_W, i), md = mean(dd), sd = hStd(dd), sr = hStd(rr), zd = (d[i] - md) / sd, zr = r[i] / sr;
       A[i] = zd < -FABS_Z && zr > -FABS_R ? 1 : zd > FABS_Z && zr < FABS_R ? -1 : 0; if (A[i]) ev.push({ t: fl[i].t, a: A[i], zd, zr, p: fl[i].pc, i });
@@ -4397,6 +4398,127 @@ function pDeriv() {
     'Alle 15 min vom Server abgefragt. Hyperliquid zahlt stündlich; hier × 8 auf die übliche 8-Stunden-Basis umgerechnet.');
 }
 HPAN.push(['flow', pAbs, ['absorb']], ['xflow', pWhale, ['whale']], ['xflow', pLiq, ['liq']], ['xflow', pDeriv, ['fund']]);
+
+'use strict';
+/* ===== Setups aus Order-Flow + Kontext (Decision Engine) und Lagebild =====
+   Aufbau wie ein Order-Flow-Desk: TRIGGER → FILTER (Orderflow-Bestätigung) → REGIME (Makro, On-Chain) → RISIKO (Funding/OI).
+   Die drei Varianten sind genau diese Stufen: locker = nur Trigger · standard = + Orderflow-Bestätigung · streng = + Regime + Risiko.
+   Die Regeln stammen aus Praxis-Erfahrung (Absorption, Squeeze, fragile Bewegung, STH-Reclaim). Sie sind HYPOTHESEN:
+   jedes Signal wird vorwärts auf echten Kursen ausgewertet; gehandelt wird nur über die bestehenden Freigabe- und Risiko-Stufen. */
+const HS_FUND = 0.05;      // % je 8 h: ab hier gilt Funding als überhitzt (Risiko-Stufe)
+const HS_OI24 = 8;         // %: OI-Anstieg in 24 h, ab dem keine neue Position eröffnet wird (Risiko-Stufe)
+const hsAtrH = ctx => ctx.atr && D.tfMs ? ctx.atr * Math.sqrt(3600e3 / D.tfMs) : null;   // Näherung Stunden-ATR aus dem Chart-Zeitrahmen
+const hsFresh = id => { const st = HUB.s[id]; return !!(st && st.d && (!HSRC.find(s => s.id === id).sym || st.key === ST.sym)); };
+const hsFund = (f, ctx) => f.fundW != null ? f.fundW * 100 : ctx.fund;   // % je 8 h, OI-gewichtet über Börsen, sonst Binance
+/* Filter je Stufe. Gibt Liste der Blockaden zurück (leer = frei) und Notizen. */
+function hsFilter(side, lvl, f, ctx) {
+  const L = side === 'long', bl = [], ok = [];
+  if (lvl >= 1) {
+    if (f.zSpot != null) { if (L ? f.zSpot < -0.5 : f.zSpot > 0.5) bl.push('Spot-Fluss dagegen (z ' + nf(f.zSpot, 1) + ')'); else ok.push('Spot-Fluss nicht dagegen'); }
+    if (ctx.cvd12 != null) { if (L ? ctx.cvd12 < 0 : ctx.cvd12 > 0) bl.push('CVD im Chart dreht nicht'); else ok.push('CVD im Chart bestätigt'); }
+  }
+  if (lvl >= 2) {
+    if (f.spxVs != null && f.vix != null && L && f.spxVs < 0 && f.vix > 25) bl.push('Makro risk-off (S&P unter 125-Tage-Schnitt, VIX ' + nf(f.vix, 0) + ')');
+    if (L && f.vsSth != null && ST.sym === 'BTC') { if (f.vsSth < 0) bl.push('Preis unter Kostenbasis kurzfristiger Halter (' + pn(f.vsSth, 1) + ' %)'); else ok.push('über STH-Kostenbasis'); }
+    const fu = hsFund(f, ctx); if (fu != null && (L ? fu > HS_FUND : fu < -HS_FUND)) bl.push('Funding überhitzt in Trade-Richtung (' + nf(fu, 3) + ' %)');
+    if (f.oiChg24 != null && f.oiChg24 > HS_OI24) bl.push('OI +' + nf(f.oiChg24, 1) + ' % in 24 h (zu viel Hebel)');
+  }
+  return { bl, ok };
+}
+/* Trigger: liefern {side, why, ext, tgt} oder {none: Begründung}. Nur geschlossene Stunden. */
+const HSET = {
+  h_abs: {
+    name: 'Absorption-Umkehr', hz: 'Intraday', hold: 4 * 3600e3, cool: 240 * 60e3,
+    hyp: 'Starker aggressiver Druck, den der Preis nicht umsetzt (Absorption), zeigt passive Gegenseite: der Preis dreht danach eher in deren Richtung.',
+    trig(f, ctx) {
+      if (!hsFresh('flow') || !HUB.ff || !HUB.ff.absEv) return { none: 'Orderflow-Daten fehlen' }; const e = f.absLast, fl = HUB.s.flow.d, lastClosed = fl[fl.length - 1].t + 3600e3 > Date.now() ? fl[fl.length - 2].t : fl[fl.length - 1].t;
+      if (!e || e.t !== lastClosed) return { none: 'keine Absorption in der letzten vollen Stunde' + (e ? ' (letzte ' + ago(e.t + 3600e3) + ')' : '') };
+      return { side: e.a > 0 ? 'long' : 'short', why: [(e.a > 0 ? 'Verkaufsdruck' : 'Kaufdruck') + ' ' + nf(Math.abs(e.zd), 1) + 'σ, Preis nur ' + nf(e.zr, 1) + 'σ bewegt → aufgefangen'] };
+    } },
+  h_sqz: {
+    name: 'Squeeze (überfüllte Seite)', hz: 'Intraday', hold: 4 * 3600e3, cool: 240 * 60e3,
+    hyp: 'Werden über Stunden vor allem neue Shorts eröffnet, während der Spot-Fluss kauft und Funding nicht positiv ist, wird die Short-Seite eher ausgepresst (umgekehrt für Longs).',
+    trig(f, ctx) {
+      if (!hsFresh('beh') || !hsFresh('flow')) return { none: 'Positionierungs-Daten fehlen' }; const rows = HUB.s.beh.d.slice(-6), sum = {}; for (const r of rows) sum[r.cls] = (sum[r.cls] || 0) + Math.abs(r.dOI);
+      const fu = hsFund(f, ctx), so = sum.SO || 0, lo = sum.LO || 0;
+      if (so > 1.5 * lo && so > (sum.LC || 0) && f.zSpot > 0.5 && (fu == null || fu <= 0.01)) return { side: 'long', why: ['6 h: Shorts eröffnet ' + fusd(so) + ' gegen Longs ' + fusd(lo), 'Spot-Fluss kauft (z ' + nf(f.zSpot, 1) + ')', 'Funding ' + (fu == null ? '–' : nf(fu, 4) + ' %')] };
+      if (lo > 1.5 * so && lo > (sum.SC || 0) && f.zSpot < -0.5 && (fu == null || fu >= -0.01)) return { side: 'short', why: ['6 h: Longs eröffnet ' + fusd(lo) + ' gegen Shorts ' + fusd(so), 'Spot-Fluss verkauft (z ' + nf(f.zSpot, 1) + ')', 'Funding ' + (fu == null ? '–' : nf(fu, 4) + ' %')] };
+      return { none: 'keine einseitig überfüllte Seite mit Spot-Gegendruck' };
+    } },
+  h_frag: {
+    name: 'Fragile Bewegung (nur Hebel)', hz: 'Intraday', hold: 4 * 3600e3, cool: 240 * 60e3,
+    hyp: 'Steigt der Preis nur durch Perp-Käufe, während Spot verkauft, fehlt echte Nachfrage – die Bewegung läuft eher zurück (umgekehrt beim Fallen).',
+    trig(f, ctx) {
+      if (!hsFresh('flow')) return { none: 'Orderflow-Daten fehlen' }; const fl = HUB.s.flow.d, n = fl.length - (fl[fl.length - 1].t + 3600e3 > Date.now() ? 1 : 0); if (n < 13) return { none: 'zu wenig Verlauf' };
+      const mv = (fl[n - 1].pc / fl[n - 13].pc - 1) * 100, atrP = (hsAtrH(ctx) || 0) / ctx.px * 100 * Math.sqrt(12);
+      if (!atrP) return { none: 'ATR fehlt' };
+      if (mv > atrP && f.zPerp > 0.5 && f.zSpot < -0.5) return { side: 'short', why: ['12 h +' + nf(mv, 2) + ' % (> ' + nf(atrP, 2) + ' % übliche Bewegung)', 'Perp kauft (z ' + nf(f.zPerp, 1) + '), Spot verkauft (z ' + nf(f.zSpot, 1) + ')'] };
+      if (mv < -atrP && f.zPerp < -0.5 && f.zSpot > 0.5) return { side: 'long', why: ['12 h ' + nf(mv, 2) + ' % (> ' + nf(atrP, 2) + ' % übliche Bewegung)', 'Perp verkauft (z ' + nf(f.zPerp, 1) + '), Spot kauft (z ' + nf(f.zSpot, 1) + ')'] };
+      return { none: 'Bewegung ' + pn(mv, 2) + ' % in 12 h, nicht einseitig über Hebel' };
+    } },
+  h_sth: {
+    name: 'STH-Kostenbasis Rückeroberung', hz: 'Swing', hold: 72 * 3600e3, cool: 24 * 3600e3, btc: true,
+    hyp: 'Erobert Bitcoin die Kostenbasis der kurzfristigen Halter zurück (nach Tagesschluss darunter), wechseln diese von Verlust zu Gewinn – Verkaufsdruck lässt nach (umgekehrt beim Verlust der Linie).',
+    trig(f, ctx) {
+      if (ST.sym !== 'BTC') return { none: 'nur Bitcoin' }; const bg = HUB.s.bg && HUB.s.bg.d, ch = HUB.s.chain && HUB.s.chain.d; if (!bg || !ch || !f.sthRp) return { none: 'On-Chain-Daten fehlen (Server)' };
+      const prev = ch[ch.length - 1].p, rp = f.sthRp, p = ctx.px;
+      if (prev < rp && p > rp * 1.003) return { side: 'long', ext: rp * 0.985, why: ['Tagesschluss ' + fusd(prev) + ' unter STH-Kostenbasis ' + fusd(rp) + ', jetzt ' + fusd(p) + ' darüber'] };
+      if (prev > rp && p < rp * 0.997) return { side: 'short', ext: rp * 1.015, why: ['Tagesschluss ' + fusd(prev) + ' über STH-Kostenbasis ' + fusd(rp) + ', jetzt ' + fusd(p) + ' darunter'] };
+      return { none: 'Preis ' + pn((p / rp - 1) * 100, 1) + ' % zur STH-Kostenbasis, kein Wechsel' };
+    } },
+};
+/* Bewertung je Stufe – für Engine und Lagebild gleich */
+function hsEval(id, lvl, ctx) {
+  const S = HSET[id], f = HUB.f || {}; if (!ctx || ctx.px == null || ctx.atr == null) return { none: 'Markt-Daten fehlen' };
+  const t = S.trig(f, ctx); if (!t.side) return t; const fl = hsFilter(t.side, lvl, f, ctx), atrH = hsAtrH(ctx), dir = sgn(t.side);
+  const ext = t.ext != null ? t.ext : ctx.px - dir * 1.5 * atrH, dist = Math.abs(ctx.px - ext);
+  return Object.assign({}, t, { ext, tgt: ctx.px + dir * 2 * dist, blocked: fl.bl, conf: fl.ok, why: t.why.concat(fl.ok.length ? ['Filter: ' + fl.ok.join(', ')] : []) });
+}
+for (const [id, S] of Object.entries(HSET)) ALGOS.push({
+  id, name: S.name, kind: 'timer60', cool: S.cool, hold: S.hold, htf: true, maxAtr: Infinity, hz: S.hz, hub: true, hyp: S.hyp,
+  falsif: 'Verworfen, wenn nach ≥ 30 ausgewerteten Signalen die Netto-Erwartung ≤ 0 R ist. Haltedauer ' + dur(S.hold) + '.',
+  params: { locker: { lvl: 0 }, standard: { lvl: 1 }, streng: { lvl: 2 } }, pdesc: p => ['nur Auslöser', 'Auslöser + Orderflow-Bestätigung', 'Auslöser + Orderflow + Regime/On-Chain + Risiko (Funding/OI)'][p.lvl],
+  run(C, p, ctx) { const r = hsEval(id, p.lvl, ctx); return r.side && !r.blocked.length ? r : null; },
+});
+
+/* ===== Lagebild: was das System jetzt sieht, was es testet, was belegt ist ===== */
+function lageBest() {
+  const kand = []; for (const a of ALGOS) for (const v of VARS) { const st = algoStats(a.id, v), vd = algoVerdict(st); if (vd.k === 'kand') kand.push({ a, v, st }); }
+  kand.sort((x, y) => y.st.lo - x.st.lo);
+  return kand.length ? kand.slice(0, 4).map(k => kv(E(k.a.name) + ' · ' + k.v + ' <span class="mut">(' + HZ_OF(k.a) + ')</span>', 'Ø ' + pn(k.st.avg, 2) + ' R · konservativ ' + pn(k.st.lo, 2) + ' R · n ' + k.st.n, 'up')).join('') :
+    '<div class="best"><b class="warn">Noch kein Setup mit belegtem Vorteil</b><div class="mut sm">Alle Setups laufen im Vorwärtstest auf Papier. Gehandelt wird erst, wenn eines seinen Vorteil an echten Folgekursen gezeigt hat (≥ 20 Signale, untere Grenze &gt; 0 R) – und dann nur über deine Freigabe-Stufe.</div></div>';
+}
+const HZ_OF = a => a.hz || (a.kind === 'timer60' ? 'Intraday' : 'Scalping');
+function lageFacts() {
+  const f = HUB.f || {}, out = [], ev = id => hEvBest([id]);
+  if (f.lead) out.push([f.lead, 'Binance Spot gegen Perp, 12 h', ev('spot')]);
+  if (f.xtxt) out.push([f.xtxt, 'alle Börsen, 12 h' + (f.cbPrem != null ? ' · Coinbase-Aufschlag ' + nf(f.cbPrem, 1) + ' bp' : ''), hEvBest(['allimb', 'cbprem', 'cbimb'])]);
+  if (f.absorb) out.push([f.absorb > 0 ? 'Verkaufsdruck wird aufgefangen' : 'Kaufdruck wird aufgefangen', 'Absorption, letzte 6 h', ev('absorb')]);
+  if (f.whaleImb != null) out.push(['Große Prints ' + (xDir(f.whaleImb) > 0 ? 'kaufen' : xDir(f.whaleImb) < 0 ? 'verkaufen' : 'ausgeglichen') + (f.retailImb != null && xDir(f.retailImb) && xDir(f.retailImb) === -xDir(f.whaleImb) ? ', kleine dagegen' : ''), 'Ordergrößen, 12 h', ev('whale')]);
+  if (f.liqL24 != null && (f.liqL24 || f.liqS24)) out.push([(f.liqL24 > f.liqS24 ? 'Longs' : 'Shorts') + ' werden mehr liquidiert', fusd(f.liqL24) + ' Longs · ' + fusd(f.liqS24) + ' Shorts in 24 h', ev('liq')]);
+  if (f.behTop) out.push([HCLS[f.behTop][0] + ' dominiert', 'OI × Preis, 24 h', ev('pos')]);
+  const fu = f.fundW != null ? f.fundW * 100 : null; if (fu != null) out.push(['Funding ' + (Math.abs(fu) > HS_FUND ? 'überhitzt' : 'normal') + ' (' + nf(fu, 4) + ' %)' + (f.oiChg24 != null ? ', OI ' + pn(f.oiChg24, 1) + ' % in 24 h' : ''), 'OI-gewichtet über Börsen', ev('fund')]);
+  if (f.vsSth != null) out.push(['Preis ' + (f.vsSth >= 0 ? 'über' : 'unter') + ' Kostenbasis kurzfristiger Halter (' + pn(f.vsSth, 1) + ' %)', 'On-Chain, täglich', ev('sthgap')]);
+  if (f.spxVs != null) out.push(['Aktien ' + (f.spxVs >= 0 ? 'über' : 'unter') + ' 125-Tage-Schnitt' + (f.vix != null ? ', VIX ' + nf(f.vix, 0) : ''), 'Makro (FRED)', null]);
+  return out;
+}
+function vLage(compact) {
+  const ctx = marketCtx(), facts = lageFacts();
+  const setRows = Object.keys(HSET).map(id => { const a = algoOf(id), c = algoCfg(id), r = [0, 1, 2].map(l => hsEval(id, l, ctx)), st = algoStats(id, c.tv), vd = algoVerdict(st), top = r[2].side && !r[2].blocked.length ? 2 : r[1].side && !r[1].blocked.length ? 1 : r[0].side ? 0 : -1;
+    const state = top < 0 ? '<span class="mut">' + E(r[0].none || '–') + '</span>' : '<b class="' + (r[0].side === 'long' ? 'up' : 'dn') + '">' + (r[0].side === 'long' ? 'Long' : 'Short') + ' ausgelöst</b> · ' + ['nur Auslöser', 'mit Orderflow-Bestätigung', 'alle Filter frei'][top] + (top < 2 && r[2].blocked && r[2].blocked.length ? '<div class="mut sm">Blockiert: ' + E(r[2].blocked.join(' · ')) + '</div>' : '');
+    return '<div class="li"><div class="r1"><b>' + E(a.name) + '</b><span class="sp"></span>' + chip2(HZ_OF(a), '') + chip2(vd.t.split(' (')[0] + (st.n ? ' · n ' + st.n : ''), vd.c) + '</div><div class="sm">' + state + '</div></div>'; }).join('');
+  const best = lageBest();
+  const fRows = facts.length ? facts.map(x => '<div class="li"><div class="r1"><b>' + E(x[0]) + '</b><span class="sp"></span>' + (x[2] ? hEvChip(x[2]) : chip2('nur Kontext', '')) + '</div><div class="mut sm">' + E(x[1]) + '</div></div>').join('') : empty('Daten-Hub lädt noch …');
+  const head = '<div class="two">' + kv('Markt', E(ST.sym) + ' · ' + E(ctx.regime || '–')) + kv('Quellen aktuell', HSRC.filter(s => HSTATE(s.id)[0] === 'ok').length + ' / ' + HSRC.length) + '</div>';
+  return card('Lagebild · was das System jetzt sieht', head + fRows + '<p class="mut sm">Nur gemessene Werte. Der Chip zeigt, ob das Merkmal in der Vergangenheit die Kursrichtung danach vorhergesagt hat (Evidenz-Check, Modul 06).</p>') +
+    card('Setups jetzt (Auslöser → Orderflow → Regime → Risiko)', setRows + '<p class="mut sm">Jedes Setup läuft in drei Stufen parallel (locker / standard / streng) und wird vorwärts ausgewertet. Ausgelöste Signale erscheinen als Dreiecke im Chart.</p>') +
+    (compact ? '' : card('Was am wahrscheinlichsten funktioniert', best));
+}
+(() => {
+  const p0 = PANELS['00']['NEXUS Intelligence Overview / Command Center']; PANELS['00']['NEXUS Intelligence Overview / Command Center'] = () => vLage(false) + p0();
+  const h0 = PANELS['06']['Evidence Hub']; PANELS['06']['Evidence Hub'] = () => vLage(true) + h0();
+  const c3 = PANELS['03'] && PANELS['03']['Cockpit']; if (c3) PANELS['03']['Cockpit'] = () => card('Was am wahrscheinlichsten funktioniert', lageBest() + '<div class="row">' + btnA('go:00', 'Lagebild ›') + '</div>') + c3();
+})();
 
 'use strict';
 /* ===== Pro-Oberfläche (umschaltbar gegen „Klassisch“) =====
