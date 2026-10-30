@@ -203,6 +203,22 @@ body.pro .btn.upb:hover{border-color:var(--accln)}
 .lgR{flex:1.2;min-width:0;display:flex;flex-direction:column;gap:2px;font-size:11.5px;text-align:right;align-items:flex-end}.lgR span{color:var(--mute)}
 .lgFoot{margin:12px 2px 0}
 @media (min-width:700px){.tiles{grid-template-columns:repeat(4,1fr)}}
+/* Tippflächen ≥ 44 px (Handy) */
+body.pro #nxTabs{padding:6px 10px;gap:6px}body.pro .tb{min-height:36px;padding:8px 14px;font-size:12.5px;border-radius:18px;position:relative}
+body.pro .tb::after,body.pro #pst button::after,body.pro .btn.sm::after{content:'';position:absolute;inset:-5px 0}
+body.pro #nxBody .btn{min-height:40px;padding:0 14px;font-size:12.5px;position:relative}body.pro #nxBody .btn.sm{min-height:36px}
+body.pro #pst button{min-height:36px;position:relative}
+body.pro .pchip,body.pro .ptab{height:40px}.ptog{min-width:56px;height:40px;border-radius:20px}.pbtn{width:44px;height:44px}
+.ptabs{flex-wrap:wrap}
+/* Gefahren-Zone */
+.dzone{display:flex;flex-direction:column;gap:8px;margin-top:10px;padding:10px;border:1px solid rgba(255,90,107,.35);border-radius:10px;background:rgba(255,90,107,.05)}
+.dzh{font-size:10px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--dn)}
+.btn.danger{width:100%;min-height:48px!important;background:var(--dn);border-color:var(--dn);color:#fff;font-weight:600;font-size:13.5px}.btn.danger.ghost{background:transparent;color:var(--dn)}
+/* Labor kompakt */
+.lt{padding:10px 0;border-bottom:1px solid var(--line)}.lt:last-of-type{border-bottom:0}.ltH{display:flex;align-items:center;gap:8px;justify-content:space-between}.ltH b{font-size:13.5px}
+.ltV{display:flex;flex-direction:column;gap:5px;margin-top:7px}.ltB{display:grid;grid-template-columns:112px 1fr;grid-template-rows:auto auto;column-gap:10px;align-items:center}
+.ltB span{font-size:11.5px;color:var(--mute)}.ltB.tr span{color:var(--acc)}.ltB i{height:6px;background:var(--line);border-radius:3px;overflow:hidden;display:block}.ltB i em{display:block;height:100%;background:var(--acc)}
+.ltB small{grid-column:2;font:500 10.5px var(--mono);color:var(--faint)}
 
 </style></head><body>
 <div id="app">
@@ -1544,8 +1560,8 @@ function renderNx(force) {
   if (NXV.cur === 'more') { $('#nxHead').innerHTML = '<div class="mh"><h2>Alle Module</h2></div>'; $('#nxTabs').innerHTML = ''; body.innerHTML = vMore(); }
   else {
     const m = modOf(NXV.cur); if (!m) { go('more'); return; } const P = PANELS[m.id], implNames = IMPL[m.id] || [], cur = NXV.tab[m.id] != null ? NXV.tab[m.id] : 0, sec = m.s[cur] || m.s[0], fn = P && P[sec];
-    $('#nxHead').innerHTML = '<div class="mh"><button class="btn sm" data-a="go:more">‹ Module</button><h2><small>' + m.id + '</small> ' + E(m.id === '00' ? 'NEXUS Command Center' : m.n) + '</h2>' + chip2({ live: 'gebaut', part: 'teilweise', spec: 'spezifiziert' }[modState(m)], { live: 'up', part: 'warn', spec: '' }[modState(m)]) + '</div>';
-    $('#nxTabs').innerHTML = m.s.map((s, i) => '<button class="tb' + (i === cur ? ' on' : '') + (implNames.includes(s) ? '' : ' spec') + '" data-a="tab:' + i + '">' + E(s) + '</button>').join('');
+    $('#nxHead').innerHTML = '<div class="mh"><button class="btn sm" data-a="go:more">‹ System</button><h2><small>' + m.id + '</small> ' + E(m.n) + '</h2>' + chip2({ live: 'Ansichten da', part: 'teilweise', spec: 'nur Plan' }[modState(m)], { live: 'up', part: 'warn', spec: '' }[modState(m)]) + '</div>';
+    $('#nxTabs').innerHTML = m.s.map((s, i) => '<button class="tb' + (i === cur ? ' on' : '') + (implNames.includes(s) ? '' : ' spec') + '" data-a="tab:' + i + '">' + E(typeof secName === 'function' ? secName(s) : s) + '</button>').join('');
     let html; try { html = fn ? fn() : vSpec(m, sec); } catch (e) { console.error(e); html = card('Fehler in dieser Ansicht', '<p class="mut">' + E(e.message) + '</p>'); }
     body.innerHTML = html;
   }
@@ -1560,7 +1576,7 @@ function vSpec(m, sec) {
 function vMore() {
   const total = MODS.reduce((x, m) => x + m.s.length, 0), done = MODS.reduce((x, m) => x + (IMPL[m.id] || []).length, 0);
   let h = card('Fortschritt', '<div class="bar"><i style="width:' + (done / total * 100).toFixed(1) + '%"></i></div>' + kv('Abschnitte gebaut', done + ' von ' + total) + '<p class="mut sm">„Gebaut“ heißt: läuft auf echten Live-Daten oder echter Logik im Browser. Alles Handeln ist Papier. Spezifiziert = noch nicht umgesetzt, nichts vorgetäuscht.</p>');
-  for (const [name, ids] of LAYERS) h += '<div class="lay">' + E(name) + '</div><div class="mg">' + ids.map(id => { const m = modOf(id), n = (IMPL[id] || []).length, s = modState(m); return '<button class="mc" data-a="go:' + id + '"><div><small>' + id + '</small> ' + E(m.n) + '</div><div class="bar sm"><i style="width:' + (n / m.s.length * 100).toFixed(0) + '%"></i></div><div class="mut sm">' + n + '/' + m.s.length + ' Abschnitte ' + chip2({ live: 'gebaut', part: 'teilweise', spec: 'spezifiziert' }[s], { live: 'up', part: 'warn', spec: '' }[s]) + '</div></button>'; }).join('') + '</div>';
+  for (const [name, ids] of LAYERS) h += '<div class="lay">' + E(name) + '</div><div class="mg">' + ids.map(id => { const m = modOf(id), n = (IMPL[id] || []).length, s = modState(m); return '<button class="mc" data-a="go:' + id + '"><div><small>' + id + '</small> ' + E(m.n) + '</div><div class="bar sm"><i style="width:' + (n / m.s.length * 100).toFixed(0) + '%"></i></div><div class="mut sm">' + n + '/' + m.s.length + ' Abschnitte ' + chip2({ live: 'Ansichten da', part: 'teilweise', spec: 'nur Plan' }[s], { live: 'up', part: 'warn', spec: '' }[s]) + '</div></button>'; }).join('') + '</div>';
   h += '<div class="lay">Basis</div><div class="mg"><button class="mc" data-a="go:00"><div><small>00</small> ' + E(modOf('00').n) + '</div><div class="mut sm">' + (IMPL['00'] || []).length + '/' + modOf('00').s.length + ' Abschnitte</div></button></div>';
   h += card('Daten sichern', '<p class="mut sm">Alles (Konto, Journal, Signale, Konfiguration) liegt nur in diesem Browser. Sichere es als Datei und spiele es bei Bedarf wieder ein.</p><div class="row">' + btnA('exp', 'Sicherung herunterladen') + '<label class="btn sm">Sicherung einspielen<input type="file" id="impf" accept=".json,application/json" hidden></label></div>');
   return h;
@@ -3061,7 +3077,7 @@ document.addEventListener('click', e => {
 
 'use strict';
 /* ===== NEXUS Block 6a: 14 Backup & Wiederherstellung · 17 Deployment/Version ===== */
-const BUILD_T = 1793368343172;
+const BUILD_T = 1793369806057;
 NX.bk = NX.bk || { lastExport: 0, lastSnap: 0, rpoH: 24, drills: [], exports: [], snapMade: 0 };
 const BK = { snaps: null, val: null, busy: '', ver: null, st: null };
 const BK_KEY = 'nexus_bk', BK_KEEP = 3;
@@ -4045,11 +4061,21 @@ function hGap(rows) { const g = new Array(rows.length).fill(0); for (let i = 1; 
 const hCont = (g, a, b) => a >= 0 && b < g.length && g[b] - g[a] === 0;
 function hRollT(vals, w, g) { const out = new Array(vals.length).fill(null); let s = 0; for (let i = 0; i < vals.length; i++) { s += vals[i]; if (i >= w) s -= vals[i - w]; if (i >= w - 1 && hCont(g, i - w + 1, i)) out[i] = s; } return out; }
 function hPear(x, y) { const n = x.length; if (n < 5) return null; const mx = mean(x), my = mean(y); let sxy = 0, sxx = 0, syy = 0; for (let i = 0; i < n; i++) { sxy += (x[i] - mx) * (y[i] - my); sxx += (x[i] - mx) ** 2; syy += (y[i] - my) ** 2; } return sxx > 0 && syy > 0 ? sxy / Math.sqrt(sxx * syy) : null; }
-function hEv(id, name, xs, ys, horizon, ntests) {   // xs: Merkmal zum Zeitpunkt, ys: Rendite danach; nicht überlappende Stichproben
+/* Evidenz-Check: Korrelation Merkmal → Rendite danach mit ROBUSTER Zufallsgrenze.
+   Die Lehrbuch-Grenze 1/√n gilt nur, wenn Merkmal und Rendite unabhängig schwanken. Bei Krypto laufen viele Merkmale mit der Volatilität
+   (Liquidationen, Wal-Fluss, Ungleichgewichte) – dann ist die Grenze zu eng. Simulation mit Volatilitäts-Clustern: 2,5 % Fehlalarm bei 3σ statt 0,27 %.
+   Robuste Streuung (White): √(Σ dx²·dy² / n) / (sd_x · sd_y) / √n → 0,20 %. Zyklisches Verschieben hilft hier nicht (3,0 %), weil es den
+   Volatilitäts-Gleichlauf zerstört. Verwendet wird das Maximum aus robust und Lehrbuch (nie lockerer als vorher). */
+function hNullSd(xs, ys) {
+  const n = xs.length, mx = mean(xs), my = mean(ys); let a = 0, b = 0, c = 0; for (let i = 0; i < n; i++) { const dx = xs[i] - mx, dy = ys[i] - my; a += dx * dx * dy * dy; b += dx * dx; c += dy * dy; }
+  return b > 0 && c > 0 ? Math.sqrt(a / n) / (Math.sqrt(b / n) * Math.sqrt(c / n)) / Math.sqrt(n) : 1 / Math.sqrt(n);
+}
+function hEv(id, name, xs, ys, horizon) {   // xs: Merkmal zum Zeitpunkt, ys: Rendite danach; nicht überlappende Stichproben
   const n = xs.length, r = hPear(xs, ys), h = n >> 1, r1 = hPear(xs.slice(0, h), ys.slice(0, h)), r2 = hPear(xs.slice(h), ys.slice(h)), z = HEV_Z;
-  const rnd = 1.96 / Math.sqrt(Math.max(1, n)), crit = z / Math.sqrt(Math.max(1, n)); let lab = 'zu wenig Daten';
-  if (n >= 40 && r != null) { const same = r1 != null && r2 != null && Math.sign(r1) === Math.sign(r) && Math.sign(r2) === Math.sign(r); lab = Math.abs(r) > crit && same ? 'Beleg' : Math.abs(r) > rnd && same ? 'Hinweis' : 'kein Beleg'; }
-  return { id, name, r, r1, r2, n, rnd, crit, lab, h: horizon };
+  let lab = 'zu wenig Daten', ns = null;
+  if (n >= 40 && r != null) { ns = Math.max(hNullSd(xs, ys), 1 / Math.sqrt(n)); const same = r1 != null && r2 != null && Math.sign(r1) === Math.sign(r) && Math.sign(r2) === Math.sign(r); lab = Math.abs(r) > z * ns && same ? 'Beleg' : Math.abs(r) > 1.96 * ns && same ? 'Hinweis' : 'kein Beleg'; }
+  const sdN = ns || 1 / Math.sqrt(Math.max(1, n));
+  return { id, name, r, r1, r2, n, rnd: 1.96 * sdN, crit: z * sdN, nullSd: ns, naive: 1 / Math.sqrt(Math.max(1, n)), lab, h: horizon };
 }
 function hubDerive() {
   const f = {}, S = HUB.s, fl = hubFlowLong(), be = hubBehLong(), ls = S.ls && S.ls.d, ev = [];
@@ -4205,7 +4231,7 @@ function vHubReg() {
     '<div class="mut sm">' + E(s.grp) + ' · ' + E(s.kind) + ' · ' + s.hosts.map(h => E(hostName(h))).join(', ') + '</div><div class="mut sm">' + E(s.note) + '</div>' +
     '<div class="mut sm">' + (a[0] === 'ok' ? 'Stand ' + ago(st.ok) + ' · ' + st.n + ' Punkte · ' + st.ms + ' ms · neu laden nach ' + dur(s.ttl) : '<span class="' + (a[0] === 'bad' ? 'dn' : 'warn') + '">' + E(a[1]) + '</span>') + ' ' + btnA('hub_load:' + s.id, 'Neu laden') + '</div></div>'; }).join('');
   return card('Quellen', rows) + (typeof hubPlan === 'function' ? hubPlan(false) : '') + card('Tests (Evidenz-Check)', HUB.ev.length ? '<div class="tw"><table class="tbl"><tr><th>Merkmal</th><th>Horizont</th><th>r</th><th>1. / 2. Hälfte</th><th>n</th><th>Zufall ±</th><th>Urteil</th></tr>' + HUB.ev.map(e => '<tr><td>' + E(e.name) + '</td><td>' + e.h + '</td><td>' + (e.r == null ? '–' : pn(e.r, 2)) + '</td><td>' + (e.r1 == null ? '–' : pn(e.r1, 2)) + ' / ' + (e.r2 == null ? '–' : pn(e.r2, 2)) + '</td><td>' + e.n + '</td><td>' + nf(e.rnd, 2) + '</td><td class="' + (e.lab === 'Beleg' ? 'up' : e.lab === 'Hinweis' ? 'warn' : '') + '">' + e.lab + '</td></tr>').join('') + '</table></div>' +
-    '<p class="mut sm">r = Korrelation des Merkmals mit der Kursänderung danach (nicht überlappende Stichproben). Beleg: |r| über der Schwelle für ' + HUB.ev.length + ' Tests und gleiche Richtung in beiden Hälften. Hinweis: nur über dem Zufallsbereich. Stündliche Daten reichen ohne Server ca. 20–40 Tage; mit dem eigenen Server kommen bis zu 3 Jahre aus den Binance-Archiven dazu (Fluss, Basis, Funding, 400 Tage Open Interest). Mit mehr Verlauf wird das Urteil belastbarer. Alles gemessen im selben Datensatz, ohne Test an neuen Daten.</p>' : empty('Noch nicht genug geladen.')) +
+    '<p class="mut sm">r = Korrelation des Merkmals mit der Kursänderung danach (nicht überlappende Stichproben). Zufallsbereich robust gegen Volatilitäts-Cluster (White-Schätzer, nie enger als die Lehrbuch-Grenze). Beleg: |r| über 3,0 × Zufallsstreuung (korrigiert für bis zu 18 Prüfungen) und gleiche Richtung in beiden Hälften. Hinweis: über 1,96 × Zufallsstreuung, nicht korrigiert – steuert nichts. Stündliche Daten reichen ohne Server ca. 20–40 Tage; mit dem eigenen Server kommen bis zu 3 Jahre aus den Binance-Archiven dazu (Fluss, Basis, Funding, 400 Tage Open Interest). Mit mehr Verlauf wird das Urteil belastbarer. Alles gemessen im selben Datensatz, ohne Test an neuen Daten.</p>' : empty('Noch nicht genug geladen.')) +
     card('Regeln', '<p class="mut sm">Nur öffentliche Lese-Schnittstellen. Keine Schlüssel, keine Anmeldedaten Dritter, kein Auslesen von Seiten, die das verbieten. Fällt eine Quelle aus, gilt der letzte Stand mit Altersangabe; erfunden oder geglättet wird nichts. Server-Quellen laufen über eine feste Liste auf deinem Server (kein offener Proxy).</p>');
 }
 function hubMacroCard() {
@@ -4679,6 +4705,56 @@ addEventListener('popstate', () => { const h = location.hash.slice(1); if (VIEWS
 /* Tab-Klick innerhalb einer Ansicht (renderNx' Handler setzt NXV.tab[cur] – gilt auch hier, da über NXV.cur) */
 
 'use strict';
+/* ===== Bedienung am Handy: deutsche Kurznamen, kompaktes Labor, Gefahren-Zone =====
+   Abschnitts-Schlüssel (m.s) bleiben englisch, weil Ansichten daran hängen; angezeigt wird der deutsche Name. */
+const MOD_DE = {
+  '00': 'Zentrale', '01': 'Markt', '02': 'Algorithmen', '03': 'Trader', '04': 'Lernen', '05': 'Journal', '06': 'Daten', '07': 'Architektur', '08': 'Risiko & Portfolio',
+  '09': 'Freigaben & Versionen', '10': 'Vorfälle', '11': 'Sicherheit', '12': 'Einstellungen & Regeln', '13': 'Überwachung', '14': 'Sicherung & Wiederherstellung', '15': 'Nachweise & Prüfung',
+  '16': 'Anbindungen', '17': 'Server & Betrieb', '18': 'Tests', '19': 'Wissen & Doku', '20': 'Forschung', '21': 'Entscheidungs-Steuerung', '22': 'Strategie-Entdeckung', '23': 'Kapital-Verteilung',
+  '25': 'Ausführung', '26': 'Konto-Abgleich', '27': 'Kapital-Reserven', '28': 'Regime & Makro', '29': 'Strategie-Lebenszyklus', '30': 'Modell-Aufsicht', '31': 'Supervisor',
+};
+const SEC_DE = {
+  'NEXUS Intelligence Overview / Command Center': 'Übersicht', 'System status and module navigation': 'Systemstatus', 'Market and portfolio context': 'Markt & Konto', 'Research and validation status': 'Forschung & Prüfung',
+  'Strategy lifecycle status': 'Strategien', 'Risk and execution status': 'Risiko & Ausführung', 'Recent decisions and incidents': 'Letzte Ereignisse', 'Performance and learning summary': 'Ergebnis & Lernen',
+  'Market Intelligence Overview': 'Übersicht', 'Multi-Asset / Watchlist Overview': 'Watchlist', 'Market Structure & Price Action': 'Marktstruktur', 'Multi-Timeframe Context': 'Zeitrahmen', 'Orderflow & CVD': 'Orderflow & CVD',
+  'Funding, Open Interest & Basis': 'Funding, OI, Basis', 'Liquidations & Liquidity Maps': 'Liquidationen', 'Orderbook / Spread / Depth': 'Orderbuch', 'Volatility & Regime Detection': 'Volatilität & Regime', 'News & Macro Context': 'Nachrichten & Makro',
+  'Cross-Asset / Beta Context': 'Andere Märkte', 'Market Data Quality & Provenance': 'Datenqualität',
+  'Algorithm Lab Overview': 'Übersicht', 'Algorithms': 'Algorithmen', 'Discoveries': 'Entdeckungen', 'Experiments': 'Experimente', 'Validation': 'Prüfung',
+  'Cockpit': 'Cockpit', 'Setups': 'Entscheidungen', 'Positions': 'Positionen', 'Order Management': 'Orders', 'Risk Engine': 'Risiko-Prüfung', 'Decision Log': 'Protokoll',
+  'Performance': 'Ergebnis', 'Walk-Forward': 'Vorwärts', 'Regime Analysis': 'Nach Regime', 'Error Journal': 'Fehler', 'Model Comparison': 'Vergleich', 'Autonomous Learning': 'Selbst lernen',
+  'Timeline': 'Zeitleiste', 'Trade Replay': 'Wiederholung', 'Hypotheses': 'Hypothesen', 'Error Analysis': 'Fehleranalyse', 'Audit Trail': 'Nachweis',
+  'Evidence Hub': 'Evidenz', 'Source Registry': 'Quellen', 'Overview': 'Übersicht', 'Exchanges': 'Börsen', 'Orderflow': 'Orderflow', 'Heatmaps': 'Heatmaps', 'Data Quality': 'Datenqualität', 'Historical Data': 'Historie',
+  'Exposure': 'Engagement', 'Correlations': 'Korrelationen', 'Position Size Calculator': 'Positionsgröße', 'Cost Model': 'Kosten', 'Limits': 'Grenzen', 'Stress Tests': 'Stresstest', 'Kill-Switch': 'Kill-Switch',
+  'Regime Cockpit': 'Übersicht', 'Market Structure': 'Marktstruktur', 'Volatility Intelligence': 'Volatilität', 'Liquidity Intelligence': 'Liquidität', 'Macro Intelligence': 'Makro', 'Regime Transitions': 'Wechsel', 'Strategy Adaptation': 'Anpassung', 'Research & Audit': 'Nachweis',
+};
+const secName = s => SEC_DE[s] || s;
+for (const m of MODS) { m.en = m.en || m.n; if (MOD_DE[m.id]) m.n = MOD_DE[m.id]; }
+const LAYER_DE = { '1 · Intelligence': 'Wahrnehmen', '2 · Discovery & Development': 'Entwickeln & prüfen', '3 · Decision & Allocation': 'Entscheiden', '4 · Execution & Operations': 'Ausführen & betreiben', '5 · Learning & Control': 'Lernen & kontrollieren', '6 · Supervision': 'Aufsicht' };
+for (const L of LAYERS) if (LAYER_DE[L[0]]) L[0] = LAYER_DE[L[0]];
+
+/* Gefahren-Zone: Kill-Switch abgesetzt, volle Breite, groß */
+killBox = function () {
+  if (NX.kill) return '<div class="alarmbox"><b>KILL-SWITCH AKTIV</b><div class="mut">' + E(NX.killWhy) + ' · seit ' + tm(NX.killAt) + '</div><button class="btn danger" data-a="kill:off">Freigeben (Handel wieder erlaubt)</button></div>';
+  return '<div class="dzone"><div class="dzh">Notfall</div><button class="btn danger" data-a="kill:on">' + (armed('kill') ? 'Wirklich sperren? Nochmal tippen' : 'Kill-Switch: neue Orders sperren') + '</button><button class="btn danger ghost" data-a="killclose">' + (armed('killc') ? 'Wirklich alles schließen? Nochmal tippen' : 'Stoppen und alle Positionen schließen') + '</button><p class="mut sm">Beides fragt einmal nach. Papier-Handel.</p></div>';
+};
+
+/* Labor kompakt: eine Zeile je Algorithmus, Varianten als Fortschritt bis zum ersten Prüfpunkt */
+function vLabTests() {
+  const rows = ALGOS.map(a => { const c = algoCfg(a.id), V = VARS.map(v => ({ v, st: algoStats(a.id, v) })), best = V.map(x => algoVerdict(x.st)).sort((x, y) => ({ kand: 3, unkl: 2, wenig: 1, verw: 0 })[y.k] - ({ kand: 3, unkl: 2, wenig: 1, verw: 0 })[x.k])[0];
+    return '<div class="lt"><div class="ltH"><b>' + E(a.name) + '</b><span class="c2 ' + best.c + '">' + E(best.t.split(' (')[0]) + '</span></div><div class="ltV">' + V.map(x => { const p = Math.min(1, x.st.n / 30), tr = x.v === c.tv; return '<div class="ltB' + (tr ? ' tr' : '') + '"><span>' + x.v + (tr ? ' · handelt' : '') + '</span><i><em style="width:' + Math.round(p * 100) + '%"></em></i><small>' + x.st.n + (x.st.cp ? ' · Ø ' + pn(x.st.avgCp, 2) + ' R' : ' / 30') + (x.st.open ? ' · ' + x.st.open + ' offen' : '') + '</small></div>'; }).join('') + '</div></div>'; }).join('');
+  return card('Setups im Vorwärtstest', rows + '<p class="mut sm">Balken = Weg bis zum ersten Prüfpunkt (30 ausgewertete Signale). Danach zählt die untere Grenze, korrigiert für ' + statTests() + ' Prüfungen.</p>');
+}
+function vLabAlgos() {
+  return ALGOS.map(a => { const c = algoCfg(a.id); return card(E(a.name) + ' ' + chip2(c.on ? 'läuft' : 'aus', c.on ? 'up' : '') + chip2(a.hz || (a.kind === 'candle' ? 'Chart-Zeitrahmen' : 'Intraday'), ''),
+    '<p class="sm">' + E(a.hyp || '') + '</p>' + VARS.map(v => '<div class="kv"><span>' + v + (v === c.tv ? ' · handelt' : '') + '</span><b>' + E(a.pdesc ? a.pdesc(a.params[v]) : '') + '</b></div>').join('') + '<p class="mut sm">' + E(a.falsif || '') + ' Regel-Version ' + algoRv(a) + '.</p>'); }).join('');
+}
+VIEWS.labor.r['Setups im Test'] = () => ledgerCard() + vLabTests();
+VIEWS.labor.r['Algorithmen'] = () => vLabAlgos();
+
+/* Farbe ist keine Option mehr (keine Darstellungs-Varianten in der App) */
+ST.theme = 'gold';
+
+'use strict';
 /* ===== Pro-Oberfläche (umschaltbar gegen „Klassisch“) =====
    Bedienmuster nach dem Vorbild moderner Trading-Web-Apps: 5-Tab-Leiste, Menü, kompakte Chart-Leiste, Auswahl-Sheets,
    Indikator-Manager mit Einstellungen, Statusleiste. Zeigt nur, was es wirklich gibt. */
@@ -4804,9 +4880,9 @@ function proSettings(ind, back) {
 function proMenu(open) {
   let d = $('#pdr'); if (open === false || (open === undefined && d)) { if (d) { d.id = ''; d.classList.remove('in'); setTimeout(() => d.remove(), 180); } return; }
   if (d) return; d = document.createElement('div'); d.id = 'pdr'; d.className = 'psb left';
-  const row = (id, name, extra) => { const m = modOf(id), n = (IMPL[id] || []).length, s = modState(m); return '<button class="prow mod" data-px="go:' + id + '"><span class="pmid">' + id + '</span><div class="pn"><b>' + E(id === '00' ? 'Command Center' : name || m.n) + '</b><small>' + n + '/' + m.s.length + ' Abschnitte' + (extra || '') + '</small></div><span class="dt ' + ({ live: 'ok', part: 'warn' }[s] || '') + '"></span></button>'; };
+  const row = (id, name, extra) => { const m = modOf(id), n = (IMPL[id] || []).length, s = modState(m); return '<button class="prow mod" data-px="go:' + id + '"><span class="pmid">' + id + '</span><div class="pn"><b>' + E(name || m.n) + '</b><small>' + n + '/' + m.s.length + ' Abschnitte' + (extra || '') + '</small></div><span class="dt ' + ({ live: 'ok', part: 'warn' }[s] || '') + '"></span></button>'; };
   d.innerHTML = '<div class="psh drawer"><div class="phd"><div class="pbrand">' + pSvg('<path d="M7 22V10l9 8 9-8v12" transform="scale(.75)"/>') + '<b>TAPE</b><small>NEXUS</small></div><button class="pbtn" data-px="close" aria-label="Schließen">✕</button></div><div class="pbd">' +
-    '<div class="pchips"><span class="psec2" style="margin:0 6px 0 4px">Farbe</span><button class="pchip' + (ST.theme !== 'blue' ? ' on' : '') + '" data-px="theme:gold">Gold</button><button class="pchip' + (ST.theme === 'blue' ? ' on' : '') + '" data-px="theme:blue">Blau</button></div>' +
+
     (SRV.on ? '<button class="prow" data-px="srv"><div class="pn"><b>Eigener Server</b><small>' + (SRV.ok ? 'verbunden – Engine läuft rund um die Uhr' : 'nicht verbunden') + '</small></div><span class="dt ' + (SRV.ok ? 'ok' : 'bad') + '"></span></button>' : '') +
     '<div class="psec2">System · ' + MODS.length + ' Module</div><p class="mut sm" style="margin:2px 4px 6px">Das Fundament unter den vier Bereichen. Alles erreichbar, nichts versteckt.</p>' + row('00') + LAYERS.map(([name, ids]) => '<div class="psec2">' + E(name) + '</div>' + ids.map(id => row(id)).join('')).join('') + '</div></div>';
   d.addEventListener('click', e => {
@@ -4978,7 +5054,7 @@ if (!window.__ENGINE) setInterval(() => { if (!['tape', 'lage', '03'].includes(N
 /* Antippen / Fadenkreuz auf einer Ebene → Erklärung (Label, Evidenz, Herkunft) */
 const BR_SRC = { setup: 'Setup / Konto', zone: 'Gemessen: Liquidationen 7 Tage', level: 'Gemessen: On-Chain (täglich)', wall: 'Modell: Optionen-Gamma (Deribit)', event: 'Gemessen: Absorption (Stunde)' };
 function brHit(ox, mx, my) {
-  const it = brShown(), pp = PN.price; if (!it.length || my < pp.y || my > pp.y + pp.h) return; let best = null, bd = 9;
+  const it = brShown(), pp = PN.price; if (!it.length || my < pp.y || my > pp.y + pp.h) return; let best = null, bd = 22;   // Fingerbreite
   for (const i of it) { let d = 99; if (i.kind === 'line') d = Math.abs(yOf(i.p) - my); else if (i.kind === 'zone') d = my >= yOf(i.p1) - 4 && my <= yOf(i.p0) + 4 ? 0 : 99; else if (i.kind === 'mark') d = Math.hypot(xOf(i.t) - mx, yOf(i.p) - my) / 2; else if (i.kind === 'band') d = mx >= xOf(i.t0) && mx <= xOf(i.t1) ? 8 : 99; if (d < bd) { bd = d; best = i; } }
   if (!best) return; const l1 = best.label + (best.p != null ? ' · ' + nf(best.p, best.p < 100 ? 3 : 1) : ''), l2 = BR_SRC[best.src] + (best.ev ? ' · Prüfung: ' + best.ev : best.src === 'zone' || best.src === 'level' || best.src === 'event' ? ' · ungeprüft' : '');
   ox.font = '11px Inter,system-ui,sans-serif'; const w = Math.max(ox.measureText(l1).width, ox.measureText(l2).width) + 16, x = clamp(mx + 12, 4, plotW() - w - 4), y = clamp(my - 44, pp.y + 40, pp.y + pp.h - 40);

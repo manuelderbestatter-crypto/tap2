@@ -8,3 +8,4 @@ Zurückschalten: `git checkout <Commit>` bzw. auf dem Server den Commit in updat
 | v1.1-gehirn-chart | (dieser Commit) | Brücke Gehirn → Chart: Ebenen-Schnittstelle, Vorschläge gestrichelt |
 | v1.2-chart-erklaerung | (dieser Commit) | Mini-Chart mit Gehirn-Ebenen, Antippen erklärt Ebene, Beschriftungen überlappen nicht |
 | v1.3-ehrliche-bilanz | (dieser Commit) | Server-Bilanz, korrigiertes Kandidat-Urteil, Zeitfehler behoben |
+| v1.4-robust-bedienung | (dieser Commit) | Robuste Evidenz-Grenze, deutsche Namen, 44-px-Tippflächen, Notfall-Zone, Labor kompakt, Gold/Blau entfernt |
