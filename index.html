@@ -2933,7 +2933,7 @@ document.addEventListener('click', e => {
 
 'use strict';
 /* ===== NEXUS Block 6a: 14 Backup & Wiederherstellung · 17 Deployment/Version ===== */
-const BUILD_T = 1793319898159;
+const BUILD_T = 1793320475204;
 NX.bk = NX.bk || { lastExport: 0, lastSnap: 0, rpoH: 24, drills: [], exports: [], snapMade: 0 };
 const BK = { snaps: null, val: null, busy: '', ver: null, st: null };
 const BK_KEY = 'nexus_bk', BK_KEEP = 3;
@@ -3427,6 +3427,306 @@ document.addEventListener('click', e => {
     tr_pol: () => { const f = NX.treas.policy; if (f !== arg) { NX.treas.policy = arg; NX.treas.log.unshift({ t: Date.now(), from: TPOL[f][0], to: TPOL[arg][0] }); NX.treas.log.length = Math.min(NX.treas.log.length, 20); emit('treasury.policy', { from: f, to: arg }); } renderNx(true); },
   };
   if (A[a] && /^(rc_|osel$|tr_)/.test(a)) { e.preventDefault(); A[a](); }
+});
+
+'use strict';
+/* ===== NEXUS Block 7b: 28 Marktregime · 29 Strategie-Lebenszyklus ===== */
+NX.reg = NX.reg || { hist: [], last: {} };
+const REG = { res: {}, busy: false, err: '', t: 0 }, REGM = ['BTC', 'ETH', 'SOL'];
+const RCLS = { panic: 'Panik / Kapitulation', brk: 'Ausbruch', brd: 'Ausbruch nach unten', exp: 'Volatilitäts-Ausweitung', bull: 'Aufwärtstrend', bear: 'Abwärtstrend', rec: 'Erholung / Übergang', acc: 'Akkumulation', dis: 'Distribution', cmp: 'Volatilitäts-Kompression', rng: 'Seitwärts / Range' };
+const slopeT = a => { const n = a.length; if (n < 8) return 0; const d = []; for (let i = 1; i < n; i++) d.push(a[i] - a[i - 1]), 0; const s = sd(d); return s > 0 ? mean(d) / (s / Math.sqrt(d.length)) : 0; };   // Drift-t: mittlere Änderung je Kerze ÷ Standardfehler
+function regClassify(C, noStab) {
+  const n = C.length, L = 48; if (n < 150) return null;
+  const cl = C.map(x => x.c), lg = cl.map(Math.log), win = lg.slice(-L), tr = C.map((x, i) => i ? Math.max(x.h - x.l, Math.abs(x.h - C[i - 1].c), Math.abs(x.l - C[i - 1].c)) / x.c : (x.h - x.l) / x.c);
+  let path = 0; for (let i = n - L; i < n; i++) path += Math.abs(cl[i] - cl[i - 1]); const er = path > 0 ? Math.abs(cl[n - 1] - cl[n - 1 - L]) / path : 0, t = slopeT(win), prevT = slopeT(lg.slice(-2 * L, -L));
+  const roll = []; for (let i = Math.max(14, n - 300); i <= n; i++) roll.push(mean(tr.slice(i - 14, i))); const cur = roll[roll.length - 1], volPct = Math.round(roll.filter(x => x <= cur).length / roll.length * 100), expR = mean(tr.slice(-14)) / (mean(tr.slice(-50)) || 1);
+  const hi = Math.max(...C.slice(n - 1 - L, n - 1).map(x => x.h)), lo = Math.min(...C.slice(n - 1 - L, n - 1).map(x => x.l)), brk = cl[n - 1] > hi ? 1 : cl[n - 1] < lo ? -1 : 0, volr = C[n - 1].v / (mean(C.slice(-21, -1).map(x => x.v)) || 1);
+  const r6 = []; for (let i = Math.max(6, n - 300); i < n; i++) r6.push(Math.log(cl[i] / cl[i - 6])); const z6 = Math.log(cl[n - 1] / cl[n - 7]) / (sd(r6) || 1), spike = mean(C.slice(-3).map(x => x.v)) / (mean(C.slice(-50).map(x => x.v)) || 1);
+  let cum = 0; const cv = [0].concat(C.slice(-L).map(x => (cum += (x.d || 0)))), tC = C.slice(-L).every(x => x.d == null) ? 0 : slopeT(cv);
+  let k, s;
+  if (z6 < -3 && spike >= 1.5) { k = 'panic'; s = Math.min(1, Math.abs(z6) / 5); }
+  else if (brk !== 0 && volr >= 1.2) { k = brk > 0 ? 'brk' : 'brd'; s = Math.min(1, 0.5 + (volr - 1.2) / 2); }
+  else if (expR > 1.3 && volPct > 80) { k = 'exp'; s = Math.min(1, 0.4 + (expR - 1.3) / 0.7); }
+  else if (er > 0.30 && Math.abs(t) > 2) { k = t > 0 ? 'bull' : 'bear'; s = Math.min(1, er + Math.abs(t) / 25); }
+  else if (prevT < -2 && t > 0.5) { k = 'rec'; s = Math.min(1, 0.4 + t / 10); }
+  else if (er < 0.2 && tC > 1.5 && Math.abs(t) < 1.5) { k = 'acc'; s = Math.min(1, 0.4 + tC / 10); }
+  else if (er < 0.2 && tC < -1.5 && Math.abs(t) < 1.5) { k = 'dis'; s = Math.min(1, 0.4 + Math.abs(tC) / 10); }
+  else if (volPct < 20) { k = 'cmp'; s = Math.min(1, 0.4 + (20 - volPct) / 30); }
+  else { k = 'rng'; s = Math.max(0.2, 0.6 - er); }
+  const o = { k, label: RCLS[k], conf: Math.round(s * 100), er, t, prevT, volPct, expR, hi, lo, brk, volr, z6, spike, tC, px: cl[n - 1], atrp: cur * 100, rv24: sd(lg.slice(-25).map((x, i, a) => i ? x - a[i - 1] : 0).slice(1)) * Math.sqrt(24 * 365) * 100, rv168: sd(lg.slice(-169).map((x, i, a) => i ? x - a[i - 1] : 0).slice(1)) * Math.sqrt(24 * 365) * 100, turn24: C.slice(-24).reduce((a, x) => a + x.c * x.v, 0), turn7: C.slice(-168).reduce((a, x) => a + x.c * x.v, 0) / 7, ret24: cl[n - 1] / cl[n - 25] - 1, ret7: cl[n - 1] / cl[n - 169] - 1 };
+  if (!noStab) { let same = 0, m = 0; for (let j = 1; j <= 12; j++) { const r = regClassify(C.slice(0, n - j), true); if (r) { m++; if (r.k === k) same++; } } o.stab = m ? Math.round(same / m * 100) : null; }
+  return o;
+}
+async function regRefresh() {
+  if (REG.busy) return; REG.busy = true; REG.tried = true; REG.err = ''; renderNx(true);
+  try {
+    for (const s of REGM) { const C = await discLoad(s, '1h', 1), r = regClassify(C); if (!r) continue; r.C = C.slice(-170); r.at = Date.now(); const old = NX.reg.last[s]; REG.res[s] = r; if (old && old !== r.k) { NX.reg.hist.unshift({ t: Date.now(), sym: s, from: old, to: r.k }); NX.reg.hist.length = Math.min(NX.reg.hist.length, 100); emit('regime.transition', { sym: s, from: old, to: r.k }); } NX.reg.last[s] = r.k; }
+    REG.t = Date.now();
+  } catch (e) { REG.err = String(e.message || e).slice(0, 80); }
+  REG.busy = false; renderNx(true);
+}
+setTimeout(() => { if (NX.flags.rest !== false) regRefresh(); }, 40e3); setInterval(() => { if (NX.flags.rest !== false) regRefresh(); }, 600e3);
+const regHead = () => '<div class="row">' + btnA('rg_ref', REG.busy ? 'Lädt …' : 'Aktualisieren', 'upb') + '<span class="mut sm">' + (REG.t ? 'Stand ' + ago(REG.t) : 'noch nicht geladen') + (REG.err ? ' · <span class="dn">' + E(REG.err) + '</span>' : '') + '</span></div>';
+const regNeed = () => (REG.t || REG.busy || REG.tried) ? '' : (setTimeout(regRefresh, 0), '');
+function vRgCockpit() {
+  regNeed(); const R = REGM.map(s => [s, REG.res[s]]);
+  return card('Regime je Markt (1-Stunden-Kerzen, Binance Perp)', regHead() + '<div class="tw"><table class="tbl"><tr><th>Markt</th><th>Regime</th><th>Sicher</th><th>Stabil</th><th>Trend t</th></tr>' + R.map(([s, r]) => '<tr><td>' + s + '</td><td>' + (r ? E(r.label) : '–') + '</td><td>' + (r ? r.conf + ' %' : '–') + '</td><td>' + (r && r.stab != null ? r.stab + ' %' : '–') + '</td><td>' + (r ? pn(r.t, 1) : '–') + '</td></tr>').join('') + '<tr><td>TOTAL3</td><td class="mut" colspan="4">nicht verfügbar (kein Index-Datenstrom)</td></tr></table></div><p class="mut sm"><b>Sicher</b> = wie klar die Merkmale die Schwelle überschreiten. <b>Stabil</b> = Anteil der letzten 12 Stunden, in denen dieselbe Regel dasselbe Regime ergeben hätte. Das ist eine Zustands-Beschreibung, <b>keine Richtungsprognose</b>.</p>');
+}
+function vRgStruct() {
+  regNeed(); return card('Struktur (letzte 48 Stunden)', regHead() + '<div class="tw"><table class="tbl"><tr><th>Markt</th><th>Effizienz</th><th>Trend t</th><th>Spanne</th><th>Lage</th></tr>' + REGM.map(s => { const r = REG.res[s]; if (!r) return '<tr><td>' + s + '</td><td colspan="4" class="mut">–</td></tr>'; const pos = (r.px - r.lo) / (r.hi - r.lo || 1); return '<tr><td>' + s + '</td><td>' + nf(r.er, 2) + '</td><td>' + pn(r.t, 1) + '</td><td>' + nf(r.lo, 0) + '–' + nf(r.hi, 0) + '</td><td>' + (r.brk > 0 ? '<span class="up">über Hoch</span>' : r.brk < 0 ? '<span class="dn">unter Tief</span>' : nf(pos * 100, 0) + ' % der Spanne') + '</td></tr>'; }).join('') + '</table></div><p class="mut sm">Effizienz = Netto-Weg ÷ Gesamtweg (1 = gerader Trend, 0 = nur Rauschen). Trend t = mittlere Rendite je Stunde ÷ ihren Standardfehler (|t| > 2 ≈ deutlich; reines Rauschen bleibt meist unter 2).</p>');
+}
+function vRgVol() {
+  regNeed(); return card('Volatilität', regHead() + '<div class="tw"><table class="tbl"><tr><th>Markt</th><th>ATR %</th><th>Perzentil</th><th>Ausweitung</th><th>Real. 24h/7d</th></tr>' + REGM.map(s => { const r = REG.res[s]; return r ? '<tr><td>' + s + '</td><td>' + nf(r.atrp, 2) + '</td><td>' + r.volPct + '</td><td>' + nf(r.expR, 2) + '×</td><td>' + nf(r.rv24, 0) + ' / ' + nf(r.rv168, 0) + ' %</td></tr>' : '<tr><td>' + s + '</td><td colspan="4" class="mut">–</td></tr>'; }).join('') + '</table></div><p class="mut sm">ATR % = mittlere Kerzen-Spanne der letzten 14 Stunden. Perzentil: Rang unter den letzten ~300 Stunden. Ausweitung = ATR(14) ÷ ATR(50). Realisiert = Standardabweichung der Stundenrenditen, auf ein Jahr hochgerechnet.</p>');
+}
+function vRgLiq() {
+  regNeed(); const bs = bookStats(0.0025);
+  return card('Umsatz (Liquiditäts-Näherung)', regHead() + '<div class="tw"><table class="tbl"><tr><th>Markt</th><th>24 h</th><th>Ø 7 Tage</th><th>Verhältnis</th></tr>' + REGM.map(s => { const r = REG.res[s]; return r ? '<tr><td>' + s + '</td><td>' + fq(r.turn24) + ' $</td><td>' + fq(r.turn7) + ' $</td><td class="' + (r.turn24 / r.turn7 < 0.6 ? 'warn' : '') + '">' + nf(r.turn24 / r.turn7, 2) + '×</td></tr>' : '<tr><td>' + s + '</td><td colspan="3" class="mut">–</td></tr>'; }).join('') + '</table></div>') + card('Orderbuch · ' + ST.sym, bs ? '<div class="two">' + kv('Spread', nf(bs.spreadBp, 2) + ' bp') + kv('Tiefe Bid ±0,25 %', fq(bs.b) + ' $') + kv('Tiefe Ask ±0,25 %', fq(bs.a) + ' $') + kv('Ungleichgewicht', bs.a > 0 ? nf(bs.b / bs.a, 2) : '–') + '</div><p class="mut sm">Das Orderbuch gibt es nur für den im Tape gewählten Markt.</p>' : empty('Kein Orderbuch (warte auf Daten).'));
+}
+function vRgMacro() {
+  regNeed(); const R = REGM.map(s => REG.res[s]).filter(Boolean);
+  const cor = (a, b) => { const x = a.C.slice(-169).map((c, i, A) => i ? Math.log(c.c / A[i - 1].c) : 0).slice(1), y = b.C.slice(-169).map((c, i, A) => i ? Math.log(c.c / A[i - 1].c) : 0).slice(1), n = Math.min(x.length, y.length); if (n < 20) return null; const mx = mean(x.slice(-n)), my = mean(y.slice(-n)); let sxy = 0, sxx = 0, syy = 0; for (let i = 0; i < n; i++) { const dx = x[x.length - n + i] - mx, dy = y[y.length - n + i] - my; sxy += dx * dy; sxx += dx * dx; syy += dy * dy; } return sxx > 0 && syy > 0 ? sxy / Math.sqrt(sxx * syy) : null; };
+  return card('Makro-Druck', '<div class="best"><b class="warn">Nicht verfügbar</b><div class="mut sm">Es sind keine Makro-, Zins-, Nachrichten- oder On-Chain-Daten angebunden. Dafür gibt es hier bewusst keinen erfundenen Wert.</div></div>') +
+    card('Cross-Asset (Näherung aus Kursen)', R.length > 1 ? '<div class="tw"><table class="tbl"><tr><th>Markt</th><th>24 h</th><th>7 Tage</th><th>Korr. zu BTC (7 d)</th></tr>' + R.map(r => { const s = REGM[REGM.findIndex(x => REG.res[x] === r)], c = REG.res.BTC && r !== REG.res.BTC ? cor(r, REG.res.BTC) : null; return '<tr><td>' + s + '</td><td class="' + (r.ret24 >= 0 ? 'up' : 'dn') + '">' + pn(r.ret24 * 100, 1) + ' %</td><td class="' + (r.ret7 >= 0 ? 'up' : 'dn') + '">' + pn(r.ret7 * 100, 1) + ' %</td><td>' + (c != null ? nf(c, 2) : '–') + '</td></tr>'; }).join('') + '</table></div><p class="mut sm">Hohe Korrelation = die Märkte bewegen sich gemeinsam; Streuung hilft dann kaum.</p>' : empty('Erst Regime laden.'));
+}
+function vRgTrans() {
+  const H = NX.reg.hist, M = {}; H.forEach(h => { const k = RCLS[h.from] + ' → ' + RCLS[h.to]; M[k] = (M[k] || 0) + 1; });
+  return card('Regime-Wechsel (seit die App sie beobachtet)', H.length ? H.slice(0, 25).map(h => '<div class="li"><div class="r1"><b>' + h.sym + '</b><span class="sp"></span><span class="mut sm">' + ago(h.t) + '</span></div><div class="mut sm">' + E(RCLS[h.from]) + ' → ' + E(RCLS[h.to]) + '</div></div>').join('') : empty('Noch kein Wechsel beobachtet. Der Verlauf entsteht, während die App geöffnet ist (alle 10 min Aktualisierung).')) + (Object.keys(M).length ? card('Häufigkeit', Object.keys(M).map(k => '<div class="kv"><span>' + E(k) + '</span><b>' + M[k] + '</b></div>').join('')) : '');
+}
+function vRgAdapt() {
+  const cur = (marketCtx() || {}).regime, cand = [];
+  if (cur) for (const a of ALGOS) { const S = sigDone(a.id, 'standard'), inn = S.filter(s => s.reg === cur).map(s => s.R), out = S.filter(s => s.reg !== cur).map(s => s.R); if (inn.length >= 8) cand.push({ a, n: inn.length, avg: mean(inn), nOut: out.length, avgOut: out.length >= 8 ? mean(out) : null }); }
+  return card('Aktuelles Regime des Tape-Marktes', '<div class="two">' + kv('Markt', ST.sym) + kv('Regime (Modul 01)', E(cur || '–')) + '</div><p class="mut sm"><b>Nur Vorschläge.</b> Es wird nichts automatisch geändert; Stufen und Schalter ändern nur du (Modul 09).</p>') +
+    card('Wie schnitten die Strategien in diesem Regime ab?', cand.length ? cand.map(c => '<div class="li"><div class="r1"><b>' + E(c.a.name) + '</b><span class="sp"></span><span class="' + (c.avg > 0 ? 'up' : 'dn') + '">Ø ' + pn(c.avg, 2) + ' R</span></div><div class="mut sm">n=' + c.n + ' hier' + (c.avgOut != null ? ' · sonst Ø ' + pn(c.avgOut, 2) + ' R (n=' + c.nOut + ')' : '') + (c.avg < 0 && c.n >= 10 ? ' → <span class="warn">Vorschlag: in diesem Regime keine neuen Signale beachten</span>' : c.avg > 0.2 && c.avgOut != null && c.avgOut <= 0 ? ' → <span class="up">Vorschlag: gezielt in diesem Regime einsetzen</span>' : '') + '</div></div>').join('') : empty('Zu wenig Signale in diesem Regime (≥ 8 je Strategie nötig).') + '<p class="mut sm">Mit wenigen Signalen sind solche Aufteilungen Zufall – darum erst ab n ≥ 8 und nur als Hinweis.</p>');
+}
+function vRgRes() {
+  return card('Methode', '<div class="mut sm">Datenbasis: Binance-Perp-Kerzen (1 h, ~60 Tage, mit Käufer-Delta). Klassifikation von oben nach unten – die erste zutreffende Regel gewinnt:<br>1. <b>Panik</b>: 6-Stunden-Rendite z &lt; −3 und Umsatz ≥ 1,5× normal<br>2. <b>Ausbruch</b>: Schluss über/unter 48-h-Spanne mit Umsatz ≥ 1,2×<br>3. <b>Ausweitung</b>: ATR(14)/ATR(50) &gt; 1,3 und Volatilitäts-Perzentil &gt; 80<br>4. <b>Trend</b>: Effizienz &gt; 0,30 und |t| &gt; 2<br>5. <b>Erholung</b>: vorher t &lt; −2, jetzt t &gt; 0,5<br>6. <b>Akkumulation/Distribution</b>: Effizienz &lt; 0,2, Delta-Trend |t| &gt; 1,5 bei ruhigem Preis<br>7. <b>Kompression</b>: Volatilitäts-Perzentil &lt; 20<br>8. sonst <b>Seitwärts</b><br>Die Schwellen sind Erfahrungswerte, nicht an Daten angepasst; sie lassen sich im Code ändern. Zahlen sind keine Garantie und keine Prognose.</div>') + evAudit(/^regime\./, 'Regime-Protokoll');
+}
+PANELS['28'] = { 'Regime Cockpit': vRgCockpit, 'Market Structure': vRgStruct, 'Volatility Intelligence': vRgVol, 'Liquidity Intelligence': vRgLiq, 'Macro Intelligence': vRgMacro, 'Regime Transitions': vRgTrans, 'Strategy Adaptation': vRgAdapt, 'Research & Audit': vRgRes };
+IMPL['28'] = Object.keys(PANELS['28']);
+
+/* ================= 29 Strategie-Lebenszyklus ================= */
+function lcHealth(x) {
+  if (x.s.stage === 'stopped') return ['Pausiert', 'dn', 'Stufe „Gestoppt“' + (x.s.log[0] ? ': ' + x.s.log[0].why : '')];
+  const Rs = sigDone(x.aid, x.v).map(s => s.R), n = Rs.length; if (n < NX.rel.minN) return ['Testing', '', n + ' von ' + NX.rel.minN + ' Signalen'];
+  const kc = (x.s.stage === 'canary' || x.s.stage === 'prod') ? killCheck(x) : []; if (kc.length) return ['Degraded', 'dn', kc.join(' · ')];
+  const rec = Rs.slice(-15), old = Rs.slice(0, -15), z = old.length >= 15 && sd(old) > 0 ? (mean(rec) - mean(old)) / (sd(old) / Math.sqrt(rec.length)) : null;
+  if (x.st.avg <= 0) return ['Degraded', 'dn', 'Ø ' + pn(x.st.avg, 2) + ' R ≤ 0'];
+  if (z != null && z < -2) return ['Degraded', 'dn', 'Letzte 15 deutlich schlechter (z=' + nf(z, 1) + ')'];
+  if (x.st.lo <= 0 || (z != null && z < -1)) return ['Under Review', 'warn', x.st.lo <= 0 ? 'Vorteil noch nicht belegt (untere Schranke ' + pn(x.st.lo, 2) + ')' : 'Leichte Verschlechterung (z=' + nf(z, 1) + ')'];
+  return ['Healthy', 'up', 'Vorteil belegt, keine Verschlechterung'];
+}
+const lcRows = () => stratList().filter(x => x.st.tot > 0 || x.s.stage !== 'forward' || x.v === 'standard');
+function vLcCockpit() {
+  const L = stratList(), c = k => L.filter(x => x.s.stage === k && (x.st.tot > 0 || k !== 'forward' || x.v === 'standard')).length, H = lcRows().map(lcHealth), hc = k => H.filter(h => h[0] === k).length;
+  const pipe = [['Entdeckung', NX.disc.list.length + ' Funde'], ['Research & Hypothese', NX.hyp.filter(h => h.st === 'offen').length + ' offen'], ['Backtest & Validierung', NX.disc.list.filter(d => d.oosOk).length + ' bestanden'], ['Papier (Vorwärtstest)', c('forward')], ['Canary', c('canary')], ['Produktion (Papier)', c('prod')], ['Pausiert / Ruhestand', c('stopped')]];
+  return card('Lebenszyklus-Lage', '<div class="two">' + kv('Healthy', hc('Healthy'), 'up') + kv('Under Review', hc('Under Review'), hc('Under Review') ? 'warn' : '') + kv('Degraded', hc('Degraded'), hc('Degraded') ? 'dn' : '') + kv('Testing', hc('Testing')) + '</div><p class="mut sm"><b>Automatische Beförderung ist deaktiviert.</b> Jede Stufe weiter ist deine Entscheidung (Modul 09); automatisch gestoppt wird nur bei Kill-Kriterien.</p>') + card('Pipeline', pipe.map((p, i) => '<div class="li"><div class="r1"><b>' + (i + 1) + '. ' + p[0] + '</b><span class="sp"></span><span class="mut">' + p[1] + '</span></div></div>').join(''));
+}
+function vLcReg() {
+  return card('Alle Strategien', '<div class="tw"><table class="tbl"><tr><th>Strategie</th><th>Stufe</th><th>n</th><th>Gesundheit</th></tr>' + lcRows().map(x => { const h = lcHealth(x); return '<tr><td>' + E(x.name.slice(0, 16)) + '<div class="mut sm">' + x.v + '</div></td><td>' + x.s.stage + '</td><td>' + x.st.n + '</td><td class="' + h[1] + '">' + h[0] + '</td></tr>'; }).join('') + '</table></div><p class="mut sm">Gesundheit-Regeln: Testing (n &lt; ' + NX.rel.minN + ') · Degraded (Kill-Kriterium, Ø ≤ 0 oder letzte 15 Signale deutlich schlechter) · Under Review (Vorteil nicht belegt / leichte Verschlechterung) · Healthy.</p>');
+}
+function vLcMon() {
+  return card('Laufende Überwachung (letzte 20 Signale)', lcRows().filter(x => x.st.n > 0).map(x => { const Rs = sigDone(x.aid, x.v).map(s => s.R).slice(-20), c = []; let a = 0; Rs.forEach(r => { a += r; c.push(a); }); const mx = Math.max(...c.map(Math.abs), 1); return '<div class="li"><div class="r1"><b>' + E(x.name) + '</b> <span class="mut">' + x.v + '</span><span class="sp"></span><span class="' + (mean(Rs) > 0 ? 'up' : 'dn') + '">Ø ' + pn(mean(Rs), 2) + ' R</span></div><div class="mut sm">' + Rs.length + ' Signale · Trefferquote ' + nf(Rs.filter(r => r > 0).length / Rs.length * 100, 0) + ' % · Verlaufs-R ' + pn(c[c.length - 1], 1) + '</div><div class="bar sm"><i style="width:' + Math.max(2, Math.min(100, (c[c.length - 1] / mx + 1) / 2 * 100)) + '%"></i></div></div>'; }).join('') || empty('Noch keine ausgewerteten Signale.'));
+}
+function vLcImp() {
+  const S = []; for (const a of ALGOS) { const V = VARIANTS.map(v => [v, algoStats(a.id, v)]).filter(x => x[1].n >= 10); if (V.length >= 2) { V.sort((x, y) => y[1].avg - x[1].avg); S.push([a.name, 'Beste Variante: ' + V[0][0] + ' (Ø ' + pn(V[0][1].avg, 2) + ' R, n=' + V[0][1].n + ') vs. ' + V[V.length - 1][0] + ' (Ø ' + pn(V[V.length - 1][1].avg, 2) + ' R)']); } }
+  const tags = {}; NX.closed.forEach(c => { if (c.tag) tags[c.tag] = (tags[c.tag] || 0) + 1; }); const tk = Object.keys(tags).sort((a, b) => tags[b] - tags[a])[0];
+  return card('Verbesserungs-Ideen (aus den Daten)', (S.length ? S.map(s => '<div class="li"><div class="r1"><b>' + E(s[0]) + '</b></div><div class="mut sm">' + E(s[1]) + '</div></div>').join('') : '') + (tk ? '<div class="li"><div class="r1"><b>Häufigster Fehler-Tag</b></div><div class="mut sm">„' + E(tk) + '“ (' + tags[tk] + '×) – Regel dagegen im Journal prüfen.</div></div>' : '') + (!S.length && !tk ? empty('Zu wenig Daten für Vorschläge (≥ 10 Signale in mindestens zwei Varianten).') : '') + '<div class="row">' + btnA('go:22', 'Neue Muster suchen') + btnA('go:04', 'Lern-Auswertung') + '</div><p class="mut sm">Ideen sind Hinweise zum Prüfen – sie ändern nichts. Eine neue Variante muss denselben Weg (Vorwärtstest → Tore) durchlaufen.</p>');
+}
+function vLcPromo() {
+  const L = stratList().filter(x => x.s.stage === 'forward' && x.st.n > 0), ready = L.filter(x => gatesFwd(x).every(g => g[1]));
+  return card('Bereit für Canary (alle Tore erfüllt)', ready.length ? ready.map(x => '<div class="li"><div class="r1"><b>' + E(x.name) + '</b> <span class="mut">' + x.v + '</span><span class="sp"></span>' + btnA('go:09', 'Zur Freigabe') + '</div></div>').join('') : empty('Keine. Tore: Modul 09 → Release Gates.')) + card('Fast bereit', L.filter(x => !ready.includes(x)).sort((a, b) => gatesFwd(b).filter(g => g[1]).length - gatesFwd(a).filter(g => g[1]).length).slice(0, 5).map(x => { const g = gatesFwd(x); return '<div class="li"><div class="r1"><b>' + E(x.name) + '</b> <span class="mut">' + x.v + '</span><span class="sp"></span><span class="mut sm">' + g.filter(q => q[1]).length + '/' + g.length + ' Tore</span></div><div class="mut sm">Offen: ' + E(g.filter(q => !q[1]).map(q => q[0]).join(' · ')) + '</div></div>'; }).join('') || '<span class="mut sm">–</span>') + '<p class="mut sm">Automatische Beförderung ist aus – es gibt nur diese Übersicht und die manuelle Freigabe.</p>';
+}
+function vLcPause() {
+  return card('Pausieren / Wiederaufnehmen', lcRows().map(x => '<div class="li"><div class="r1"><b>' + E(x.name) + '</b> <span class="mut">' + x.v + '</span><span class="sp"></span>' + chip2(x.s.stage, x.s.stage === 'stopped' ? 'dn' : x.s.stage === 'forward' ? '' : 'warn') + '</div><div class="row">' + (x.s.stage === 'stopped' ? btnA('lc_resume:' + x.key, 'Wieder in den Vorwärtstest') : btnA('lc_pause:' + x.key, 'Pausieren', 'dnb')) + '</div></div>').join('') + '<p class="mut sm">Pausiert heißt: keine Papier-Orders mehr. Das Signal-Protokoll (Vorwärtstest) läuft weiter, damit eine Wiederaufnahme auf Daten beruht. Jede Änderung ist im Protokoll (Modul 09).</p>');
+}
+PANELS['29'] = { 'Lifecycle Cockpit': vLcCockpit, 'Strategy Registry': vLcReg, 'Live Monitoring': vLcMon, 'Performance Drift': () => PANELS['09']['Performance Drift'](), 'Strategy Health': vLcReg, 'Improvement Lab': vLcImp, 'Promotion & Release': vLcPromo, 'Pause & Retirement': vLcPause, 'Lifecycle Audit Trail': () => evAudit(/^strategy\.|^disc\./, 'Lebenszyklus-Protokoll') };
+IMPL['29'] = Object.keys(PANELS['29']);
+
+
+/* ---- Selbsttests (synthetische Reihen nur hier, Zufallszahlen fest gesät) ---- */
+function synC(n, f, vf) { let seed = 12345, p = 100; const rnd = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296 - 0.5, C = []; for (let i = 0; i < n; i++) { const o = p; p = Math.max(1, p * (1 + f(i, n, rnd()))); C.push({ t: i * 3600e3, o, h: Math.max(o, p) * 1.001, l: Math.min(o, p) * 0.999, c: p, v: vf ? vf(i, n) : 100, d: 0 }); } return C; }
+tst('unit', 'Regime: stetiger Aufwärtstrend → Aufwärtstrend', () => { const r = regClassify(synC(400, (i, n, e) => 0.0035 + e * 0.002), true); ok(r && (r.k === 'bull' || r.k === 'brk'), r && r.k); });
+tst('unit', 'Regime: Absturz mit Umsatz-Spitze → Panik', () => { const r = regClassify(synC(400, (i, n, e) => i > n - 7 ? -0.02 : e * 0.002, (i, n) => i > n - 4 ? 400 : 100), true); ok(r && r.k === 'panic', r && r.k); });
+tst('unit', 'Regime: Rauschen um einen Wert → Seitwärts/Kompression', () => { const r = regClassify(synC(400, (i, n, e) => e * 0.004 - (0), null), true); ok(r && ['rng', 'cmp', 'acc', 'dis'].includes(r.k), r && r.k); });
+tst('unit', 'Regime: zu wenig Kerzen → kein Ergebnis (keine Raterei)', () => { ok(regClassify(synC(100, () => 0), true) === null); });
+tst('unit', 'Lebenszyklus: zu wenig Signale → „Testing“', () => sandbox(() => { const x = stratList()[0]; NX.signals = NX.signals.filter(s => s.algo !== x.aid); const h = lcHealth(stratList()[0]); ok(h[0] === 'Testing' || h[0] === 'Pausiert', h[0]); }));
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-a]'); if (!t || !$('#nxView').contains(t)) return; const [a, ...r] = t.dataset.a.split(':'), arg = r.join(':');
+  const A = {
+    rg_ref: () => regRefresh(),
+    lc_pause: () => { stageSet(arg, 'stopped', 'Pause (Lebenszyklus, manuell)'); renderNx(true); },
+    lc_resume: () => { stageSet(arg, 'forward', 'Wiederaufnahme (manuell)'); renderNx(true); },
+  };
+  if (A[a] && /^(rg_|lc_)/.test(a)) { e.preventDefault(); A[a](); }
+});
+
+'use strict';
+/* ===== NEXUS Block 7c: 30 Modell-Risiko · 31 System-Supervisor ===== */
+NX.sup = NX.sup || { paused: false, prev: null, level: 0, cycles: [], log: [] };
+const mrStat = s => s == null ? ['Unklar', 'mute'] : s >= 80 ? ['Healthy', 'up'] : s >= 50 ? ['Watch', 'warn'] : ['Degraded', 'dn'];
+const drZ = Rs => { const rec = Rs.slice(-15), old = Rs.slice(0, -15); return old.length >= 15 && sd(old) > 0 ? (mean(rec) - mean(old)) / (sd(old) / Math.sqrt(rec.length)) : null; };
+function psiVol() {
+  const S = NX.signals.filter(s => s.reg && /\//.test(s.reg)).slice(0, 100).reverse(); if (S.length < 30) return null;
+  const h = Math.floor(S.length / 2), cat = s => s.reg.split('/')[1].trim(), K = ['ruhig', 'normal', 'wild'], a = S.slice(0, h), b = S.slice(h);
+  let psi = 0; for (const k of K) { const pa = Math.max(0.01, a.filter(s => cat(s) === k).length / a.length), pb = Math.max(0.01, b.filter(s => cat(s) === k).length / b.length); psi += (pb - pa) * Math.log(pb / pa); } return { psi, n: S.length };
+}
+function mrComps() {
+  const C = [], add = (k, name, score, det, how) => C.push({ k, name, score: score == null ? null : Math.round(clamp(score, 0, 100)), det, how }), now = Date.now(), hs = restStats();
+  const stale = !D.lastMsg || now - D.lastMsg > NX.risk.staleMs, ck = chainOk(), brk = Object.values(OBS.brk || {}).some(b => b > now), bad = hs.some(h => h.n60 >= 5 && h.err60 / h.n60 >= 0.3);
+  add('data', 'Datenintegrität', 100 - (stale ? 40 : 0) - (ck.ok ? 0 : 50) - (brk ? 20 : 0) - (bad ? 20 : 0), [stale ? 'Daten veraltet' : 'Daten frisch', ck.ok ? 'Kette intakt' : 'Kette gebrochen', brk ? 'Schutzschalter offen' : '', bad ? 'hohe Fehlerquote' : ''].filter(Boolean).join(' · '), '100 − 40 (veraltet) − 50 (Kette gebrochen) − 20 (Schutzschalter) − 20 (Fehlerquote)');
+  const L = stratList().filter(x => x.st.n >= 20), kand = L.filter(x => x.st.lo > 0).length, half = L.filter(x => x.st.lo <= 0 && x.st.avg > 0).length;
+  add('valid', 'Statistische Validität', L.length ? (kand + 0.5 * half) / L.length * 100 : null, L.length ? kand + ' belegt, ' + half + ' vorläufig, ' + (L.length - kand - half) + ' ohne Vorteil (von ' + L.length + ' mit n ≥ 20)' : 'noch keine Strategie mit n ≥ 20', 'belegt = 1, vorläufig = ½, sonst 0 – Mittelwert');
+  const pairs = NX.closed.map(c => { const d = NX.decisions.find(x => x.id === c.dec); return d && d.ev && d.ev.avg != null ? [d.ev.avg, c.R] : null; }).filter(Boolean), err = pairs.length ? mean(pairs.map(p => p[1])) - mean(pairs.map(p => p[0])) : null;
+  add('calib', 'Prognose-Kalibrierung', pairs.length >= 5 ? 100 - Math.abs(err) * 100 : null, pairs.length >= 5 ? 'erwartet Ø ' + pn(mean(pairs.map(p => p[0])), 2) + ' R, real Ø ' + pn(mean(pairs.map(p => p[1])), 2) + ' R (n=' + pairs.length + ')' + (err < -0.2 ? ' – zu optimistisch' : '') : 'zu wenig Trades mit Erwartung (' + pairs.length + ' < 5)', '100 − |real − erwartet| × 100 (in R)');
+  const ex = new Set(NX.decisions.filter(d => /^ausgeführt/.test(d.state)).map(d => d.sig)), sg = NX.signals.filter(s => s.st === 'done' && !s.manual && s.R != null && NX.decisions.some(d => d.sig === s.id)), a = sg.filter(s => ex.has(s.id)).map(s => s.R), o = sg.filter(s => !ex.has(s.id)).map(s => s.R);
+  add('dq', 'Entscheidungsqualität', a.length >= 5 && o.length >= 5 ? 80 + 60 * (mean(a) - mean(o)) : null, a.length >= 5 && o.length >= 5 ? 'ausgeführt Ø ' + pn(mean(a), 2) + ' R (n=' + a.length + ') · aussortiert Ø ' + pn(mean(o), 2) + ' R (n=' + o.length + ')' : 'zu wenig Vergleich (ausgeführt ' + a.length + ', aussortiert ' + o.length + ')', '80 + 60 × (Ø ausgeführt − Ø aussortiert); gleichauf = 80');
+  const ill = NX.events.filter(e => e.type === 'order.illegal_transition').length, nrc = NX.orders.filter(x => x.st === 'filled' && !x.hist.some(h => h.st === 'risk_checked')).length, ee = NX.events.filter(e => e.type === 'engine.error').length;
+  add('agent', 'Agentenverhalten', 100 - 25 * (ill + nrc), ill + ' unzulässige Übergänge · ' + nrc + ' Orders ohne Risiko-Prüfung', '100 − 25 je Regelverstoß');
+  const ee24 = NX.events.filter(e => e.type === 'engine.error' && now - e.t < 864e5).length, crit = NX.inc.filter(x => x.st !== 'gelöst' && x.sev === 'bad').length;
+  add('err', 'Fehlerhäufigkeit', 100 - 15 * ee24 - 20 * crit, ee24 + ' Engine-Fehler (24 h) · ' + crit + ' offene kritische Störungen', '100 − 15 je Fehler − 20 je kritische Störung');
+  const q = typeof qaSummary === 'function' ? qaSummary() : null;
+  add('repro', 'Reproduzierbarkeit', q && q.done >= q.n * 0.5 ? q.pass / q.done * 100 : null, q && q.done ? q.pass + ' von ' + q.done + ' Selbsttests bestanden (Zustand wird exakt zurückgesetzt)' : 'Selbsttests noch nicht gelaufen (Modul 18)', 'Anteil bestandener Selbsttests (ab 50 % gelaufen)');
+  const ps = psiVol(), dg = lcRows().map(lcHealth).filter(h => h[0] === 'Degraded').length;
+  add('drift', 'Drift', ps ? (ps.psi < 0.1 ? 100 : ps.psi < 0.25 ? 60 : 30) - 15 * dg : null, ps ? 'Markt-Verteilung PSI ' + nf(ps.psi, 3) + ' (n=' + ps.n + ')' + (dg ? ' · ' + dg + ' Strategie(n) degradiert' : '') : 'zu wenig Signale (< 30)', 'PSI &lt; 0,1 → 100 · &lt; 0,25 → 60 · sonst 30; −15 je degradierter Strategie');
+  return C;
+}
+const mrOverall = () => { const C = mrComps().filter(c => c.score != null); return C.length ? Math.round(mean(C.map(c => c.score))) : null; };
+function vMrCockpit() {
+  const C = mrComps(), ov = mrOverall(), known = C.filter(c => c.score != null).length, st = mrStat(ov).slice(), worst = C.filter(c => c.score != null).sort((a, b) => a.score - b.score)[0];
+  return card('Wie verlässlich sind die eigenen Entscheidungen?', '<div class="best"><b class="' + st[1] + '">' + (known < 5 && ov != null ? 'Vorläufig: ' : '') + st[0] + (ov != null ? ' · ' + ov + ' / 100' : '') + '</b><div class="mut sm">' + (worst ? 'Schwächster Punkt: ' + E(worst.name) + ' (' + worst.score + ')' : 'Noch zu wenig Daten für ein Urteil.') + ' · Bewertbar: ' + known + ' von ' + C.length + ' Teilen' + ' · Automatische Modellfreigabe ist <b>deaktiviert</b>.</div></div>' + C.map(c => { const s = mrStat(c.score); return '<div class="li"><div class="r1"><b>' + E(c.name) + '</b><span class="sp"></span><span class="' + s[1] + '">' + s[0] + (c.score != null ? ' ' + c.score : '') + '</span></div><div class="bar sm"><i style="width:' + (c.score || 0) + '%"></i></div><div class="mut sm">' + E(c.det) + '</div></div>'; }).join('') + '<p class="mut sm">Healthy ≥ 80 · Watch ≥ 50 · Degraded &lt; 50. „Unklar“ = zu wenig Daten – bewusst kein Schätzwert. Die Formel steht je Punkt unter „Model Validation“.</p>');
+}
+function vMrReg() {
+  return card('Modelle und Versionen', ALGOS.map(a => { const isC = NX.custom.some(c => c.id === a.id), ver = fnv(JSON.stringify(a.params || {}) + String(a.run || '').slice(0, 3000)).slice(0, 6), last = NX.signals.filter(s => s.algo === a.id)[0]; return '<div class="li"><div class="r1"><b>' + E(a.name) + '</b><span class="sp"></span>' + chip2(isC ? 'generiert' : 'eingebaut', isC ? 'warn' : '') + '</div><div class="mut sm">Version ' + ver + ' · ' + E(a.id) + (last ? ' · letztes Signal ' + ago(last.t) : ' · noch kein Signal') + '</div><div class="mut sm">Annahme: ' + E(String(a.hyp || '–').slice(0, 130)) + '</div></div>'; }).join('') + '<p class="mut sm">Die Version ist eine Prüfsumme über Parameter und Regel-Code: ändert sich etwas, ändert sich die Kennung.</p>');
+}
+function vMrVal() {
+  return card('Wie jeder Wert zustande kommt', mrComps().map(c => '<div class="li"><div class="r1"><b>' + E(c.name) + '</b><span class="sp"></span><span class="mut">' + (c.score != null ? c.score : '–') + '</span></div><div class="mut sm">' + c.how + '</div></div>').join('')) +
+    card('Strategien: Beleg', stratList().filter(x => x.st.n > 0).map(x => '<div class="li"><div class="r1"><b>' + E(x.name) + '</b> <span class="mut">' + x.v + '</span><span class="sp"></span><span class="' + x.vd.c + ' sm">' + E(x.vd.t) + '</span></div></div>').join('') || empty('Noch keine Signale.'));
+}
+function vMrDrift() {
+  const ps = psiVol(), R = stratList().filter(x => x.st.n >= 30).map(x => [x, drZ(sigDone(x.aid, x.v).map(s => s.R))]).filter(x => x[1] != null);
+  return card('Markt-Drift (Verteilung der Volatilität bei den Signalen)', ps ? '<div class="two">' + kv('PSI', nf(ps.psi, 3), ps.psi < 0.1 ? 'up' : ps.psi < 0.25 ? 'warn' : 'dn') + kv('Signale', ps.n) + '</div><p class="mut sm">PSI vergleicht, in welchen Marktlagen die ältere und die neuere Hälfte der Signale entstand. &lt; 0,1 stabil · 0,1–0,25 leicht verändert · &gt; 0,25 deutlich anders – dann können alte Statistiken nicht mehr passen.</p>' : empty('Zu wenig Signale (< 30).')) +
+    card('Leistungs-Drift je Strategie (letzte 15 vs. früher)', R.length ? '<div class="tw"><table class="tbl"><tr><th>Strategie</th><th>z</th><th>Urteil</th></tr>' + R.map(([x, z]) => '<tr><td>' + E(x.name.slice(0, 16)) + '<div class="mut sm">' + x.v + '</div></td><td>' + nf(z, 1) + '</td><td class="' + (z < -2 ? 'dn' : z < -1 ? 'warn' : 'up') + '">' + (z < -2 ? 'deutlich schlechter' : z < -1 ? 'leicht schlechter' : 'unauffällig') + '</td></tr>').join('') + '</table></div>' : empty('Braucht ≥ 30 Signale je Strategie.'));
+}
+function vMrAgent() {
+  const ill = NX.events.filter(e => e.type === 'order.illegal_transition').length, ee = NX.events.filter(e => e.type === 'engine.error').length;
+  const A = [['Algorithmen (Lab)', 'Signale erzeugen, selbst auswerten', 'Orders, Limits, Stufen ändern', 0], ['Entscheidungs-Engine', 'Größe/Stop/Ziel vorschlagen, Papier-Order nach Risiko-Prüfung', 'Risiko-Engine umgehen, Kill-Switch ändern', ill], ['Risiko-Engine', 'Veto auf jede Order, Kill-Switch auslösen', 'Orders auslösen', 0], ['Entdeckung / Research', 'Kerzen laden, Muster prüfen, Hypothesen und Algorithmen anlegen', 'Stufe über Vorwärtstest hinaus', 0], ['Supervisor', 'Vorschläge, sichere Wartung (Stufe 2), Pause', 'Handeln, Limits, Kill-Switch aufheben, Stufen befördern', 0]];
+  return card('Berechtigungen der Agenten', A.map(a => '<div class="li"><div class="r1"><b>' + a[0] + '</b><span class="sp"></span><span class="' + (a[3] ? 'dn' : 'up') + ' sm">' + a[3] + ' Verstöße</span></div><div class="mut sm">Darf: ' + E(a[1]) + '</div><div class="mut sm">Darf nicht: ' + E(a[2]) + '</div></div>').join('') + '<p class="mut sm">Das sind im Code fest verdrahtete Rechte (Details: Modul 11 → RBAC). Engine-Fehler gesamt: ' + ee + '.</p>');
+}
+function vMrDq() {
+  const C = mrComps(), cal = C.find(c => c.k === 'calib'), dq = C.find(c => c.k === 'dq'), f = NX.decisions, v = k => f.filter(d => d.verdict === k).length;
+  return card('Entscheidungs-Qualität', '<div class="two">' + kv('Entscheidungen', f.length) + kv('Automatisch', v('auto')) + kv('Mit Freigabe', v('ask')) + kv('Vetos', f.filter(d => d.verdict === 'veto' || /Veto/.test(d.state || '')).length) + '</div>') + card('Filter-Nutzen', '<div class="mut sm">' + E(dq.det) + '</div><p class="mut sm">Wenn ausgeführte Signale besser abschneiden als aussortierte, schützt die Engine. Sind sie schlechter, filtert sie falsch.</p>') + card('Kalibrierung', '<div class="mut sm">' + E(cal.det) + '</div><p class="mut sm">Die Engine schätzt je Entscheidung einen erwarteten Ertrag (R). Weicht der echte Ertrag dauerhaft ab, sind die Schätzungen nicht verlässlich.</p>');
+}
+function vMrPol() {
+  const P = [['Automatische Modellfreigabe', 'deaktiviert – jede Beförderung ist eine manuelle Entscheidung'], ['Neue/generierte Algorithmen starten immer im Vorwärtstest', 'ja'], ['Mindest-Stichprobe für Aussagen', NX.rel.minN + ' Signale'], ['Mehrfachtest-Korrektur bei der Mustersuche', 'ja (Benjamini-Hochberg, Zufalls-Nullmodell, Out-of-Sample)'], ['Falsifikations-Regel je Algorithmus', 'ja (siehe Modul 20)'], ['Freigabe-Tore bindend', NX.flags.releaseGate ? 'ja' : 'nein (nur Hinweis)']];
+  return card('Modell-Richtlinien', P.map(p => '<div class="li"><div class="r1"><b>' + E(p[0]) + '</b></div><div class="mut sm">' + E(p[1]) + '</div></div>').join('')) + PANELS['15']['Policy Registry']();
+}
+PANELS['30'] = { 'Model Governance Cockpit': vMrCockpit, 'Model Registry': vMrReg, 'Model Validation': vMrVal, 'Drift Intelligence': vMrDrift, 'Agent Governance': vMrAgent, 'Decision Quality': vMrDq, 'Risk Policies': vMrPol, 'Incident Center': () => PANELS['15']['Compliance Incidents'](), 'Model Audit Trail': () => evAudit(/^(engine\.|disc\.|strategy\.|order\.illegal|decision\.)/, 'Modell-Protokoll') };
+IMPL['30'] = Object.keys(PANELS['30']);
+
+/* ================= 31 Supervisor ================= */
+const SAFE = { snap: ['Lokale Kopie anlegen', () => bkSnap('Supervisor')], tests: ['Selbsttests ausführen', () => qaRun()], recon: ['Konto abgleichen', () => { rcRun(); nxReconcile(); }], health: ['Verbindungen testen', () => { CONN.forEach(hcRun); }], regime: ['Regime aktualisieren', () => regRefresh()] };
+function supComps() {
+  const C = [], add = (k, name, w, score, det) => C.push({ k, name, w, score, det }), mr = mrComps(), ds = mr.find(c => c.k === 'data'), bs = bkState(), q = typeof qaSummary === 'function' ? qaSummary() : null, L = lcRows().map(lcHealth);
+  add('data', 'Daten', 2, ds.score, ds.det); add('risk', 'Risiko-Engine', 2, NX.kill ? 0 : (Date.now() < (NX.pause && NX.pause.until || 0) ? 60 : 100), NX.kill ? 'Kill-Switch aktiv' : 'bereit'); add('recon', 'Konto-Abgleich', 2, reconOpen() ? 0 : 100, reconOpen() ? reconOpen() + ' offene Differenz(en)' : 'abgeglichen');
+  add('backup', 'Sicherung', 1, bs.ext[0] === 'ok' ? 100 : bs.loc[0] === 'ok' ? 60 : 20, bs.ext[1] + ' · ' + bs.loc[1]); add('tests', 'Selbsttests', 1, q && q.done ? q.pass / q.done * 100 : null, q && q.done ? q.pass + '/' + q.done + ' bestanden' : 'noch nicht gelaufen');
+  const ov = mrOverall(); add('model', 'Modelle', 1, ov, ov != null ? ov + ' / 100' : 'zu wenig Daten'); const crit = NX.inc.filter(x => x.st !== 'gelöst' && x.sev === 'bad').length; add('inc', 'Störungen', 2, crit ? 20 : NX.inc.some(x => x.st !== 'gelöst') ? 70 : 100, crit + ' kritisch · ' + NX.inc.filter(x => x.st !== 'gelöst').length + ' offen');
+  add('strat', 'Strategien', 1, L.length ? 100 - L.filter(h => h[0] === 'Degraded').length / L.length * 100 : null, L.filter(h => h[0] === 'Degraded').length + ' degradiert von ' + L.length); return C;
+}
+const supIntegrity = C => { C = C || supComps(); const V = C.filter(c => c.score != null), w = V.reduce((a, c) => a + c.w, 0); return w ? Math.round(V.reduce((a, c) => a + c.score * c.w, 0) / w) : null; };
+function supProps() {
+  const P = [], add = (id, sev, title, why, act, safe) => P.push({ id, sev, title, why, act, safe: !!safe }), now = Date.now(), bs = bkState(), q = typeof qaSummary === 'function' ? qaSummary() : null;
+  if (reconOpen()) add('recon-open', 'bad', 'Konto-Differenz klären', reconOpen() + ' ungeklärte Differenz(en) blockieren neue Orders.', 'go:26');
+  else if (!NX.recon || now - NX.recon.t > 300e3) add('recon', 'info', 'Konto abgleichen', 'Letzter Abgleich ' + (NX.recon ? ago(NX.recon.t) : 'nie') + '.', 'recon', true);
+  if (NX.kill) add('kill', 'bad', 'Kill-Switch aktiv – Ursache prüfen', NX.killWhy || 'Ursache im Journal lesen. Aufheben kann nur ein Mensch.', 'go:08');
+  if (!D.lastMsg || now - D.lastMsg > NX.risk.staleMs) add('stale', 'bad', 'Datenstrom veraltet', 'Neue Orders sind gesperrt.', 'rb:reconnect');
+  if (bs.ext[0] !== 'ok') add('bk-file', bs.ext[0] === 'bad' ? 'warn' : 'info', 'Datei-Sicherung erstellen', bs.ext[1] + '.', 'exp');
+  if (bs.loc[0] !== 'ok') add('bk-snap', 'info', 'Lokale Kopie anlegen', bs.loc[1] + '.', 'snap', true);
+  if (!q || !q.done || !NX.qa.last || now - NX.qa.last.t > 864e5) add('tests', 'info', 'Selbsttests ausführen', NX.qa && NX.qa.last ? 'Zuletzt ' + ago(NX.qa.last.t) + '.' : 'Noch nie ausgeführt.', 'tests', true);
+  else if (q.fail) add('tests-fail', 'bad', 'Selbsttests fehlgeschlagen', q.fail + ' Test(s) rot.', 'go:18');
+  for (const x of lcRows()) { const h = lcHealth(x); if (h[0] === 'Degraded' && x.s.stage !== 'stopped' && x.st.n >= 20) add('deg:' + x.key, 'warn', 'Strategie pausieren: ' + x.name + ' ' + x.v, h[2], 'lc_pause:' + x.key); }
+  const rd = stratList().filter(x => x.s.stage === 'forward' && x.st.n > 0 && gatesFwd(x).every(g => g[1])); if (rd.length) add('ready', 'info', rd.length + ' Strategie(n) erfüllen alle Tore', 'Prüfen und ggf. in Canary geben – die Entscheidung bleibt bei dir.', 'go:09');
+  const tr = NX.reg.hist.filter(h => now - h.t < 6 * 3600e3); if (tr.length) add('regime', 'info', 'Regime-Wechsel in den letzten 6 h', tr.map(h => h.sym + ': ' + RCLS[h.to]).join(', '), 'go:28');
+  const ov = mrOverall(); if (ov != null && ov < 80) add('model', ov < 50 ? 'bad' : 'warn', 'Modell-Gesundheit prüfen', 'Gesamt ' + ov + ' / 100.', 'go:30');
+  if (!NX.disc.runs.length || now - NX.disc.runs[0].t > 7 * 864e5) add('disc', 'info', 'Mustersuche auffrischen', NX.disc.runs.length ? 'Letzter Lauf ' + ago(NX.disc.runs[0].t) + '.' : 'Noch nie gelaufen.', 'go:22');
+  const op = NX.inc.filter(x => x.st !== 'gelöst'); if (op.length) add('inc', op.some(x => x.sev === 'bad') ? 'bad' : 'warn', op.length + ' offene Störung(en)', op[0].title, 'go:10');
+  const cf = supConflicts(); if (cf.length) add('conf', 'warn', cf.length + ' Konflikt(e) zwischen Einstellungen', cf[0].det, 'sec:31:4');
+  const rk = { bad: 0, warn: 1, info: 2 }; return P.sort((a, b) => rk[a.sev] - rk[b.sev]);
+}
+function supConflicts() {
+  const C = [], add = (id, a, b, win, det) => C.push({ id, a, b, win, det }), now = Date.now(), op = NX.signals.filter(s => s.st === 'open' && now - s.t < 15 * 60e3);
+  const sy = {}; op.forEach(s => { (sy[s.sym] = sy[s.sym] || new Set()).add(s.side); }); Object.keys(sy).forEach(k => { if (sy[k].size > 1) add('opp:' + k, 'Long-Signal', 'Short-Signal', 'Risiko-Engine (nur eine Position je Markt)', 'Gegensätzliche offene Signale auf ' + k + '.'); });
+  if (NX.flags.releaseGate && !stratList().some(x => x.s.stage === 'canary' || x.s.stage === 'prod')) add('gate', 'Freigabe-Zwang AN', 'Keine Strategie freigegeben', 'Freigabe-Zwang', 'Es kann keine Papier-Order entstehen, bis eine Strategie freigegeben ist.');
+  if (NX.mode === 'auto' && NX.flags.autoTrade === false) add('auto', 'Modus „auto“', 'Schalter autoTrade AUS', 'Schalter (Freigabe nötig)', 'Der Modus verspricht Automatik, der Schalter verlangt Freigabe.');
+  if (NX.sup.paused && NX.mode !== 'off') add('pause', 'Supervisor-Pause', 'Modus ' + NX.mode, 'Supervisor-Pause (Modus wieder aus)', 'Pause ist aktiv, aber der Modus wurde danach geändert.');
+  const tp = TPOL[NX.treas.policy]; if (tp && tp[2] != null && tp[2] < NX.risk.maxLev) add('lev', 'Hebel-Limit ' + NX.risk.maxLev + '×', 'Treasury ' + tp[2] + '×', 'Treasury (strengere Grenze)', 'Die Treasury-Richtlinie begrenzt strenger als das Risiko-Limit; wirksam ist ' + tp[2] + '×.');
+  if (NX.kill && NX.mode === 'auto') add('kill', 'Modus „auto“', 'Kill-Switch aktiv', 'Kill-Switch', 'Kein Handel, bis der Kill-Switch aufgehoben wird.');
+  return C;
+}
+const PRIO = ['Kill-Switch / Sicherheit', 'Risiko-Engine', 'Konto-Abgleich', 'Treasury-Richtlinie', 'Portfolio / Allokation', 'Strategien', 'Supervisor-Vorschläge'];
+function supCycle(by) {
+  const t0 = Date.now(), comps = supComps(), integ = supIntegrity(), props = supProps(), prev = NX.sup.cycles[0], done = [];
+  if (by === 'auto' && NX.sup.level >= 2 && !NX.sup.paused) for (const p of props) if (p.safe && SAFE[p.act]) { try { SAFE[p.act][1](); done.push(p.id); NX.sup.log.unshift({ t: Date.now(), id: p.id, act: p.act, by: 'auto', i0: integ }); } catch (e) { /* weiter */ } }
+  const rec = { t: t0, by: by || 'manuell', integ, n: props.length, bad: props.filter(p => p.sev === 'bad').length, done, d: prev && prev.integ != null && integ != null ? integ - prev.integ : null, comps: comps.map(c => [c.k, c.score]) };
+  NX.sup.cycles.unshift(rec); NX.sup.cycles.length = Math.min(NX.sup.cycles.length, 40); NX.sup.log.length = Math.min(NX.sup.log.length, 100); emit('supervisor.cycle', { integ, props: props.length, auto: done.length }); return rec;
+}
+setInterval(() => { if (NX.sup.level >= 1 && Date.now() - ((NX.sup.cycles[0] || {}).t || 0) > 3600e3) supCycle('auto'); }, 60e3);
+function supPause() { if (NX.sup.paused) return; NX.sup.prev = { mode: NX.mode, signals: NX.flags.signals }; nxSetMode('off'); cfgSet('flags.signals', false, 'Supervisor-Pause'); NX.sup.paused = true; emit('supervisor.pause', NX.sup.prev); }
+function supResume() { if (!NX.sup.paused) return; const p = NX.sup.prev || { mode: 'off', signals: true }; cfgSet('flags.signals', p.signals !== false, 'Supervisor-Fortsetzen'); nxSetMode(p.mode); NX.sup.paused = false; NX.sup.prev = null; emit('supervisor.resume', {}); }
+const sevDot = s => dot(s === 'bad' ? 'bad' : s === 'warn' ? 'warn' : 'mute');
+function propRow(p) { const ex = p.safe ? 'sup_do:' + p.id : p.act; const lbl = p.safe ? SAFE[p.act][0] : /^go:|^sec:/.test(p.act) ? 'Öffnen' : p.act === 'exp' ? 'Datei sichern' : p.act === 'rb:reconnect' ? 'Neu verbinden' : /^lc_pause/.test(p.act) ? 'Pausieren' : 'Ausführen'; return '<div class="li"><div class="r1">' + sevDot(p.sev) + '<b>' + E(p.title) + '</b></div><div class="mut sm">' + E(p.why) + '</div><div class="row">' + btnA(ex, lbl, p.sev === 'bad' ? 'upb' : '') + (p.safe ? '<span class="mut sm">sichere Wartung</span>' : '') + '</div></div>'; }
+function vSpCenter() {
+  const C = supComps(), ig = supIntegrity(), P = supProps(), L = NX.sup.cycles[0], mods = MODS.map(m => modState(m)), live = mods.filter(x => x === 'live').length, part = mods.filter(x => x === 'part').length, jobs = Object.values(JOBS).filter(j => Date.now() - j.last < 15000).length, openD = NX.decisions.filter(d => d.state === 'wartet').length, crit = NX.inc.filter(x => x.st !== 'gelöst' && x.sev === 'bad').length;
+  const steps = ['Observe', 'Interpret', 'Hypothesize', 'Validate', 'Decide', 'Execute', 'Measure & Learn'];
+  return card('Supervisor', '<div class="best"><b>„Finde, prüfe und nutze dauerhafte Marktchancen unter kontrolliertem Risiko.“</b><div class="mut sm">Der Supervisor handelt nicht. Er beobachtet, bewertet und schlägt vor. Kill-Switch, Risiko-Engine und Konto-Abgleich arbeiten unabhängig von ihm und können ihn blockieren.</div></div><div class="two">' + kv('System-Integrität', ig != null ? ig + ' / 100' : '–', mrStat(ig)[1]) + kv('Aktive Module', live + ' voll · ' + part + ' teils') + kv('Agenten-Prozesse', jobs) + kv('Offene Entscheidungen', openD + P.length) + kv('Kritische Störungen', crit, crit ? 'dn' : 'up') + kv('Autonomie', ['Beobachten', 'Vorschlagen', 'Sichere Wartung'][NX.sup.level]) + '</div><div class="row">' + btnA('sup_cycle', 'Zyklus auslösen', 'upb') + (NX.sup.paused ? (NXV.arm === 'sup:resume' ? btnA('sup_resume', 'WIRKLICH fortsetzen?', 'dnb') : btnA('sup_arm:resume', 'System fortsetzen')) : (NXV.arm === 'sup:pause' ? btnA('sup_pause', 'WIRKLICH pausieren?', 'dnb') : btnA('sup_arm:pause', 'System pausieren', 'dnb'))) + '</div>' + (NX.sup.paused ? '<div class="warn sm">System pausiert: Modus aus, keine neuen Signale.</div>' : '') + '<div class="mut sm">Letzter Zyklus: ' + (L ? ago(L.t) + ' (' + L.by + ')' : 'noch keiner') + '</div>') +
+    card('Zyklus', '<div class="seg2">' + steps.map(s => '<button style="pointer-events:none"><small>' + s + '</small></button>').join('') + '</div><p class="mut sm">Beobachten (alle Komponenten messen) → Deuten (Befunde) → Hypothese (mögliche Maßnahme) → Prüfen (Sicherheitsregeln) → Entscheiden (Rangliste) → Ausführen (nur sichere Wartung, oder durch dich) → Messen (Wirkung im nächsten Zyklus).</p>') + (P.length ? card('Wichtigste Vorschläge', P.slice(0, 3).map(propRow).join('')) : '<div class="best"><b class="up">Nichts zu tun</b></div>');
+}
+function vSpMap() {
+  return LAYERS.map(([n, ids]) => card(E(n), ids.map(id => { const m = modOf(id), k = (IMPL[id] || []).length, st = modState(m); return '<div class="li"><div class="r1">' + dot(st === 'live' ? 'ok' : st === 'part' ? 'warn' : 'mute') + '<b>' + E(modNm(id)) + '</b><span class="sp"></span><span class="mut sm">' + k + '/' + m.s.length + '</span></div></div>'; }).join('')));
+}
+function vSpOrch() {
+  const J = Object.entries(JOBS).map(([k, j]) => [k, j.n, j.ms.length ? mean(j.ms) : 0, Date.now() - j.last]).sort((a, b) => b[2] - a[2]);
+  return card('Laufende Prozesse', J.length ? '<div class="tw"><table class="tbl"><tr><th>Auftrag</th><th>Läufe</th><th>Ø ms</th><th>zuletzt</th></tr>' + J.map(j => '<tr><td>' + E(j[0]) + '</td><td>' + fq(j[1]) + '</td><td>' + nf(j[2], 1) + '</td><td>' + (j[3] < 90000 ? Math.round(j[3] / 1000) + ' s' : '–') + '</td></tr>').join('') + '</table></div>' : empty('Keine Messwerte.')) + card('Zeitplan', [['Engine-Takt', '1 s'], ['Strategie-Kontrolle (Kill-Kriterien)', '5 s'], ['Konto-Abgleich', '30 s'], ['Regime-Aktualisierung', '10 min'], ['Lokale Kopie', '12 h (automatisch)'], ['Supervisor-Zyklus', NX.sup.level >= 1 ? 'stündlich' : 'nur auf Knopfdruck']].map(r => '<div class="kv"><span>' + r[0] + '</span><b>' + r[1] + '</b></div>').join(''));
+}
+function vSpDecide() {
+  const P = supProps(); return card('Vorschläge (nach Dringlichkeit)', P.length ? P.map(propRow).join('') : '<div class="best"><b class="up">Keine offenen Vorschläge</b></div>') + '<p class="mut sm">Sicherheits-Prüfung vor jedem Vorschlag: Er darf keine Limits ändern, keinen Kill-Switch aufheben und keine Strategie befördern. „Sichere Wartung“ (Kopie, Tests, Abgleich, Verbindungstest, Regime) darf bei Autonomie-Stufe 2 automatisch laufen, alles andere nur durch dich.</p>';
+}
+function vSpConf() {
+  const C = supConflicts(); return card('Erkannte Konflikte', C.length ? C.map(c => '<div class="li"><div class="r1"><b>' + E(c.a) + ' ↔ ' + E(c.b) + '</b></div><div class="mut sm">' + E(c.det) + '</div><div class="mut sm">Es gilt: ' + E(c.win) + '</div></div>').join('') : '<div class="best"><b class="up">Keine Konflikte</b></div>') + card('Rangfolge (oben gewinnt)', PRIO.map((p, i) => '<div class="li"><div class="r1"><b>' + (i + 1) + '.</b><span>' + p + '</span></div></div>').join('') + '<p class="mut sm">Bei Widerspruch gilt immer die höhere Instanz – der Supervisor steht ganz unten.</p>');
+}
+function vSpAuto() {
+  return card('Autonomie-Stufe', [[0, 'Beobachten', 'Zyklus nur auf Knopfdruck. Nichts geschieht von selbst.'], [1, 'Vorschlagen', 'Zyklus stündlich; Vorschläge erscheinen, du entscheidest.'], [2, 'Sichere Wartung', 'Zyklus stündlich; Kopie, Selbsttests, Abgleich, Verbindungstest und Regime-Update laufen automatisch. Nie: Handel, Limits, Kill-Switch, Beförderung.']].map(l => '<div class="li"><div class="r1"><b>' + l[1] + '</b><span class="sp"></span>' + (NX.sup.level === l[0] ? chip2('aktiv', 'up') : btnA('sup_lvl:' + l[0], 'Wählen')) + '</div><div class="mut sm">' + l[2] + '</div></div>').join('') + '<p class="mut sm">Standard ist 0. Die Stufe gilt nur, solange die App geöffnet ist (kein Hintergrundbetrieb).</p>') + card('Status', '<div class="two">' + kv('System', NX.sup.paused ? 'pausiert' : 'aktiv', NX.sup.paused ? 'warn' : 'up') + kv('Handels-Modus', ({ off: 'nur Signale', ask: 'Vorschlag + Freigabe', auto: 'Papier automatisch' })[NX.mode]) + '</div>');
+}
+function vSpHealth() {
+  const C = supComps(), ig = supIntegrity(); return card('System-Integrität: ' + (ig != null ? ig + ' / 100' : '–'), C.map(c => { const s = mrStat(c.score); return '<div class="li"><div class="r1"><b>' + E(c.name) + '</b><span class="sp"></span><span class="' + s[1] + '">' + (c.score != null ? Math.round(c.score) : '–') + '</span></div><div class="bar sm"><i style="width:' + (c.score || 0) + '%"></i></div><div class="mut sm">' + E(c.det) + ' · Gewicht ' + c.w + '</div></div>'; }).join('') + '<p class="mut sm">Gewichteter Mittelwert; unbekannte Teile (zu wenig Daten) zählen nicht mit. Gewichte: Daten, Risiko, Abgleich, Störungen = 2; Rest = 1.</p>');
+}
+function vSpInc() {
+  const op = NX.inc.filter(x => x.st !== 'gelöst'); return card('Offene Störungen', op.length ? op.map(i => '<div class="li"><div class="r1">' + dot(i.sev === 'bad' ? 'bad' : 'warn') + '<b>' + E(i.title) + '</b><span class="sp"></span><span class="mut sm">' + ago(i.t) + '</span></div><div class="row">' + btnA('go:10', 'Zu den Runbooks') + '</div></div>').join('') : '<div class="best"><b class="up">Keine offene Störung</b></div>') + '<p class="mut sm">Störungs-Reaktion läuft über Modul 10 (Runbooks mit Aktions-Knöpfen). Der Supervisor schlägt nur den Einstieg vor.</p>';
+}
+function vSpLearn() {
+  const Cy = NX.sup.cycles, L = NX.sup.log, byAct = {}; L.forEach((l, i) => { const nx = Cy.find(c => c.t > l.t); if (nx && nx.integ != null && l.i0 != null) { (byAct[l.act] = byAct[l.act] || []).push(nx.integ - l.i0); } });
+  return card('Zyklen', Cy.length ? '<div class="tw"><table class="tbl"><tr><th>Zeit</th><th>Integrität</th><th>Δ</th><th>Vorschl.</th><th>Auto</th></tr>' + Cy.slice(0, 15).map(c => '<tr><td>' + ago(c.t) + '</td><td>' + (c.integ != null ? c.integ : '–') + '</td><td class="' + (c.d > 0 ? 'up' : c.d < 0 ? 'dn' : '') + '">' + (c.d != null ? pn(c.d, 0) : '–') + '</td><td>' + c.n + '</td><td>' + c.done.length + '</td></tr>').join('') + '</table></div>' : empty('Noch kein Zyklus.')) + card('Wirkung automatischer Maßnahmen', Object.keys(byAct).length ? Object.keys(byAct).map(k => '<div class="kv"><span>' + E(SAFE[k] ? SAFE[k][0] : k) + ' (' + byAct[k].length + '×)</span><b class="' + (mean(byAct[k]) >= 0 ? 'up' : 'dn') + '">Ø ' + pn(mean(byAct[k]), 1) + ' Integrität</b></div>').join('') : '<span class="mut sm">Noch keine automatische Maßnahme.</span>') + '<p class="mut sm">„Lernen“ heißt hier: Die Wirkung jeder Maßnahme wird im nächsten Zyklus gemessen und sichtbar gemacht. Der Supervisor ändert seine Regeln nicht selbstständig.</p>';
+}
+PANELS['31'] = { 'Command Center': vSpCenter, 'System Map': vSpMap, 'Orchestration': vSpOrch, 'Decision Engine': vSpDecide, 'Conflict Resolution': vSpConf, 'Autonomy Control': vSpAuto, 'System Health': vSpHealth, 'Incident Response': vSpInc, 'Learning & Evolution': vSpLearn, 'Supervisor Audit Trail': () => evAudit(/^supervisor\./, 'Supervisor-Protokoll') };
+IMPL['31'] = Object.keys(PANELS['31']);
+
+/* ---- Selbsttests ---- */
+tst('unit', 'Supervisor: Pause setzt Modus aus, Fortsetzen stellt exakt wieder her', () => sandbox(() => { NX.mode = 'ask'; NX.flags.signals = true; supPause(); ok(NX.mode === 'off' && NX.flags.signals === false && NX.sup.paused); supResume(); ok(NX.mode === 'ask' && NX.flags.signals === true && !NX.sup.paused, NX.mode); }));
+tst('unit', 'Supervisor: Zyklus ändert weder Kill-Switch noch Limits noch Stufen', () => sandbox(() => { NX.kill = true; NX.killWhy = 'QA'; NX.sup.level = 2; const r0 = JSON.stringify(NX.risk), s0 = JSON.stringify(NX.strat), bak = {}, ran = []; for (const k of Object.keys(SAFE)) { bak[k] = SAFE[k][1]; SAFE[k][1] = () => { ran.push(k); }; } try { supCycle('auto'); } finally { for (const k of Object.keys(SAFE)) SAFE[k][1] = bak[k]; } ok(NX.kill === true && JSON.stringify(NX.risk) === r0 && JSON.stringify(NX.strat) === s0, 'Supervisor hat Schutzgrenzen berührt'); ok(ran.every(k => k in SAFE)); }));
+tst('unit', 'Modell-Gesundheit: Werte liegen in 0–100, unbekannt bleibt unbekannt', () => sandbox(() => { NX.signals = []; NX.closed = []; const C = mrComps(); ok(C.every(c => c.score == null || (c.score >= 0 && c.score <= 100)), 'außerhalb 0–100'); ok(C.find(c => c.k === 'valid').score === null, 'Validität ohne Daten müsste „unklar“ sein'); }));
+tst('unit', 'Supervisor: Konflikt „Freigabe-Zwang ohne freigegebene Strategie“ wird erkannt', () => sandbox(() => { NX.flags.releaseGate = true; for (const k of Object.keys(NX.strat)) NX.strat[k].stage = 'forward'; ok(supConflicts().some(c => c.id === 'gate')); }));
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-a]'); if (!t || !$('#nxView').contains(t)) return; const [a, ...r] = t.dataset.a.split(':'), arg = r.join(':');
+  const A = {
+    sup_cycle: () => { supCycle('manuell'); toast('Zyklus ausgeführt', 1800); renderNx(true); },
+    sup_arm: () => { NXV.arm = 'sup:' + arg; renderNx(true); setTimeout(() => { if (NXV.arm === 'sup:' + arg) { NXV.arm = null; renderNx(true); } }, 8000); },
+    sup_pause: () => { NXV.arm = null; supPause(); renderNx(true); },
+    sup_resume: () => { NXV.arm = null; supResume(); renderNx(true); },
+    sup_lvl: () => { NX.sup.level = +arg; emit('supervisor.level', { level: +arg }); renderNx(true); },
+    sup_do: () => { const p = supProps().find(x => x.id === arg); if (p && p.safe && SAFE[p.act]) { const i0 = supIntegrity(); Promise.resolve(SAFE[p.act][1]()).then(() => { NX.sup.log.unshift({ t: Date.now(), id: p.id, act: p.act, by: 'manuell', i0 }); emit('supervisor.action', { id: p.id, act: p.act }); renderNx(true); }); } },
+  };
+  if (A[a] && /^sup_/.test(a)) { e.preventDefault(); A[a](); }
 });
 
 'use strict';

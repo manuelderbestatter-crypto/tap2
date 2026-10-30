@@ -46,3 +46,6 @@ Kennzahlen: System Integrity, Active Modules, Agent Processes, Open Decisions, C
 
 ## Schlussfolgerung (aus der Vorlage)
 31 Module ≠ 31 Anwendungen. Ziel: integrierte Plattform mit gemeinsamen Datenmodellen, Ereignisprotokoll, Berechtigungen, Schnittstellen und zentralem Orchestrierungsmodell. Nächster Schritt ist nicht Modul 32, sondern die Zusammenführung in eine konsistente Gesamtarchitektur.
+
+---
+Status der Umsetzung: siehe [nexus-status.md](nexus-status.md).
