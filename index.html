@@ -3012,7 +3012,7 @@ document.addEventListener('click', e => {
 
 'use strict';
 /* ===== NEXUS Block 6a: 14 Backup & Wiederherstellung · 17 Deployment/Version ===== */
-const BUILD_T = 1793348878642;
+const BUILD_T = 1793349448042;
 NX.bk = NX.bk || { lastExport: 0, lastSnap: 0, rpoH: 24, drills: [], exports: [], snapMade: 0 };
 const BK = { snaps: null, val: null, busy: '', ver: null, st: null };
 const BK_KEY = 'nexus_bk', BK_KEEP = 3;
@@ -4325,7 +4325,7 @@ const HPLAN = [
   ['Echte Liquidationen + Zonen, CVD nach Ordergröße, Funding/OI aller Börsen', 'frei, selbst aufgezeichnet', 'gebaut', 'Binance, Bybit, OKX senden Zwangsliquidationen öffentlich; Server schneidet mit. Hyperliquid hat keinen öffentlichen Liquidations-Strom.'],
   ['Absorption', 'ableitbar', 'gebaut', 'Feste Regel aus Delta und Preisbewegung je Stunde. Footprint je Preisstufe folgt mit der Aufnahme von Preisstufen.'],
   ['Orderbuch-Heatmap (ruhende Liquidität über Zeit)', 'frei, selbst aufgezeichnet', 'geplant', 'Tiefe-Ströme sind frei; der Verlauf muss mitgeschnitten werden (viel Datenmenge, daher verdichtet je Preisstufe).'],
-  ['Optionen: Gamma-Exposure (GEX)', 'frei, ableitbar', 'geplant', 'Deribit veröffentlicht Optionsdaten frei; GEX wird selbst berechnet.'],
+  ['Optionen: Gamma-Exposure (GEX)', 'frei, Modell', 'gebaut', 'Deribit-Daten + Black-Scholes auf dem Server; Annahme „Händler long Calls / short Puts“ ungeprüft. Nur BTC/ETH, nur Kontext.'],
   ['Spot-BTC-ETF-Flüsse', 'frei mit Schlüssel / Scraping', 'offen', 'SoSoValue gibt freie Schlüssel (begrenzt). Bräuchte deine Zustimmung, einen Daten-Schlüssel (kein Börsen-Schlüssel) auf dem Server zu hinterlegen.'],
   ['Liquidations-Heatmap (Preisniveaus)', 'Modell', 'geplant', 'Auch bei CoinGlass ein Modell aus OI und Hebel-Annahmen, kein Messwert. Würde als Modell gekennzeichnet gebaut; Annahmen sichtbar.'],
   ['Jahre an Historie für Fluss-Daten', 'frei', 'geplant', 'data.binance.vision (Bulk-Dateien) für Binance; Prüfung bekäme Jahre statt Wochen.'],
@@ -4429,6 +4429,21 @@ function pDeriv() {
 }
 HPAN.push(['flow', pAbs, ['absorb']], ['xflow', pWhale, ['whale']], ['xflow', pLiq, ['liq']], ['xflow', pDeriv, ['fund']]);
 
+/* ===== Optionen-Gamma (GEX) – Modell aus Deribit-Daten, nur Kontext (keine Historie → kein Evidenz-Check) ===== */
+Object.assign(HOSTS, { 'www.deribit.com': ['Deribit', 'Optionen: Open Interest, Volatilität (öffentlich)'] });
+HSRC.push({ id: 'gex', n: 'Optionen-Gamma (GEX, Deribit)', grp: 'Optionen', ttl: 10 * 60e3, sym: true, kind: 'Server · Modell', server: true, hosts: ['www.deribit.com'],
+  note: 'Deribit veröffentlicht Open Interest und Volatilität jeder Option frei. Der Server rechnet daraus das Gamma-Exposure (Black-Scholes) – ein MODELL mit der üblichen Annahme „Händler sind long Calls, short Puts“, die niemand messen kann. Nur BTC und ETH. Keine Historie, daher kein Evidenz-Check: nur Kontext.',
+  count: d => d.strikes.length, async get() { if (!/^(BTC|ETH)$/.test(ST.sym)) throw new Error('Optionen-Daten nur für BTC und ETH'); return hubSrv('gex_' + ST.sym.toLowerCase()); } });
+function pGex() {
+  const g = HUB.s.gex && HUB.s.gex.d, ttl = 'Optionen-Gamma (Modell) · ' + ST.sym; if (!g || HUB.s.gex.key !== ST.sym) return hPanel('gex', ttl, ['gex'], null, hNeed('gex'), HSRC.find(s => s.id === 'gex').note);
+  const bars = g.strikes.map(x => [x[0], x[1]]), pos = g.total >= 0;
+  return hPanel('gex', ttl, ['gex'], null, ncHTML('h_gex', 150, specMulti({ lines: [{ n: 'Gamma je Strike (USD je 1 %)', pts: bars, bars: true }], base: 0, fmt: v => fusd(v) })) +
+    '<div class="best"><b>' + (pos ? 'Positives Gamma: Händler dämpfen Bewegungen (Kurs wird eher festgehalten)' : 'Negatives Gamma: Händler verstärken Bewegungen (Ausschläge werden größer)') + '</b><div class="mut sm">Gesamt ' + fusd(g.total) + ' je 1 % Kursbewegung' + (g.flip ? ' · Wechsel-Niveau ≈ ' + fusd(g.flip) + ' (' + pn((g.flip / g.spot - 1) * 100, 1) + ' % vom Preis)' : ' · kein Vorzeichenwechsel zwischen −20 % und +40 %') + '.</div></div>' +
+    '<div class="two">' + kv('Größte Call-Wand', g.callWall ? fusd(g.callWall) : '–') + kv('Größte Put-Wand', g.putWall ? fusd(g.putWall) : '–') + kv('Optionen / Verfallstage', g.n + ' / ' + g.exp) + '</div>',
+    'Modell: Black-Scholes-Gamma mit Deribit-Mark-Volatilität × Open Interest, Calls +, Puts −. „Wände“ sind Strikes mit dem größten Netto-Gamma, keine garantierten Kursmagnete. Nur Kontext; beeinflusst keine Entscheidung.');
+}
+HPAN.push(['gex', pGex, null]);
+
 'use strict';
 /* ===== Setups aus Order-Flow + Kontext (Decision Engine) und Lagebild =====
    Aufbau wie ein Order-Flow-Desk: TRIGGER → FILTER (Orderflow-Bestätigung) → REGIME (Makro, On-Chain) → RISIKO (Funding/OI).
@@ -4529,6 +4544,7 @@ function lageFacts() {
   if (f.behTop) out.push([HCLS[f.behTop][0] + ' dominiert', 'OI × Preis, 24 h', ev('pos')]);
   const fu = f.fundW != null ? f.fundW * 100 : null; if (fu != null) out.push(['Funding ' + (Math.abs(fu) > HS_FUND ? 'überhitzt' : 'normal') + ' (' + nf(fu, 4) + ' %)' + (f.oiChg24 != null ? ', OI ' + pn(f.oiChg24, 1) + ' % in 24 h' : ''), 'OI-gewichtet über Börsen', ev('fund')]);
   if (f.vsSth != null) out.push(['Preis ' + (f.vsSth >= 0 ? 'über' : 'unter') + ' Kostenbasis kurzfristiger Halter (' + pn(f.vsSth, 1) + ' %)', 'On-Chain, täglich', ev('sthgap')]);
+  { const g = HUB.s.gex && HUB.s.gex.d; if (g && HUB.s.gex.key === ST.sym) out.push([(g.total >= 0 ? 'Optionen dämpfen Bewegungen' : 'Optionen verstärken Bewegungen') + (g.flip ? ', Wechsel bei ' + fusd(g.flip) : ''), 'Gamma-Modell (Deribit), nur Kontext', null]); }
   if (f.spxVs != null) out.push(['Aktien ' + (f.spxVs >= 0 ? 'über' : 'unter') + ' 125-Tage-Schnitt' + (f.vix != null ? ', VIX ' + nf(f.vix, 0) : ''), 'Makro (FRED)', null]);
   return out;
 }

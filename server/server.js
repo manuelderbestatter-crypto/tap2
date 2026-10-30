@@ -166,6 +166,10 @@ async function hubBuild(id) {
     const h = j.fear_and_greed_historical && j.fear_and_greed_historical.data; if (!Array.isArray(h) || h.length < 5) throw new Error('Format weicht ab');
     return { now: j.fear_and_greed ? { score: +j.fear_and_greed.score, rating: j.fear_and_greed.rating } : null, pts: h.slice(-400).map(x => [+x.x, +x.y]), src: 'CNN (inoffiziell)' };
   }
+  if (id === 'gex_btc' || id === 'gex_eth') {   // Optionen-Gamma aus Deribits freien Daten (Modell mit Annahme, siehe gexCalc)
+    const cur = id.slice(4).toUpperCase(), j = JSON.parse(await hubText(FAKE ? FAKE + '/deribit?currency=' + cur : 'https://www.deribit.com/api/v2/public/get_book_summary_by_currency?currency=' + cur + '&kind=option', { accept: 'application/json' }));
+    return gexCalc(cur, j.result);
+  }
   if (id === 'bg') {   // BGeometrics frei: 8/h, 15/Tag → nacheinander, 4 Abrufe je 8 h; Format tolerant gelesen (ungeprüft gegen die echte Schnittstelle)
     const o = {};
     for (const [k, ep] of Object.entries(BG)) { try { const pts = bgPts(JSON.parse(await hubText(FAKE ? FAKE + '/bg?ep=' + ep : 'https://bitcoin-data.com/v1/' + ep, { accept: 'application/json' }))); if (pts.length < 30) throw new Error('Format weicht ab oder keine Daten'); o[k] = { pts, src: 'BGeometrics ' + ep }; } catch (e) { o[k] = { err: String(e.message || e) }; } }
@@ -174,13 +178,29 @@ async function hubBuild(id) {
   }
   throw new Error('unbekannt');
 }
+/* GEX-Modell: Black-Scholes-Gamma (Zins 0) je Option mit Deribits Mark-Volatilität × Open Interest. Annahme (üblich, nicht gemessen): Händler sind long Calls und short Puts
+   → Calls +, Puts −. Ob das stimmt, weiß niemand; deshalb ist das ein Modell und nur Kontext. Ergebnis in USD je 1 % Kursbewegung. */
+const MON = { JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5, JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11 };
+const npdf = x => Math.exp(-x * x / 2) / 2.5066282746;
+function gexCalc(cur, list) {
+  if (!Array.isArray(list) || list.length < 20) throw new Error('Deribit: zu wenige Optionen (Format?)');
+  const now = Date.now(), opts = []; let spot = 0;
+  for (const o of list) { const m = /^\w+-(\d{1,2})([A-Z]{3})(\d{2})-(\d+)-([CP])$/.exec(o.instrument_name || ''); if (!m || !(o.open_interest > 0) || !(o.mark_iv > 0) || !(o.underlying_price > 0)) continue;
+    const exp = Date.UTC(2000 + +m[3], MON[m[2]], +m[1], 8), T = (exp - now) / (365 * 864e5); if (!(T > 0.0005)) continue; spot = o.underlying_price; opts.push({ K: +m[4], T, iv: o.mark_iv / 100, oi: o.open_interest, sg: m[5] === 'C' ? 1 : -1, exp }); }
+  if (opts.length < 20 || !spot) throw new Error('Deribit: keine auswertbaren Optionen');
+  const at = S => { const by = new Map(); let tot = 0; for (const o of opts) { const d1 = (Math.log(S / o.K) + o.iv * o.iv / 2 * o.T) / (o.iv * Math.sqrt(o.T)), g = npdf(d1) / (S * o.iv * Math.sqrt(o.T)), v = o.sg * g * o.oi * S * S * 0.01; tot += v; by.set(o.K, (by.get(o.K) || 0) + v); } return { tot, by }; };
+  const base = at(spot); let flip = null, prev = null;
+  for (let i = 0; i <= 60; i++) { const S = spot * (0.8 + i * 0.01), t = at(S).tot; if (prev && Math.sign(prev[1]) !== Math.sign(t) && t !== 0) { flip = prev[0] + (S - prev[0]) * (0 - prev[1]) / (t - prev[1]); break; } prev = [S, t]; }
+  const ks = [...base.by.entries()].filter(([K]) => K > spot * 0.75 && K < spot * 1.25).sort((a, b) => a[0] - b[0]), pos = ks.filter(x => x[1] > 0).sort((a, b) => b[1] - a[1])[0], neg = ks.filter(x => x[1] < 0).sort((a, b) => a[1] - b[1])[0];
+  return { cur, spot, total: base.tot, flip, callWall: pos ? pos[0] : null, putWall: neg ? neg[0] : null, strikes: ks.map(([K, v]) => [K, Math.round(v)]), n: opts.length, exp: new Set(opts.map(o => o.exp)).size, src: 'Deribit (öffentlich) + Black-Scholes, Annahme: Händler long Calls / short Puts', at: now };
+}
 const BG = { sthrp: 'sth-realized-price', sopr: 'sopr', nupl: 'nupl', sthmvrv: 'sth-mvrv' };
 function bgPts(j) {
   const a = Array.isArray(j) ? j : (j && (j.data || j.result)) || []; const out = [];
   for (const r of a) { if (!r || typeof r !== 'object') continue; const ts = r.unixTs != null ? +r.unixTs : null, t = ts ? (ts > 1e12 ? ts : ts * 1000) : Date.parse(r.d || r.theDay || r.date || r.time); const vk = Object.keys(r).find(k => !/^(d|theDay|date|time|unixTs|ts|timestamp)$/i.test(k) && r[k] !== null && r[k] !== '' && isFinite(+r[k])); const v = vk ? +r[vk] : NaN; if (isFinite(t) && isFinite(v)) out.push([t, v]); }
   return out.sort((x, y) => x[0] - y[0]).slice(-1500);
 }
-const HUBTTL = { bg: 8 * 3600e3 }, HUBDISK = ['bg'];
+const HUBTTL = { bg: 8 * 3600e3, gex_btc: 10 * 60e3, gex_eth: 10 * 60e3 }, HUBDISK = ['bg'];
 for (const id of HUBDISK) { try { HUBC.set(id, JSON.parse(fs.readFileSync(path.join(DATA, 'hub-' + id + '.json'), 'utf8'))); } catch (e) { /* noch nichts */ } }
 const hubBusy = new Map();
 async function hubGet(id) {
@@ -204,7 +224,7 @@ const server = http.createServer(async (req, res) => {
     if (p === '/healthz') return send(res, 200, 'ok');
     if ((p === '/engine' || p === '/boot') && eq(url.searchParams.get('k') || '', EKEY)) return send(res, 200, p === '/engine' ? appHtml('__ENGINE', 'window.__HK=' + JSON.stringify(EKEY)) : '<!doctype html><title>boot</title>', 'text/html; charset=utf-8');
     if (p === '/api/hub' && (authed(req) || eq(url.searchParams.get('k') || '', EKEY))) {
-      const id = url.searchParams.get('id') || ''; if (!['macro', 'cnn', 'bg'].includes(id)) return json(res, 404, { err: 'unbekannt' });
+      const id = url.searchParams.get('id') || ''; if (!['macro', 'cnn', 'bg', 'gex_btc', 'gex_eth'].includes(id)) return json(res, 404, { err: 'unbekannt' });
       try { return json(res, 200, Object.assign({ ok: true, id, at: Date.now() }, await hubGet(id))); } catch (e) { return json(res, 502, { ok: false, err: String(e.message || e) }); }
     }
     if (p === '/api/rec' && (authed(req) || eq(url.searchParams.get('k') || '', EKEY))) {
