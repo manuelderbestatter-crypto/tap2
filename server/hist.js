@@ -49,7 +49,7 @@ function start(DATA, log) {
   /* Laufende Stundenreihe je Symbol aufbauen */
   async function build(sym) {
     const K = { s: new Map(), p: new Map() }, F = [], O = new Map();
-    for (const [k, rel] of plan(sym)) {
+    let nf = 0; for (const [k, rel] of plan(sym)) { if (++nf % 40 === 0) await new Promise(r => setImmediate(r));   // Ereignisschleife frei halten (Recorder, HTTP)
       let r; try { r = await getZip(rel); if (!r && (k === 's' || k === 'p' || k === 'f') && /monthly/.test(rel)) r = await monthDaily(k, rel); } catch (e) { st.err = String(e.message || e); log('Historie: ' + st.err); continue; } if (!r) continue;
       if (k === 's' || k === 'p') for (const x of r) { const t = ms(+x[0]); K[k].set(t, [+x[1], +x[4], +x[7], +x[10]]); }        // open, close, quote vol, taker buy quote
       else if (k === 'f') for (const x of r) F.push([ms(+x[0]), +x[2]]);

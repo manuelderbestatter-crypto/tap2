@@ -63,6 +63,7 @@ function onEv(type, d) { const f = NOTE[type]; if (!f) return; try { const r = f
 const E = { ctx: null, page: null, up: false, starting: false, since: 0, restarts: 0, fails: 0, health: null, failAt: 0, lastRestartFeed: 0 };
 async function launchCtx() {
   if (E.ctx) return;
+  for (const f of ['SingletonLock', 'SingletonCookie', 'SingletonSocket']) { try { fs.rmSync(path.join(DATA, 'profile', f), { force: true }); } catch (e) { /* egal */ } }   // alte Sperre nach Absturz/Neubau
   E.ctx = await chromium.launchPersistentContext(path.join(DATA, 'profile'), { headless: true, viewport: { width: 412, height: 860 }, executablePath: ENV.CHROME_PATH || undefined, args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows'] });
   E.ctx.on('close', () => { E.ctx = null; E.page = null; E.up = false; });
   if (MOCK) await E.ctx.addInitScript(fs.readFileSync(MOCK, 'utf8'));
@@ -93,8 +94,8 @@ async function engineStart(reason) {
     await page.goto(BASE + '/engine?k=' + EKEY, { waitUntil: 'load' });
     await page.waitForFunction(() => typeof NX !== 'undefined' && typeof OBS !== 'undefined' && OBS.tick > 0, null, { timeout: 40000 });
     await page.evaluate(() => onNX(e => { try { window.__ev(e.type, e.d || {}); } catch (x) { /* egal */ } }));
-    E.up = true; E.since = Date.now(); E.fails = 0; E.health = null; log('Engine läuft (' + reason + ')');
-  } catch (e) { log('Engine-Start fehlgeschlagen:', e.message); E.up = false; E.failAt = Date.now(); await engineKillAll(); }
+    E.up = true; E.since = Date.now(); E.fails = 0; E.startFails = 0; E.health = null; log('Engine läuft (' + reason + ')');
+  } catch (e) { log('Engine-Start fehlgeschlagen:', e.message); E.up = false; E.failAt = Date.now(); E.startFails = (E.startFails || 0) + 1; await engineKillAll(); }
   E.starting = false;
 }
 async function engineRestart(reason) {
@@ -104,7 +105,7 @@ async function engineRestart(reason) {
 /* Wächter: erkennt hängende/abgestürzte Engine und Datenausfall */
 setInterval(() => lock(async () => {
   if (S.owner !== 'server' || !S.nx || E.starting) return;
-  if (!E.up) { if (Date.now() - E.failAt > 15e3) { await engineStart('Wächter'); if (!E.up) notify('down', 'Engine startet nicht', 'Server versucht es weiter', 4, 600e3); } return; }
+  if (!E.up) { if (Date.now() - E.failAt > Math.min(15 * 60e3, 15e3 * Math.pow(2, Math.min(6, E.startFails || 0)))) {   /* Wartezeit wächst bei wiederholtem Fehlschlag (15 s … 15 min) */ await engineStart('Wächter'); if (!E.up) notify('down', 'Engine startet nicht', 'Server versucht es weiter', 4, 600e3); } return; }
   try {
     const h = await withTimeout(E.page.evaluate(() => ({ tick: OBS.tick, msg: D.lastMsg || 0, now: Date.now(), ev: NX.events.length, pos: NX.pos.length, sym: ST.sym, src: ST.src, kill: NX.kill })), 10000);
     E.health = h; E.fails = 0;
@@ -172,7 +173,8 @@ async function hubBuild(id) {
   }
   if (id === 'bg') {   // BGeometrics frei: 8/h, 15/Tag → nacheinander, 4 Abrufe je 8 h; Format tolerant gelesen (ungeprüft gegen die echte Schnittstelle)
     const o = {};
-    for (const [k, ep] of Object.entries(BG)) { try { const pts = bgPts(JSON.parse(await hubText(FAKE ? FAKE + '/bg?ep=' + ep : 'https://bitcoin-data.com/v1/' + ep, { accept: 'application/json' }))); if (pts.length < 30) throw new Error('Format weicht ab oder keine Daten'); o[k] = { pts, src: 'BGeometrics ' + ep }; } catch (e) { o[k] = { err: String(e.message || e) }; } }
+    const prev = (HUBC.get('bg') || {}).v, day = new Date().toISOString().slice(0, 10), cf = path.join(DATA, 'hub-bg-count.json'); let cnt = { day, n: 0 }; try { const c = JSON.parse(fs.readFileSync(cf, 'utf8')); if (c.day === day) cnt = c; } catch (e) { /* neu */ }
+    for (const [k, ep] of Object.entries(BG)) { if (cnt.n >= 12) { o[k] = prev && prev.series && prev.series[k] && prev.series[k].pts ? Object.assign({}, prev.series[k], { stale: true }) : { err: 'Tageslimit (12 Abrufe) erreicht' }; continue; } cnt.n++; try { fs.writeFileSync(cf, JSON.stringify(cnt)); } catch (e) { /* egal */ } try { const pts = bgPts(JSON.parse(await hubText(FAKE ? FAKE + '/bg?ep=' + ep : 'https://bitcoin-data.com/v1/' + ep, { accept: 'application/json' }))); if (pts.length < 30) throw new Error('Format weicht ab oder keine Daten'); o[k] = { pts, src: 'BGeometrics ' + ep }; } catch (e) { o[k] = prev && prev.series && prev.series[k] && prev.series[k].pts ? Object.assign({}, prev.series[k], { stale: true, err: String(e.message || e) }) : { err: String(e.message || e) }; } }
     if (!Object.values(o).some(x => x.pts)) throw new Error(Object.values(o).map(x => x.err)[0] || 'keine Daten');
     return { series: o };
   }
@@ -293,6 +295,6 @@ let recorder = null; if (ENV.REC !== '0') { try { recorder = REC.start(DATA, log
 let ledger = null; try { ledger = LEDGER.start(DATA, log, recorder); } catch (e) { log('Bilanz-Start fehlgeschlagen:', e.message); }
 server.listen(PORT, ENV.BIND || '0.0.0.0', () => { log('Server auf Port', PORT); if (S.nx) lock(() => engineStart('Start')); });
 
-async function bye() { log('Beende …'); try { await lock(async () => { if (S.owner === 'server') await engineGrab(); await saveState(); await engineKillAll(); }); } catch (e) { /* egal */ } try { if (recorder) recorder.stop(); } catch (e) { /* egal */ } process.exit(0); }
+async function bye() { log('Beende …'); try { if (recorder) recorder.stop(); } catch (e) { /* egal */ } try { await withTimeout(lock(async () => { if (S.owner === 'server') await engineGrab(); await saveState(); await engineKillAll(); }), 15e3); } catch (e) { try { await saveState(); } catch (x) { /* egal */ } } process.exit(0); }
 process.on('SIGTERM', bye); process.on('SIGINT', bye);
 process.on('uncaughtException', e => log('uncaught', e.stack || e)); process.on('unhandledRejection', e => log('unhandled', e && e.stack || e));

@@ -45,7 +45,7 @@ __DEPLOY_KEY__
       HC_URL=${HC_URL}
       ENV
       chmod 600 .env
-      cp deploy/update.sh /opt/tape/update.sh && chmod 700 /opt/tape/update.sh
+      printf '#!/bin/bash\n# immer die aktuelle Fassung aus dem Repo ausführen\ncp /opt/tape/repo/deploy/update.sh /opt/tape/update.cur && exec bash /opt/tape/update.cur\n' > /opt/tape/update.sh && chmod 700 /opt/tape/update.sh
       echo '*/5 * * * * root /opt/tape/update.sh >> /var/log/tape-update.log 2>&1' > /etc/cron.d/tape-update
       ufw default deny incoming; ufw default allow outgoing; ufw allow 80/tcp; ufw allow 443/tcp; ufw allow 443/udp; ufw --force enable
       docker compose up -d --build || { echo "docker compose fehlgeschlagen"; fail; }

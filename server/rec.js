@@ -145,7 +145,7 @@ function start(DATA, log) {
   /* ----- Platte ----- */
   function flush() {
     const w = (pre, arr) => { const by = {}; for (const r of arr) (by[dayOf(r[0])] || (by[dayOf(r[0])] = [])).push(JSON.stringify(r)); for (const d in by) fs.appendFileSync(path.join(DIR, pre + d + '.jsonl'), by[d].join('\n') + '\n'); };
-    try { if (pending.length) { const a = pending; pending = []; w('m-', a); } if (pendLq.length) { const a = pendLq; pendLq = []; w('liq-', a); } st.err = ''; } catch (e) { st.err = 'Schreiben: ' + e.message; log('Recorder: ' + st.err); }
+    let a1 = [], a2 = []; try { if (pending.length) { a1 = pending; pending = []; w('m-', a1); a1 = []; } if (pendLq.length) { a2 = pendLq; pendLq = []; w('liq-', a2); a2 = []; } st.err = ''; } catch (e) { pending = a1.concat(pending).slice(-200000); pendLq = a2.concat(pendLq).slice(-50000); st.err = 'Schreiben: ' + e.message; log('Recorder: ' + st.err); }   // bei Fehler nichts verlieren, beim nächsten Mal erneut
   }
   const lines = f => fs.readFileSync(path.join(DIR, f), 'utf8').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch (e) { return null; } }).filter(Boolean);
   function compact() {
