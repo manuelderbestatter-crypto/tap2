@@ -3012,7 +3012,7 @@ document.addEventListener('click', e => {
 
 'use strict';
 /* ===== NEXUS Block 6a: 14 Backup & Wiederherstellung · 17 Deployment/Version ===== */
-const BUILD_T = 1793346034508;
+const BUILD_T = 1793347412713;
 NX.bk = NX.bk || { lastExport: 0, lastSnap: 0, rpoH: 24, drills: [], exports: [], snapMade: 0 };
 const BK = { snaps: null, val: null, busy: '', ver: null, st: null };
 const BK_KEY = 'nexus_bk', BK_KEEP = 3;
@@ -3931,7 +3931,8 @@ Object.assign(HOSTS, {
   'stablecoins.llama.fi': ['DefiLlama Stablecoins', 'Umlauf aller Stablecoins'],
 });
 const HUB = { s: {}, f: {}, ev: [], evSig: '', t0: Date.now() };
-const HEV_H = 4, HEV_W = 12;                       // vorab festgelegt: Vorhersage-Horizont 4 h, Fenster 12 h (stündliche Daten)
+const HEV_H = 4, HEV_W = 12, HEV_NT = 14, HEV_Z = 2.9;   // Mehrfachtest-Korrektur für bis zu 14 Prüfungen (Bonferroni 0,05/14 ≈ z 2,9)
+const HPAN = [], HEVMAP = { flow: ['spot', 'perp', 'basis'], beh: ['pos'], ls: ['ls'], fng: ['fng'], chain: ['mvrv'], stable: ['stable'] };                       // vorab festgelegt: Vorhersage-Horizont 4 h, Fenster 12 h (stündliche Daten)
 const hubSrv = async id => {
   const r = await fetch('/api/hub?id=' + id + (window.__HK ? '&k=' + encodeURIComponent(window.__HK) : ''), { credentials: 'same-origin' });
   if (r.status === 401) throw new Error('nicht angemeldet'); const j = await r.json().catch(() => ({}));
@@ -3992,7 +3993,7 @@ const hStd = a => { const m = mean(a); return Math.sqrt(mean(a.map(x => (x - m) 
 const hRoll = (a, w) => a.map((_, i) => i < w - 1 ? null : a.slice(i - w + 1, i + 1).reduce((x, y) => x + y, 0));
 function hPear(x, y) { const n = x.length; if (n < 5) return null; const mx = mean(x), my = mean(y); let sxy = 0, sxx = 0, syy = 0; for (let i = 0; i < n; i++) { sxy += (x[i] - mx) * (y[i] - my); sxx += (x[i] - mx) ** 2; syy += (y[i] - my) ** 2; } return sxx > 0 && syy > 0 ? sxy / Math.sqrt(sxx * syy) : null; }
 function hEv(id, name, xs, ys, horizon, ntests) {   // xs: Merkmal zum Zeitpunkt, ys: Rendite danach; nicht überlappende Stichproben
-  const n = xs.length, r = hPear(xs, ys), h = n >> 1, r1 = hPear(xs.slice(0, h), ys.slice(0, h)), r2 = hPear(xs.slice(h), ys.slice(h)), z = [0, 1.96, 2.24, 2.5, 2.64, 2.8][Math.min(5, Math.max(1, ntests || 1))] || 2.8;
+  const n = xs.length, r = hPear(xs, ys), h = n >> 1, r1 = hPear(xs.slice(0, h), ys.slice(0, h)), r2 = hPear(xs.slice(h), ys.slice(h)), z = HEV_Z;
   const rnd = 1.96 / Math.sqrt(Math.max(1, n)), crit = z / Math.sqrt(Math.max(1, n)); let lab = 'zu wenig Daten';
   if (n >= 40 && r != null) { const same = r1 != null && r2 != null && Math.sign(r1) === Math.sign(r) && Math.sign(r2) === Math.sign(r); lab = Math.abs(r) > crit && same ? 'Beleg' : Math.abs(r) > rnd && same ? 'Hinweis' : 'kein Beleg'; }
   return { id, name, r, r1, r2, n, rnd, crit, lab, h: horizon };
@@ -4134,26 +4135,22 @@ function pStable() {
   const d = HUB.s.stable && HUB.s.stable.d, f = HUB.f; if (!d) return hPanel('stable', 'Stablecoin-Umlauf', ['stable'], ['stable'], hNeed('stable'), HSRC[5].note);
   return hPanel('stable', 'Stablecoin-Umlauf', ['stable'], ['stable'], ncHTML('h_stable', 130, specMulti({ lines: [{ n: 'Umlauf (USD)', pts: d.slice(-365), col: C.up }], fmt: v => fusd(v) })) + '<div class="two">' + kv('Umlauf', fusd(d[d.length - 1][1])) + kv('Änderung 30 Tage', pn(f.stable30, 2) + ' %', cl(f.stable30)) + '</div>' + hEvLine(['stable']), 'DefiLlama, alle Stablecoins zusammen.');
 }
+HPAN.push(['flow', pFlow, ['spot', 'perp', 'basis']], ['beh', pBeh, ['pos']], ['ls', pLS, ['ls']], ['fng', pFng, ['fng']], ['chain', pChain, ['mvrv']], ['stable', pStable, ['stable']], ['macro', pMacro, null]);
 function vHubView() {
   const live = HSRC.filter(s => HSTATE(s.id)[0] === 'ok').length, srv = HSRC.filter(s => s.server).length, nosrv = !hubHasSrv() ? HSRC.filter(s => s.server).length : 0;
-  const panels = [['flow', pFlow, ['spot', 'perp', 'basis']], ['beh', pBeh, ['pos']], ['ls', pLS, ['ls']], ['fng', pFng, ['fng']], ['chain', pChain, ['mvrv']], ['stable', pStable, ['stable']], ['macro', pMacro, null]];
+  const panels = HPAN.map(p => [p[0], p[1], p[2]]);
   panels.forEach(p => { p.r = p[2] ? hEvRank(p[2]) : -1; }); panels.sort((a, b) => b.r - a.r);
   const strong = HUB.ev.filter(e => e.lab === 'Beleg').length, hint = HUB.ev.filter(e => e.lab === 'Hinweis').length;
   return PAPER + card('Daten-Hub', '<div class="two">' + kv('Quellen aktuell', live + ' / ' + HSRC.length, live === HSRC.length ? 'up' : live ? 'warn' : 'dn') + kv('Evidenz-Check', strong + ' Beleg · ' + hint + ' Hinweis · ' + (HUB.ev.length - strong - hint) + ' ohne') + '</div>' +
-    '<p class="mut sm">Alle Quellen sind frei und öffentlich, nur lesen. Das System prüft jedes Merkmal an den eigenen Daten gegen die Kursentwicklung danach (vorab festgelegter Horizont, ' + (HUB.ev[0] ? HUB.ev.length : 8) + ' Tests, Zufallsbereich eingerechnet) und sortiert die Grafiken danach. <b>Beleg</b> heißt: gemessen, in beiden Hälften gleiche Richtung, jenseits des Zufalls. Das ist keine Garantie, und Merkmale ohne Beleg beeinflussen keine Entscheidung.</p>' +
+    '<p class="mut sm">Alle Quellen sind frei und öffentlich, nur lesen. Das System prüft jedes Merkmal an den eigenen Daten gegen die Kursentwicklung danach (vorab festgelegter Horizont, ' + (HUB.ev[0] ? HUB.ev.length : 8) + ' Tests, Zufallsbereich und Mehrfachtest-Korrektur eingerechnet) und sortiert die Grafiken danach. <b>Beleg</b> heißt: gemessen, in beiden Hälften gleiche Richtung, jenseits des Zufalls. Das ist keine Garantie, und Merkmale ohne Beleg beeinflussen keine Entscheidung.</p>' +
     (nosrv ? '<p class="warn sm">' + nosrv + ' Quelle(n) (Makro, CNN) brauchen den eigenen Server – dort holt er sie für dich.</p>' : '') + '<div class="row">' + btnA('hub_all', 'Alle jetzt laden', 'upb') + '</div>') + panels.map(p => p[1]()).join('') + hubNot();
 }
-function hubNot() {
-  return card('Nicht angebunden (ehrlich)', '<div class="li"><b>Short-/Long-Term-Holder-Kostenbasis, Unrealized-Profit-Margin</b><div class="mut sm">CryptoQuant, Glassnode und checkonchain bieten das nur bezahlt oder ohne öffentliche Schnittstelle. Ihre Seiten auszulesen verstößt gegen deren Nutzungsbedingungen und liefert Bilder statt Zahlen. Frei gibt es nur die Gesamt-Variante (siehe On-Chain).</div></div>' +
-    '<div class="li"><b>Fondsflüsse (Goldman/EPFR)</b><div class="mut sm">Bezahlte Forschungsdaten, keine öffentliche Quelle.</div></div>' +
-    '<div class="li"><b>CVD je Börse (Coinbase, Bybit, Bitfinex)</b><div class="mut sm">Öffentliche Streams existieren. Das System müsste sie laufend mitschneiden, weil es dort keinen Stunden-Verlauf mit Käufer/Verkäufer-Trennung gibt. Nächster Ausbau; läuft dann vor allem auf dem eigenen Server.</div></div>' +
-    '<div class="li"><b>Bitcoin-ETF-Flüsse, Nachrichten</b><div class="mut sm">Nur über Scraping fragiler Webseiten. Noch nicht gebaut.</div></div>');
-}
+function hubNot() { return typeof hubPlan === 'function' ? hubPlan(true) : ''; }
 function vHubReg() {
-  const rows = HSRC.map(s => { const st = HUB.s[s.id] || {}, a = HSTATE(s.id), e = ({ flow: ['spot', 'perp', 'basis'], beh: ['pos'], ls: ['ls'], fng: ['fng'], chain: ['mvrv'], stable: ['stable'] })[s.id]; return '<div class="li"><div class="r1">' + dot(a[0]) + '<b>' + E(s.n) + '</b><span class="sp"></span>' + (e ? hEvChip(hEvBest(e)) : '') + '</div>' +
+  const rows = HSRC.map(s => { const st = HUB.s[s.id] || {}, a = HSTATE(s.id), e = HEVMAP[s.id]; return '<div class="li"><div class="r1">' + dot(a[0]) + '<b>' + E(s.n) + '</b><span class="sp"></span>' + (e ? hEvChip(hEvBest(e)) : '') + '</div>' +
     '<div class="mut sm">' + E(s.grp) + ' · ' + E(s.kind) + ' · ' + s.hosts.map(h => E(hostName(h))).join(', ') + '</div><div class="mut sm">' + E(s.note) + '</div>' +
     '<div class="mut sm">' + (a[0] === 'ok' ? 'Stand ' + ago(st.ok) + ' · ' + st.n + ' Punkte · ' + st.ms + ' ms · neu laden nach ' + dur(s.ttl) : '<span class="' + (a[0] === 'bad' ? 'dn' : 'warn') + '">' + E(a[1]) + '</span>') + ' ' + btnA('hub_load:' + s.id, 'Neu laden') + '</div></div>'; }).join('');
-  return card('Quellen', rows) + card('Tests (Evidenz-Check)', HUB.ev.length ? '<div class="tw"><table class="tbl"><tr><th>Merkmal</th><th>Horizont</th><th>r</th><th>1. / 2. Hälfte</th><th>n</th><th>Zufall ±</th><th>Urteil</th></tr>' + HUB.ev.map(e => '<tr><td>' + E(e.name) + '</td><td>' + e.h + '</td><td>' + (e.r == null ? '–' : pn(e.r, 2)) + '</td><td>' + (e.r1 == null ? '–' : pn(e.r1, 2)) + ' / ' + (e.r2 == null ? '–' : pn(e.r2, 2)) + '</td><td>' + e.n + '</td><td>' + nf(e.rnd, 2) + '</td><td class="' + (e.lab === 'Beleg' ? 'up' : e.lab === 'Hinweis' ? 'warn' : '') + '">' + e.lab + '</td></tr>').join('') + '</table></div>' +
+  return card('Quellen', rows) + (typeof hubPlan === 'function' ? hubPlan(false) : '') + card('Tests (Evidenz-Check)', HUB.ev.length ? '<div class="tw"><table class="tbl"><tr><th>Merkmal</th><th>Horizont</th><th>r</th><th>1. / 2. Hälfte</th><th>n</th><th>Zufall ±</th><th>Urteil</th></tr>' + HUB.ev.map(e => '<tr><td>' + E(e.name) + '</td><td>' + e.h + '</td><td>' + (e.r == null ? '–' : pn(e.r, 2)) + '</td><td>' + (e.r1 == null ? '–' : pn(e.r1, 2)) + ' / ' + (e.r2 == null ? '–' : pn(e.r2, 2)) + '</td><td>' + e.n + '</td><td>' + nf(e.rnd, 2) + '</td><td class="' + (e.lab === 'Beleg' ? 'up' : e.lab === 'Hinweis' ? 'warn' : '') + '">' + e.lab + '</td></tr>').join('') + '</table></div>' +
     '<p class="mut sm">r = Korrelation des Merkmals mit der Kursänderung danach (nicht überlappende Stichproben). Beleg: |r| über der Schwelle für ' + HUB.ev.length + ' Tests und gleiche Richtung in beiden Hälften. Hinweis: nur über dem Zufallsbereich. Die Daten reichen je nach Quelle nur ca. 20–40 Tage (stündlich) bzw. 3 Jahre (täglich): mit mehr Verlauf wird das Urteil belastbarer. Alles gemessen im selben Datensatz, ohne Test an neuen Daten.</p>' : empty('Noch nicht genug geladen.')) +
     card('Regeln', '<p class="mut sm">Nur öffentliche Lese-Schnittstellen. Keine Schlüssel, keine Anmeldedaten Dritter, kein Auslesen von Seiten, die das verbieten. Fällt eine Quelle aus, gilt der letzte Stand mit Altersangabe; erfunden oder geglättet wird nichts. Server-Quellen laufen über eine feste Liste auf deinem Server (kein offener Proxy).</p>');
 }
@@ -4174,6 +4171,140 @@ document.addEventListener('click', e => {
   const t = e.target.closest('[data-a]'); if (!t || !/^hub_/.test(t.dataset.a)) return; e.preventDefault(); const [a, arg] = t.dataset.a.split(':');
   if (a === 'hub_all') HSRC.forEach((s, i) => setTimeout(() => hubLoad(s.id, true), i * 300)); if (a === 'hub_load') hubLoad(arg, true); renderNx(true);
 });
+
+'use strict';
+/* ===== Daten-Hub, Teil 2 =====
+   (a) Börsen im Vergleich aus dem EIGENEN Recorder auf dem Server (Binance, Bybit, Coinbase, Hyperliquid): Taker-Ungleichgewicht je Börse, Coinbase-Aufschlag.
+   (b) Kostenbasis der kurzfristigen Halter, SOPR, NUPL (BGeometrics, frei, stark begrenzt → nur der Server holt es, 8 h Zwischenspeicher).
+   (c) Beschaffungsplan: für jede Datenart, ob frei, ableitbar, selbst aufgezeichnet oder wirklich nur bezahlt erhältlich ist. */
+Object.assign(HOSTS, {
+  'stream.binance.com': ['Binance Live-Strom', 'Handels-Strom Spot/Perp (Eigenaufnahme)'], 'stream.bybit.com': ['Bybit Live-Strom', 'Handels-Strom Spot/Perp (Eigenaufnahme)'],
+  'ws-feed.exchange.coinbase.com': ['Coinbase Live-Strom', 'Handels-Strom Spot (Eigenaufnahme)'], 'api.hyperliquid.xyz': ['Hyperliquid Live-Strom', 'Handels-Strom Perp (Eigenaufnahme)'],
+  'bitcoin-data.com': ['BGeometrics', 'On-Chain: Kostenbasis STH, SOPR, NUPL'],
+});
+const XREC = ['BTC', 'ETH', 'SOL'], XMIN_LV = 54;
+const XNM = { 'bn:s': 'Binance Spot', 'bn:p': 'Binance Perp', 'by:s': 'Bybit Spot', 'by:p': 'Bybit Perp', 'cb:s': 'Coinbase Spot', 'hl:p': 'Hyperliquid Perp' };
+const XCOL = () => ({ 'bn:s': C.acc, 'bn:p': C.warn, 'by:s': C.mute, 'by:p': C.faint, 'cb:s': C.up, 'hl:p': C.dn });
+const hubRec = async sym => {
+  if (!XREC.includes(sym)) throw new Error('Der Recorder nimmt nur ' + XREC.join(', ') + ' auf (gewählt: ' + sym + ')');
+  const k = window.__HK ? '&k=' + encodeURIComponent(window.__HK) : '', get = async p => { const r = await fetch(p + k, { credentials: 'same-origin' }); if (r.status === 401) throw new Error('nicht angemeldet'); const j = await r.json().catch(() => ({})); if (!r.ok || j.ok === false) throw new Error(j.err || 'HTTP ' + r.status); return j; };
+  const [q, stat] = await Promise.all([get('/api/rec?sym=' + sym + '&h=1000'), get('/api/rec?status=1')]); return { q, stat };
+};
+HSRC.push(
+  { id: 'xflow', n: 'Börsen im Vergleich (Eigenaufnahme)', grp: 'Orderflow', ttl: 300e3, sym: true, kind: 'Server · Eigenaufnahme', server: true, hosts: ['stream.binance.com', 'stream.bybit.com', 'ws-feed.exchange.coinbase.com', 'api.hyperliquid.xyz'],
+    note: 'Dein Server schneidet die öffentlichen Handels-Ströme von Binance, Bybit, Coinbase und Hyperliquid rund um die Uhr mit (BTC, ETH, SOL) und verdichtet sie zu Stunden: wie viel Käufer-/Verkäufer-Volumen je Börse. Das ist genau das, was die bezahlten Anbieter als „CVD je Börse“ verkaufen – die Historie entsteht ab dem Start der Aufnahme.',
+    count: d => Object.values(d.q.series).reduce((n, x) => n + x.hours, 0), get: () => hubRec(ST.sym) },
+  { id: 'bg', n: 'On-Chain: Kostenbasis kurzfristiger Halter, SOPR, NUPL', grp: 'On-Chain', ttl: 8 * 3600e3, kind: 'Server · frei, stark begrenzt', server: true, hosts: ['bitcoin-data.com'],
+    note: 'BGeometrics (bitcoin-data.com), kostenloser Zugang ohne Anmeldung: 8 Abrufe pro Stunde, 15 pro Tag, 4 Jahre täglich. Deshalb holt nur der Server alle 8 Stunden, mit Zwischenspeicher auf der Platte. Nutzungsbedingungen für gewerbliche Nutzung ungeklärt → nur privat. Antwortformat bisher nicht gegen die echte Schnittstelle geprüft: stimmt es nicht, steht der Fehler hier.',
+    count: d => Object.values(d.series || {}).reduce((n, x) => n + (x.pts ? x.pts.length : 0), 0),
+    async get() { const j = await hubSrv('bg'); if (!Object.values(j.series || {}).some(x => x.pts)) throw new Error(Object.values(j.series || {}).map(x => x.err).filter(Boolean)[0] || 'keine Daten'); return j; } },
+);
+Object.assign(HEVMAP, { xflow: ['cbprem', 'cbimb', 'allimb', 'hlimb'], bg: ['sthgap', 'sopr'] });
+
+/* ----- Ableitung ----- */
+function xSer(q, key) {   // volle, lückenlos aufgenommene Stunden; die laufende Stunde zählt nie mit
+  const s = q.series[key], out = []; if (!s) return out;
+  for (let i = 0; i < q.hours - 1; i++) { const ok = s.lv[i] >= XMIN_LV && s.bu[i] != null; out.push({ t: q.t0 + i * q.step, ok, bu: ok ? s.bu[i] : 0, se: ok ? s.se[i] : 0, c: ok ? s.c[i] : null }); }
+  return out;
+}
+function xImb(a, i, w) {   // Ungleichgewicht (Käufer − Verkäufer) / Summe über w Stunden, nur wenn alle Stunden vollständig
+  if (i < w - 1) return null; let bu = 0, se = 0; for (let k = i - w + 1; k <= i; k++) { if (!a[k] || !a[k].ok) return null; bu += a[k].bu; se += a[k].se; } return bu + se > 0 ? { imb: (bu - se) / (bu + se), net: bu - se, vol: bu + se } : null;
+}
+const xDir = v => v == null ? 0 : v > 0.05 ? 1 : v < -0.05 ? -1 : 0;     // reine Anzeige-Einstufung, keine Handelsregel
+function xDerive() {
+  const S = HUB.s, xd = S.xflow && S.xflow.d, f = HUB.f; HUB.x = null;
+  if (xd && xd.q && xd.q.series) {
+    const q = xd.q, keys = Object.keys(q.series), A = {}; for (const k of keys) A[k] = xSer(q, k);
+    const n = q.hours - 1, li = n - 1, W = HEV_W, X = { imb: {}, net: {}, vol: {}, ok: {}, hrs: {}, series: {} };
+    for (const k of keys) { X.hrs[k] = A[k].filter(x => x.ok).length; const r = xImb(A[k], li, W); X.ok[k] = !!r; if (r) { X.imb[k] = r.imb; X.net[k] = r.net; X.vol[k] = r.vol; }
+      const pts = []; for (let i = W - 1; i < n; i++) { const r2 = xImb(A[k], i, W); if (r2) pts.push([A[k][i].t, r2.imb]); } X.series[k] = pts; }
+    // Coinbase-Aufschlag (USD gegen USDT: enthält auch die kleine Abweichung zwischen USD und USDT)
+    const prem = []; for (let i = 0; i < n; i++) { const a = A['cb:s'] && A['cb:s'][i], b = A['bn:s'] && A['bn:s'][i]; if (a && b && a.c && b.c) prem.push([a.t, (a.c / b.c - 1) * 1e4]); } X.prem = prem;
+    if (prem.length) { f.cbPrem = prem[prem.length - 1][1]; if (prem.length >= 72) { const v = prem.map(p => p[1]); f.cbPremZ = (f.cbPrem - mean(v)) / hStd(v); } }
+    // Gesamtbild: Volumen-gewichtetes Ungleichgewicht und Abweichler
+    const have = keys.filter(k => X.ok[k]); if (have.length) {
+      const tot = have.reduce((s, k) => s + X.vol[k], 0), net = have.reduce((s, k) => s + X.net[k], 0); f.allImb = net / tot; f.xdir = xDir(f.allImb);
+      const buy = have.filter(k => xDir(X.imb[k]) > 0).map(k => XNM[k]), sell = have.filter(k => xDir(X.imb[k]) < 0).map(k => XNM[k]);
+      f.xtxt = (buy.length ? 'Käufer: ' + buy.join(', ') : '') + (buy.length && sell.length ? ' · ' : '') + (sell.length ? 'Verkäufer: ' + sell.join(', ') : '') || 'ausgeglichen';
+      f.xdiv = have.filter(k => f.xdir && xDir(X.imb[k]) === -f.xdir).map(k => XNM[k]);
+      if (X.ok['cb:s']) f.cbImb = X.imb['cb:s']; if (X.ok['hl:p']) f.hlImb = X.imb['hl:p'];
+    }
+    f.xHours = Math.max(0, ...keys.map(k => X.hrs[k])); HUB.x = X;
+    // Evidenz: Merkmal zum Stundenende gegen die Rendite der nächsten 4 h (nicht überlappend), Preis = Binance Spot
+    const ref = A['bn:s'] || [], Xs = { cbprem: [], cbimb: [], allimb: [], hlimb: [] };
+    for (let i = W; i + HEV_H < n; i += HEV_H) {
+      const p0 = ref[i] && ref[i].ok ? ref[i].c : null, p1 = ref[i + HEV_H] && ref[i + HEV_H].ok ? ref[i + HEV_H].c : null; if (!p0 || !p1) continue; const y = Math.log(p1 / p0);
+      const a = A['cb:s'] && A['cb:s'][i], b = A['bn:s'][i]; if (a && a.ok && a.c && b.c) Xs.cbprem.push([(a.c / b.c - 1) * 1e4, y]);
+      const c1 = xImb(A['cb:s'] || [], i, W); if (c1) Xs.cbimb.push([c1.imb, y]); const h1 = xImb(A['hl:p'] || [], i, W); if (h1) Xs.hlimb.push([h1.imb, y]);
+      let net = 0, vol = 0, cnt = 0; for (const k of keys) { const r = xImb(A[k], i, W); if (r) { net += r.net; vol += r.vol; cnt++; } } if (cnt >= 4 && vol > 0) Xs.allimb.push([net / vol, y]);
+    }
+    const add = (id, nm, k) => HUB.ev.push(hEv(id, nm, Xs[k].map(p => p[0]), Xs[k].map(p => p[1]), HEV_H + ' h', HEV_NT));
+    add('cbprem', 'Coinbase-Aufschlag', 'cbprem'); add('cbimb', 'Coinbase-Ungleichgewicht (12 h)', 'cbimb'); add('allimb', 'Alle Börsen: Ungleichgewicht (12 h)', 'allimb'); add('hlimb', 'Hyperliquid-Ungleichgewicht (12 h)', 'hlimb');
+  }
+  /* Kostenbasis / SOPR / NUPL (täglich), gegen BTC-Rendite der nächsten 7 Tage */
+  const bg = S.bg && S.bg.d, ch = S.chain && S.chain.d; if (bg && bg.series) {
+    const g = k => bg.series[k] && bg.series[k].pts, last = a => a && a.length ? a[a.length - 1][1] : null;
+    f.sthRp = last(g('sthrp')); f.sopr = last(g('sopr')); f.nupl = last(g('nupl')); f.sthMvrv = last(g('sthmvrv'));
+    const lp = ch && ch.length ? ch[ch.length - 1].p : null; if (f.sthRp && lp) f.vsSth = (lp / f.sthRp - 1) * 100;
+    if (ch && ch.length > 100) {
+      const px = new Map(ch.map(x => [Math.floor(x.t / 864e5), x.p])), seq = (arr, hz, fn) => { const xs = [], ys = []; for (let i = 0; i < arr.length; i += hz) { const k = Math.floor(arr[i][0] / 864e5), p0 = px.get(k), p1 = px.get(k + hz); if (p0 == null || p1 == null) continue; const x = fn(arr[i], k, p0); if (x == null || !isFinite(x)) continue; xs.push(x); ys.push(Math.log(p1 / p0)); } return [xs, ys]; };
+      const rp = g('sthrp'), so = g('sopr');
+      if (rp && rp.length > 100) { const [x, y] = seq(rp, 7, (r, k, p0) => (p0 / r[1] - 1) * 100); HUB.ev.push(hEv('sthgap', 'Preis gegen Kostenbasis STH', x, y, '7 d', HEV_NT)); }
+      if (so && so.length > 100) { const [x, y] = seq(so, 7, r => r[1]); HUB.ev.push(hEv('sopr', 'SOPR (Stand)', x, y, '7 d', HEV_NT)); }
+    }
+  }
+}
+{ const _hd = hubDerive; hubDerive = function () { _hd(); try { xDerive(); } catch (e) { console.error(e); } }; }
+
+/* ----- Ansichten ----- */
+function pXflow() {
+  const xd = HUB.s.xflow && HUB.s.xflow.d, X = HUB.x, f = HUB.f, ttl = 'Börsen im Vergleich · ' + ST.sym, ev = ['cbprem', 'cbimb', 'allimb', 'hlimb'];
+  if (!xd) return hPanel('xflow', ttl, ['xflow'], ev, hNeed('xflow'), HSRC.find(s => s.id === 'xflow').note);
+  const stt = xd.stat, ks = Object.keys(xd.q.series), col = XCOL(), since = stt && stt.started ? ago(stt.started) : '–', hrs = f.xHours || 0;
+  const rows = ks.map(k => { const s = xd.q.series[k], live = stt && stt.streams && stt.streams[k] && stt.streams[k].open; return '<tr><td>' + dot(live ? 'ok' : 'bad') + ' ' + E(XNM[k] || k) + '</td><td>' + (X && X.ok[k] ? pn(X.imb[k] * 100, 0) + ' %' : '–') + '</td><td>' + (X && X.ok[k] ? fusd(X.net[k]) : '–') + '</td><td>' + (X && X.ok[k] ? fusd(X.vol[k]) : '–') + '</td><td>' + (X ? X.hrs[k] : 0) + ' h</td></tr>'; }).join('');
+  let body = '';
+  if (hrs < 6) body += '<div class="best"><b class="warn">Aufnahme sammelt noch</b><div class="mut sm">Der Recorder läuft seit ' + E(since) + '. Erst nach einigen vollen Stunden gibt es Verläufe; für eine belastbare Prüfung braucht es Wochen. Es wird nichts nachgerechnet oder geschätzt.</div></div>';
+  else {
+    const lines = ks.filter(k => X && X.series[k] && X.series[k].length > 1).map(k => ({ n: XNM[k], pts: X.series[k].slice(-336), col: col[k] }));
+    body += ncHTML('h_ximb', 190, specMulti({ lines, base: 0, fmt: v => nf(v * 100, 0) + ' %' }));
+    if (X.prem.length > 2) body += '<div class="h4">Coinbase-Aufschlag gegen Binance Spot (Basispunkte)</div>' + ncHTML('h_xprem', 110, specMulti({ lines: [{ n: 'Aufschlag (bp)', pts: X.prem.slice(-336), col: C.up }], base: 0, fmt: v => nf(v, 1) }));
+  }
+  body += '<div class="best"><b>' + E(f.xtxt || '–') + '</b><div class="mut sm">Letzte 12 h, Ungleichgewicht = (Taker-Käufe − Taker-Verkäufe) / Summe. ' + (f.cbPrem != null ? 'Coinbase-Aufschlag jetzt ' + nf(f.cbPrem, 1) + ' bp' + (f.cbPremZ != null ? ' (' + (f.cbPremZ > 1 ? 'hoch' : f.cbPremZ < -1 ? 'niedrig' : 'normal') + ' im eigenen Verlauf)' : '') + '. ' : '') + (f.xdiv && f.xdiv.length ? 'Gegen die Mehrheit: ' + E(f.xdiv.join(', ')) + '.' : '') + '</div></div>' +
+    '<div class="tw"><table class="tbl"><tr><th>Börse</th><th>Ungleichgew. 12 h</th><th>Netto</th><th>Volumen</th><th>Aufgenommen</th></tr>' + rows + '</table></div>' + hEvLine(ev);
+  return hPanel('xflow', ttl, ['xflow'], ev, body, 'Eigenaufnahme der öffentlichen Handels-Ströme seit ' + E(since) + ' (' + hrs + ' volle Stunden je Börse im besten Fall). Seite = Aggressor (Taker). Coinbase: USD gegen USDT, enthält die kleine USD/USDT-Abweichung. Hyperliquid-Seitenangabe laut Doku, noch nicht gegengeprüft.');
+}
+function pSth() {
+  const bg = HUB.s.bg && HUB.s.bg.d, f = HUB.f, ch = HUB.s.chain && HUB.s.chain.d, ev = ['sthgap', 'sopr']; if (!bg) return hPanel('bg', 'Kostenbasis & Gewinnlage (On-Chain)', ['bg'], ev, hNeed('bg'), HSRC.find(s => s.id === 'bg').note);
+  const g = k => bg.series[k] && bg.series[k].pts, rp = g('sthrp'), so = g('sopr'), nu = g('nupl'), one = (k, nm) => g(k) ? '' : '<div class="mut sm">' + nm + ': ' + E(bg.series[k] && bg.series[k].err || 'keine Daten') + '</div>';
+  let body = '';
+  if (rp) body += '<div class="h4">Preis und Kostenbasis der kurzfristigen Halter (STH Realized Price)</div>' + ncHTML('h_sth', 150, specMulti({ lines: [...(ch ? [{ n: 'Preis', pts: ch.slice(-400).map(x => [x.t, x.p]), col: C.fg }] : []), { n: 'STH-Kostenbasis', pts: rp.slice(-400), col: C.warn }], fmt: v => fusd(v) })); else body += one('sthrp', 'STH-Kostenbasis');
+  if (so) body += '<div class="h4">SOPR (über 1 = Coins werden im Gewinn bewegt)</div>' + ncHTML('h_sopr', 100, specMulti({ lines: [{ n: 'SOPR', pts: so.slice(-400), col: C.acc }], base: 1, fmt: v => nf(v, 3) })); else body += one('sopr', 'SOPR');
+  if (nu) body += '<div class="h4">NUPL (Anteil nicht realisierter Gewinn)</div>' + ncHTML('h_nupl', 100, specMulti({ lines: [{ n: 'NUPL', pts: nu.slice(-400), col: C.up }], base: 0, fmt: v => nf(v, 2) })); else body += one('nupl', 'NUPL');
+  body += '<div class="two">' + (f.sthRp != null ? kv('STH-Kostenbasis', fusd(f.sthRp)) : '') + (f.vsSth != null ? kv('Preis gegen Kostenbasis', pn(f.vsSth, 1) + ' %', cl(f.vsSth)) : '') + (f.sopr != null ? kv('SOPR', nf(f.sopr, 3)) : '') + (f.nupl != null ? kv('NUPL', nf(f.nupl, 2)) : '') + '</div>' + hEvLine(ev);
+  return hPanel('bg', 'Kostenbasis & Gewinnlage (On-Chain)', ['bg'], ev, body, 'BGeometrics, täglich, bis zu 4 Jahre. Preis aus Coin Metrics (Tagesschluss), daher kleine Zeitversätze möglich.');
+}
+HPAN.push(['xflow', pXflow, ['cbprem', 'cbimb', 'allimb', 'hlimb']], ['bg', pSth, ['sthgap', 'sopr']]);
+
+/* ----- Beschaffungsplan: was ist frei, ableitbar, selbst aufzeichenbar, wirklich nur bezahlt? ----- */
+const HPLAN = [
+  ['Taker-Fluss Binance Spot/Perp (CVD), Basis', 'frei', 'gebaut', 'Kerzen mit Taker-Anteil, 1000 h Verlauf, direkt aus dem Browser.'],
+  ['Händlerverhalten (Longs/Shorts eröffnet, geschlossen)', 'ableitbar', 'gebaut', 'Aus Open Interest × Preis je Stunde. Was Tape Delta „Behavior“ nennt, ist dieselbe Rechnung.'],
+  ['Long/Short-Verhältnis, Top-Trader', 'frei', 'gebaut', 'Binance-Schnittstelle, stündlich, ca. 30 Tage Verlauf.'],
+  ['CVD je Börse (Coinbase, Bybit, Hyperliquid), Coinbase-Aufschlag', 'selbst aufgezeichnet', 'gebaut', 'Server-Recorder: öffentliche Ströme, 24/7. Historie entsteht ab Start; rückwärts gibt es sie gratis nur für Binance (Bulk-Dateien, noch nicht eingebaut).'],
+  ['Stablecoin-Umlauf, Fear & Greed, Makro (FRED), CNN', 'frei', 'gebaut', 'Makro/CNN über den Server (Browser darf nicht direkt).'],
+  ['Gesamt-MVRV und Realized Price', 'frei', 'gebaut', 'Coin Metrics Community.'],
+  ['Kostenbasis kurzfristiger Halter (STH), SOPR, NUPL', 'frei, begrenzt', 'gebaut, ungeprüft', 'BGeometrics: 15 Abrufe/Tag. Server holt alle 8 h und merkt es sich auf der Platte. Format erst auf dem echten Server verifizierbar.'],
+  ['Echte Liquidationen (Strom)', 'frei, selbst aufgezeichnet', 'geplant', 'Binance/Bybit senden jede Zwangsliquidation öffentlich. Aufnahme wie beim Handelsstrom; daraus echte Liquidations-Balken statt Schätzung.'],
+  ['Liquidations-Heatmap (Preisniveaus)', 'Modell', 'geplant', 'Auch bei CoinGlass ein Modell aus OI und Hebel-Annahmen, kein Messwert. Würde als Modell gekennzeichnet gebaut; Annahmen sichtbar.'],
+  ['Jahre an Historie für Fluss-Daten', 'frei', 'geplant', 'data.binance.vision (Bulk-Dateien) für Binance; Prüfung bekäme Jahre statt Wochen.'],
+  ['Börsen-Zu-/Abflüsse, Wallet-Zuordnung (CryptoQuant, Glassnode)', 'bezahlt', 'nicht möglich', 'Beruht auf Adress-Zuordnung (Labels), die die Anbieter über Jahre aufgebaut haben. Selbstbau = eigener Bitcoin-Node + Labeling, Wochen Arbeit, hunderte GB. Lohnt nicht.'],
+  ['Miner-Flüsse, Fonds-/ETF-Flüsse, Goldman/EPFR', 'bezahlt', 'nicht möglich', 'Bezahlte Forschungs- bzw. Verzeichnis-Daten. Nur über Scraping fragiler Seiten, das deren Bedingungen verbietet.'],
+];
+function hubPlan(compact) {
+  const cls = c => c === 'gebaut' ? 'up' : /geplant|ungeprüft/.test(c) ? 'warn' : 'dn', rows = HPLAN.filter(r => !compact || !/^gebaut$/.test(r[2]));
+  const li = rows.map(r => '<div class="li"><div class="r1"><b>' + E(r[0]) + '</b><span class="sp"></span>' + chip2(r[2], cls(r[2]) === 'up' ? 'up' : cls(r[2]) === 'warn' ? 'warn' : 'dn') + chip2(r[1], '') + '</div><div class="mut sm">' + E(r[3]) + '</div></div>').join('');
+  return card(compact ? 'Noch nicht angebunden (ehrlich)' : 'Beschaffungsplan: frei, ableitbar, selbst aufgezeichnet oder wirklich nur bezahlt', li + (compact ? '<p class="mut sm">Vollständige Liste: Source Registry.</p>' : '<p class="mut sm">„Selbst aufgezeichnet“ heißt: es gibt keinen Verlauf zum Nachladen, deshalb schneidet der Server ab Start mit. Je länger er läuft, desto belastbarer wird die Prüfung. Premium-Anbieter haben genau diesen Vorsprung (Archiv + Adress-Zuordnung), nicht bessere Rohdaten.</p>'));
+}
 
 'use strict';
 /* ===== Pro-Oberfläche (umschaltbar gegen „Klassisch“) =====

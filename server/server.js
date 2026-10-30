@@ -2,6 +2,7 @@
 /* Tape-Server: schützt die App (Login), lässt die Engine rund um die Uhr in einem Headless-Browser laufen,
    gibt die Steuerung beim Öffnen ans Handy und zurück, sendet Alarme, sichert den Stand.
    Nur Papier-Handel gegen echte Live-Preise. Keine Börsen-Schlüssel, kein echter Handel. */
+const REC = require('./rec.js');
 const http = require('http'), fs = require('fs'), path = require('path'), crypto = require('crypto'), zlib = require('zlib');
 let chromium; try { ({ chromium } = require('playwright-core')); } catch (e) { ({ chromium } = require('playwright')); }
 
@@ -165,12 +166,31 @@ async function hubBuild(id) {
     const h = j.fear_and_greed_historical && j.fear_and_greed_historical.data; if (!Array.isArray(h) || h.length < 5) throw new Error('Format weicht ab');
     return { now: j.fear_and_greed ? { score: +j.fear_and_greed.score, rating: j.fear_and_greed.rating } : null, pts: h.slice(-400).map(x => [+x.x, +x.y]), src: 'CNN (inoffiziell)' };
   }
+  if (id === 'bg') {   // BGeometrics frei: 8/h, 15/Tag → nacheinander, 4 Abrufe je 8 h; Format tolerant gelesen (ungeprüft gegen die echte Schnittstelle)
+    const o = {};
+    for (const [k, ep] of Object.entries(BG)) { try { const pts = bgPts(JSON.parse(await hubText(FAKE ? FAKE + '/bg?ep=' + ep : 'https://bitcoin-data.com/v1/' + ep, { accept: 'application/json' }))); if (pts.length < 30) throw new Error('Format weicht ab oder keine Daten'); o[k] = { pts, src: 'BGeometrics ' + ep }; } catch (e) { o[k] = { err: String(e.message || e) }; } }
+    if (!Object.values(o).some(x => x.pts)) throw new Error(Object.values(o).map(x => x.err)[0] || 'keine Daten');
+    return { series: o };
+  }
   throw new Error('unbekannt');
 }
+const BG = { sthrp: 'sth-realized-price', sopr: 'sopr', nupl: 'nupl', sthmvrv: 'sth-mvrv' };
+function bgPts(j) {
+  const a = Array.isArray(j) ? j : (j && (j.data || j.result)) || []; const out = [];
+  for (const r of a) { if (!r || typeof r !== 'object') continue; const ts = r.unixTs != null ? +r.unixTs : null, t = ts ? (ts > 1e12 ? ts : ts * 1000) : Date.parse(r.d || r.theDay || r.date || r.time); const vk = Object.keys(r).find(k => !/^(d|theDay|date|time|unixTs|ts|timestamp)$/i.test(k) && r[k] !== null && r[k] !== '' && isFinite(+r[k])); const v = vk ? +r[vk] : NaN; if (isFinite(t) && isFinite(v)) out.push([t, v]); }
+  return out.sort((x, y) => x[0] - y[0]).slice(-1500);
+}
+const HUBTTL = { bg: 8 * 3600e3 }, HUBDISK = ['bg'];
+for (const id of HUBDISK) { try { HUBC.set(id, JSON.parse(fs.readFileSync(path.join(DATA, 'hub-' + id + '.json'), 'utf8'))); } catch (e) { /* noch nichts */ } }
+const hubBusy = new Map();
 async function hubGet(id) {
-  const c = HUBC.get(id), now = Date.now(); if (c && now - c.t < 30 * 60e3) return Object.assign({}, c.v, { cached: true });
-  try { const v = await hubBuild(id); HUBC.set(id, { t: now, v }); return v; }
-  catch (e) { if (c && now - c.t < 864e5) return Object.assign({}, c.v, { stale: true, err: String(e.message || e) }); throw e; }
+  const c = HUBC.get(id), now = Date.now(); if (c && now - c.t < (HUBTTL[id] || 30 * 60e3)) return Object.assign({}, c.v, { cached: true });
+  if (c && c.failAt && now - c.failAt < 30 * 60e3) return Object.assign({}, c.v, { stale: true, err: c.err });    // nach Fehler nicht sofort wieder (Abruf-Grenzen)
+  const fl = HUBC.get(id + ':fail'); if (!c && fl && now - fl.t < 30 * 60e3) throw new Error(fl.err + ' (nächster Versuch ' + Math.ceil((30 * 60e3 - (now - fl.t)) / 60e3) + ' min)');
+  if (hubBusy.has(id)) return hubBusy.get(id);
+  const job = (async () => { try { const v = await hubBuild(id); const e = { t: now, v }; HUBC.set(id, e); if (HUBDISK.includes(id)) fs.promises.writeFile(path.join(DATA, 'hub-' + id + '.json'), JSON.stringify(e)).catch(() => {}); return v; }
+    catch (x) { if (c) { c.failAt = now; c.err = String(x.message || x); } if (c && now - c.t < 3 * 864e5) return Object.assign({}, c.v, { stale: true, err: String(x.message || x) }); if (!c) HUBC.set(id + ':fail', { t: now, err: String(x.message || x) }); throw x; } finally { hubBusy.delete(id); } })();
+  hubBusy.set(id, job); return job;
 }
 function readBody(req, max) { return new Promise((res, rej) => { const c = []; let n = 0; req.on('data', d => { n += d.length; if (n > max) { rej(new Error('zu groß')); req.destroy(); } else c.push(d); }); req.on('end', () => res(Buffer.concat(c))); req.on('error', rej); }); }
 const send = (res, code, body, type, extra) => { res.writeHead(code, Object.assign({ 'content-type': type || 'text/plain; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'x-frame-options': 'DENY' }, extra || {})); res.end(body); };
@@ -184,8 +204,14 @@ const server = http.createServer(async (req, res) => {
     if (p === '/healthz') return send(res, 200, 'ok');
     if ((p === '/engine' || p === '/boot') && eq(url.searchParams.get('k') || '', EKEY)) return send(res, 200, p === '/engine' ? appHtml('__ENGINE', 'window.__HK=' + JSON.stringify(EKEY)) : '<!doctype html><title>boot</title>', 'text/html; charset=utf-8');
     if (p === '/api/hub' && (authed(req) || eq(url.searchParams.get('k') || '', EKEY))) {
-      const id = url.searchParams.get('id') || ''; if (!['macro', 'cnn'].includes(id)) return json(res, 404, { err: 'unbekannt' });
+      const id = url.searchParams.get('id') || ''; if (!['macro', 'cnn', 'bg'].includes(id)) return json(res, 404, { err: 'unbekannt' });
       try { return json(res, 200, Object.assign({ ok: true, id, at: Date.now() }, await hubGet(id))); } catch (e) { return json(res, 502, { ok: false, err: String(e.message || e) }); }
+    }
+    if (p === '/api/rec' && (authed(req) || eq(url.searchParams.get('k') || '', EKEY))) {
+      if (!recorder) return json(res, 503, { ok: false, err: 'Recorder aus' });
+      if (url.searchParams.get('status')) return json(res, 200, Object.assign({ ok: true }, recorder.status()));
+      const sym = (url.searchParams.get('sym') || 'BTC').toUpperCase(); if (!recorder.SYMS.includes(sym)) return json(res, 404, { err: 'unbekanntes Symbol' });
+      return json(res, 200, Object.assign({ ok: true }, recorder.query(sym, +url.searchParams.get('h') || 720)));
     }
     if (p === '/login') {
       if (req.method === 'POST') {
@@ -223,15 +249,16 @@ const server = http.createServer(async (req, res) => {
     }
     if (p === '/api/status') {
       return json(res, 200, { version: VERSION, uptime: Math.round(process.uptime()), owner: S.owner, haveState: !!S.nx, stateAt: S.at, stateBy: S.by, beatAgo: S.owner === 'phone' ? Date.now() - S.beat : null,
-        engine: { up: E.up, since: E.since, restarts: E.restarts, health: E.health }, notify: { ntfy: !!NT.topic, telegram: !!(NT.tg && NT.chat), healthcheck: !!ENV.HC_URL }, backups: fs.readdirSync(path.join(DATA, 'backups')).length, log: logs.slice(-30) });
+        engine: { up: E.up, since: E.since, restarts: E.restarts, health: E.health }, rec: recorder ? recorder.status() : null, notify: { ntfy: !!NT.topic, telegram: !!(NT.tg && NT.chat), healthcheck: !!ENV.HC_URL }, backups: fs.readdirSync(path.join(DATA, 'backups')).length, log: logs.slice(-30) });
     }
     if (p === '/api/export') { if (S.owner === 'server') await lock(engineGrab); return send(res, 200, JSON.stringify({ app: 'server', at: new Date().toISOString(), state: S.nx }, null, 1), 'application/json', { 'content-disposition': 'attachment; filename="nexus-server-' + new Date().toISOString().slice(0, 10) + '.json"' }); }
     return send(res, 404, 'nicht gefunden');
   } catch (e) { log('Fehler', req.url, e.message); try { send(res, 500, 'Fehler'); } catch (x) { /* weg */ } }
 });
 server.headersTimeout = 20e3; server.requestTimeout = 60e3;
+let recorder = null; if (ENV.REC !== '0') { try { recorder = REC.start(DATA, log); } catch (e) { log('Recorder-Start fehlgeschlagen:', e.message); } }
 server.listen(PORT, ENV.BIND || '0.0.0.0', () => { log('Server auf Port', PORT); if (S.nx) lock(() => engineStart('Start')); });
 
-async function bye() { log('Beende …'); try { await lock(async () => { if (S.owner === 'server') await engineGrab(); await saveState(); await engineKillAll(); }); } catch (e) { /* egal */ } process.exit(0); }
+async function bye() { log('Beende …'); try { await lock(async () => { if (S.owner === 'server') await engineGrab(); await saveState(); await engineKillAll(); }); } catch (e) { /* egal */ } try { if (recorder) recorder.stop(); } catch (e) { /* egal */ } process.exit(0); }
 process.on('SIGTERM', bye); process.on('SIGINT', bye);
 process.on('uncaughtException', e => log('uncaught', e.stack || e)); process.on('unhandledRejection', e => log('unhandled', e && e.stack || e));
